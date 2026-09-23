@@ -5,6 +5,20 @@
 **Lifecycle:** v0.1 Development / production not approved  
 **Governing standard:** Standard — Repository Feature Tracking and Changelog Governance v1.0, effective September 22, 2026.
 
+## 2026-09-22 — Platform Contract 0.4 declaration migration
+
+### Changed
+
+- Migrated `goreecloud.platform.yaml` from Platform Contract 0.2 to current Contract 0.4.
+- Corrected canonical repository identity to `GoreeCloud/tasks`.
+- Added explicit GoreeCloud Policy and GoreeCloud Observability evaluations so all nine Integral Platform Systems are represented.
+- Declared current shared Stable Glaze UI 1.6.0 as the required consumer baseline while preserving the repository's actual Glaze UI 1.0.0 implementation as `applicable-migration-required`.
+- Preserved all existing Development blockers and added explicit Policy/Observability acceptance blockers instead of manufacturing conformance.
+
+### Lifecycle boundary
+
+This control-plane migration does not change Tasks runtime behavior or establish Glaze UI 1.6.0 implementation, Platform-System acceptance, Release Candidate, production deployment, or Stable qualification.
+
 ## 2026-09-22 — Repository feature/changelog governance migration
 
 ### Added
