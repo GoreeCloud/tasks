@@ -81,7 +81,7 @@ def main() -> None:
     require("schema_version: '0.4'" in platform or 'schema_version: "0.4"' in platform, "Platform Contract must use schema v0.4")
     require("platform_contract: '0.4'" in platform or 'platform_contract: "0.4"' in platform, "Platform compatibility must use contract v0.4")
     require(
-        re.search(r"^\s*glaze_ui_required:\s*['\"]?1\\.6\\.0['\"]?\s*$", platform, re.MULTILINE) is not None,
+        re.search(r"^\s*glaze_ui_required:\s*['\"]?1\.6\.0['\"]?\s*$", platform, re.MULTILINE) is not None,
         "Platform Contract must record the current central Glaze UI baseline",
     )
     require("glaze-ui==1.6.0" in platform, "Platform compatibility must require the current central Glaze UI baseline")
