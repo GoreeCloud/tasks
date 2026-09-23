@@ -15,6 +15,8 @@
 - Declared current shared Stable Glaze UI 1.6.0 as the required consumer baseline while preserving the repository's actual Glaze UI 1.0.0 implementation as `applicable-migration-required`.
 - Preserved all existing Development blockers and added explicit Policy/Observability acceptance blockers instead of manufacturing conformance.
 - Updated the repository's reusable Platform Contract workflow pin from the former Contract 0.2 validator revision to exact central Contract 0.4 revision `e49b9afdea094c96a36a0457b1603f2fa8e8fa6b`.
+- Reconciled `scripts/validate_glaze_ui_consumer.py`, `docs/PLATFORM_CONFORMANCE.md`, and `docs/glaze-ui.md` so repository-local V1.0 implementation evidence remains intact while current Contract 0.4 / Glaze UI 1.6.0 authority is enforced.
+- Distinguished the published V1.6 artifact-source boundary `a7180679ea851389e0f3004515f9a25f420e716d` from repository Stable lifecycle promotion `081527eff1c5fe5001b6b9598d60439c8fb3c5e3`; the artifact-source tree retains repository `VERSION 1.5.1`, while the later lifecycle promotion records Stable/Official `1.6.0`.
 
 ### Lifecycle boundary
 
