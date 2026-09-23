@@ -14,6 +14,7 @@
 - Added explicit GoreeCloud Policy and GoreeCloud Observability evaluations so all nine Integral Platform Systems are represented.
 - Declared current shared Stable Glaze UI 1.6.0 as the required consumer baseline while preserving the repository's actual Glaze UI 1.0.0 implementation as `applicable-migration-required`.
 - Preserved all existing Development blockers and added explicit Policy/Observability acceptance blockers instead of manufacturing conformance.
+- Updated the repository's reusable Platform Contract workflow pin from the former Contract 0.2 validator revision to exact central Contract 0.4 revision `e49b9afdea094c96a36a0457b1603f2fa8e8fa6b`.
 
 ### Lifecycle boundary
 
