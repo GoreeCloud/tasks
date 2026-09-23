@@ -5,16 +5,18 @@
 - **Target:** GLAZE UI V1.0 (`1.0.0`)
 - **Upstream lifecycle:** Official reset baseline; production acceptance pending
 - **Tasks consumer status:** **Migration in progress**
-- **Canonical repository:** `GoreeCloud/goreecloud-glaze-ui`
+- **Canonical repository:** `GoreeCloud/glaze-ui`
 - **Exact source authority:** `70909bbdccad378fb7281ae1842e2f5beed64c38`
 - **Product identity:** GoreeCloud Tasks / GoreeCloud Waypoint
 - **Scope:** Django-rendered web interface controlled by this repository
+- **Current shared Stable consumer requirement:** GLAZE UI V1.6 / `1.6.0`
+- **Verified Stable lifecycle promotion:** `081527eff1c5fe5001b6b9598d60439c8fb3c5e3`
 
-This record defines the repository-local GLAZE UI V1.0 mapping for GoreeCloud Tasks. It does **not establish production acceptance**, Production Stable status, or V1 consumer conformance. The V1 namespace is official, but upstream production eligibility and downstream application acceptance remain separately gated.
+This record defines the repository-local GLAZE UI V1.0 mapping for GoreeCloud Tasks. It does **not establish production acceptance**, Stable status, or current consumer conformance. Current shared Stable authority is GLAZE UI V1.6 / `1.6.0`; the retained V1.0 mapping is implementation history and remains migration-required until Tasks is deliberately migrated and accepted against the current contract.
 
 ## Authority boundary
 
-The V1 implementation-facing authority is the canonical Glaze repository at the exact source revision above, including `VERSION`, `GLAZE_UI_V1_0.md`, `registry/lifecycle.json`, `css/glaze-v1.0.0.css`, V1 component/System Shell contracts, `acceptance/v1.0-stable.md`, and `scripts/validate_glaze_v1.py`.
+The retained V1.0 implementation-facing authority is the canonical Glaze repository at the exact source revision above, including `VERSION`, `GLAZE_UI_V1_0.md`, `registry/lifecycle.json`, `css/glaze-v1.0.0.css`, V1 component/System Shell contracts, `acceptance/v1.0-stable.md`, and `scripts/validate_glaze_v1.py`.
 
 Tasks does not create a competing design system. `static/css/glaze.css` is a repository-local consumer mapping that mirrors the applicable canonical `glz1` semantic roles while preserving Tasks-specific workflows and composition. The local mapping is intentionally self-contained: no remote font, icon, stylesheet, analytics, tracking, or presentation dependency is introduced.
 
@@ -96,7 +98,9 @@ A green automated rendered gate is application-specific automated evidence only.
 
 ## Platform Contract relationship
 
-`goreecloud.platform.yaml` records the repository-local V1 source migration as `partial` and keeps overall conformance `nonconformant`. The Glaze entry may name version `1.0.0` because this branch implements the repository-local source mapping, but that version field is not a conformance or production-eligibility claim.
+Under Platform Contract 0.4, `goreecloud.platform.yaml` records Glaze UI as `applicable-migration-required`, preserves the actual repository-local implementation version `1.0.0`, declares current required shared baseline `1.6.0`, and keeps overall conformance `nonconformant`. The implemented-version field is not a conformance or production-eligibility claim.
+
+The published `v1.6.0` Glaze release tag points to accepted artifact-source revision `a7180679ea851389e0f3004515f9a25f420e716d`, whose repository `VERSION` remains `1.5.1`. Repository Stable lifecycle promotion occurred later at `081527eff1c5fe5001b6b9598d60439c8fb3c5e3`, where `VERSION`, lifecycle authority, and the platform declaration all identify Stable/Official `1.6.0`. Tasks must not collapse those distinct artifact-publication and lifecycle-promotion boundaries.
 
 Documentation and source presence cannot satisfy unrelated Identity, Wardveil Security, Privacy Shield, Everkeep, Mesh, Manager, recovery, release, deployment, or platform-acceptance gates.
 
@@ -108,7 +112,7 @@ Tasks may advance beyond migration-in-progress only when the applicable current 
 2. normal Tasks CI;
 3. automated rendered browser validation;
 4. application-specific accessibility and visual review where automation is insufficient;
-5. upstream GLAZE UI V1.0 production eligibility when required for consumer promotion;
+5. deliberate migration to the current GLAZE UI V1.6 / `1.6.0` consumer contract and exact-revision Tasks acceptance;
 6. release and deployment approval;
 7. evidence-backed Platform Contract updates.
 
