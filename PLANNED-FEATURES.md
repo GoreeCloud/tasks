@@ -42,6 +42,16 @@ Until corresponding evidence exists, this file does not claim:
 - complete Integral Platform System conformance;
 - Release Candidate, Production Acceptance, or Stable status.
 
+## Legacy Drive roadmap migration ledger — 2026-09-22
+
+The retired Drive roadmap contained three `FR-*` control records. They are accounted for here so the source record can be retired without losing identifier-level traceability. These entries do not create duplicate task authority.
+
+- **FR-001 — Roadmap reconciliation control.** Migrated into this file's interpretation, current obligations, and maintenance rule. The legacy requirement to keep a Drive roadmap synchronized is superseded by the repository-native governance standard.
+- **FR-002 — Tasks Management routing control.** Preserved by the maintenance rule: actionable execution work belongs in GoreeCloud Tasks Management when required, with priority, dependency, and lifecycle state retained there rather than duplicated here.
+- **FR-003 — Evidence and lifecycle control.** The evidence-backed state rule is preserved. The legacy repository/Drive synchronization clause is retired; lifecycle changes are now reconciled among `IMPLEMENTED-FEATURES.md`, `PLANNED-FEATURES.md`, `CHANGELOGS.md`, repository evidence, and Tasks Management as applicable.
+
+This ledger is migration evidence only. It does not represent FR-001 through FR-003 as product features or as newly completed work.
+
 ## Maintenance rule
 
 Move an item to `IMPLEMENTED-FEATURES.md` only after the authoritative implementation and required verification are integrated. Record material lifecycle changes in `CHANGELOGS.md`. Keep actionable execution work in GoreeCloud Tasks Management without creating duplicate task authority.
