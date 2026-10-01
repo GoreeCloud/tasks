@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed source validation for the GoreeCloud Tasks GLAZE UI V1.0 migration under Platform Contract v0.2."""
+"""Fail-closed source validation for the GoreeCloud Tasks GLAZE UI V1.0 implementation under Platform Contract 0.4."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_VERSION = "1.0.0"
-PLATFORM_REQUIRED_VERSION = "1.1.0"
+PLATFORM_REQUIRED_VERSION = "1.6.0"
 GLAZE_SOURCE_REVISION = "70909bbdccad378fb7281ae1842e2f5beed64c38"
 
 
@@ -78,25 +78,27 @@ def main() -> None:
         re.search(r"^\s*version:\s*['\"]?1\.0\.0['\"]?\s*$", platform, re.MULTILINE) is not None,
         "Platform Contract must record the implemented V1 version",
     )
-    require("schema_version: '0.2'" in platform or 'schema_version: "0.2"' in platform, "Platform Contract must use schema v0.2")
-    require("platform_contract: '0.2'" in platform or 'platform_contract: "0.2"' in platform, "Platform compatibility must use contract v0.2")
+    require("schema_version: '0.4'" in platform or 'schema_version: "0.4"' in platform, "Platform Contract must use schema v0.4")
+    require("platform_contract: '0.4'" in platform or 'platform_contract: "0.4"' in platform, "Platform compatibility must use contract v0.4")
     require(
-        re.search(r"^\s*glaze_ui_required:\s*['\"]?1\.1\.0['\"]?\s*$", platform, re.MULTILINE) is not None,
+        re.search(r"^\s*glaze_ui_required:\s*['\"]?1\.6\.0['\"]?\s*$", platform, re.MULTILINE) is not None,
         "Platform Contract must record the current central Glaze UI baseline",
     )
-    require("glaze-ui==1.1.0" in platform, "Platform compatibility must require the current central Glaze UI baseline")
+    require("glaze-ui==1.6.0" in platform, "Platform compatibility must require the current central Glaze UI baseline")
     require("result: applicable-migration-required" in platform, "Platform Contract must keep the implemented V1 consumer in migration-required state")
+    require("\n  policy:\n" in platform, "Platform Contract 0.4 must explicitly evaluate GoreeCloud Policy")
+    require("\n  observability:\n" in platform, "Platform Contract 0.4 must explicitly evaluate GoreeCloud Observability")
     require("status: nonconformant" in platform, "Platform Contract must remain nonconformant")
     require(
-        "Migration and exact-head application acceptance against the current Platform Contract Glaze UI baseline remain incomplete." in platform,
-        "Platform Contract must preserve the current migration and application-acceptance boundary",
+        "Repository-local Glaze UI 1.0.0 remains migration-required against current shared Stable Glaze UI 1.6.0" in platform,
+        "Platform Contract must preserve the current Glaze migration and application-acceptance boundary",
     )
     require(
         "GoreeCloud Tasks currently implements the repository-local GLAZE UI V1.0 (`1.0.0`) migration baseline." in conformance,
         "platform conformance record must distinguish implemented V1 from the current required baseline",
     )
     require(
-        f"current GoreeCloud Platform Contract v0.2 consumer requirement is Glaze UI `{PLATFORM_REQUIRED_VERSION}`" in conformance,
+        f"current GoreeCloud Platform Contract 0.4 consumer requirement is Glaze UI `{PLATFORM_REQUIRED_VERSION}`" in conformance,
         "platform conformance record must identify the current required Glaze UI baseline",
     )
 
