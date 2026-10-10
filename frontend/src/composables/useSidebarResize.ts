@@ -65,6 +65,23 @@ export function useSidebarResize() {
 		return `${currentWidth.value}px`
 	})
 
+	function resizeWithKeyboard(event: KeyboardEvent) {
+		if (isMobile.value) return
+		const increment = event.shiftKey ? 40 : 10
+		const rtl = document.documentElement.dir === 'rtl'
+		let nextWidth: number
+		switch (event.key) {
+			case 'ArrowLeft': nextWidth = currentWidth.value + (rtl ? increment : -increment); break
+			case 'ArrowRight': nextWidth = currentWidth.value + (rtl ? -increment : increment); break
+			case 'Home': nextWidth = MIN_SIDEBAR_WIDTH; break
+			case 'End': nextWidth = MAX_SIDEBAR_WIDTH; break
+			default: return
+		}
+		event.preventDefault()
+		currentWidth.value = clampWidth(nextWidth)
+		void saveWidth()
+	}
+
 	function startResize(event: MouseEvent | TouchEvent) {
 		if (isMobile.value) return
 
@@ -149,6 +166,7 @@ export function useSidebarResize() {
 		currentWidth,
 		isResizing,
 		startResize,
+		resizeWithKeyboard,
 		isMobile,
 		DEFAULT_SIDEBAR_WIDTH,
 	}
