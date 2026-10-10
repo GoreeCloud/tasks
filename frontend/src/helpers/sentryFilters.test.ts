@@ -1,4 +1,5 @@
 import {describe, it, expect} from 'vitest'
+import {GOREECLOUD_TELEMETRY_SAMPLING} from './telemetrySampling'
 
 import {isReportableResourceUrl, redactSensitiveParams, shouldDropEvent, stripNavigationFragment} from './sentryFilters'
 
@@ -347,5 +348,15 @@ describe('isReportableResourceUrl', () => {
 
 	it.each([page, `${page}#`, `${page}#section`])('skips %s, which is the page itself', url => {
 		expect(isReportableResourceUrl(url, `${page}#other`)).toBe(false)
+	})
+})
+
+describe('GoreeCloud diagnostics sampling', () => {
+	it('does not capture session recordings or traces', () => {
+		expect(GOREECLOUD_TELEMETRY_SAMPLING).toEqual({
+			tracesSampleRate: 0,
+			replaysSessionSampleRate: 0,
+			replaysOnErrorSampleRate: 0,
+		})
 	})
 })
