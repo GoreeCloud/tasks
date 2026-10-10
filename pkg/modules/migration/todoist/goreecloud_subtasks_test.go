@@ -77,3 +77,26 @@ func TestGoreeCloudAttachmentDownloadFailureStopsConversion(t *testing.T) {
 	require.Nil(t, result)
 	assert.NotContains(t, err.Error(), server.URL)
 }
+
+func TestGoreeCloudEmptyAttachmentRejected(t *testing.T) {
+	previous := config.OutgoingRequestsAllowNonRoutableIPs.GetBool()
+	config.OutgoingRequestsAllowNonRoutableIPs.Set("true")
+	t.Cleanup(func() { config.OutgoingRequestsAllowNonRoutableIPs.Set(previous) })
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	source := &sync{
+		Projects: []*project{{ID: "p1", Name: "Project"}},
+		Items: []*item{{ID: "task", ProjectID: "p1", Content: "Keep attachment"}},
+		Notes: []*note{{ID: "note", ItemID: "task", FileAttachment: &fileAttachment{
+			FileName: "empty.txt", FileURL: server.URL,
+		}}},
+	}
+	result, err := convertTodoistToVikunja(source, nil)
+	require.ErrorContains(t, err, "empty attachment")
+	require.Nil(t, result)
+	assert.NotContains(t, err.Error(), server.URL)
+}
