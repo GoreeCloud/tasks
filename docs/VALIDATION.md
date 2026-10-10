@@ -72,6 +72,18 @@ Source code at `0ef110ee68fb6db59719b63fff896c9dc4a7bfab` extends the Todoist im
 - **Documented variance:** the proposed catalogue uses Pulse for productivity and reporting; the approved Waypoint identity standard assigns Pulse to reminders and notification signals. The approved meaning remains controlling pending any authorized decision.
 - **Still pending:** actual rendered UI/assistive-technology acceptance, full backend/security/license conformance, 100% post-migration reconciliation, backup/restore, native architectural replacement, Stable qualification and live task authority cutover.
 
+## October 10 — Todoist calendar fidelity and import consent
+
+**Verified code revision:** `000dcb66655a86cbb844cbc18edd3ddc8d44e458`.
+
+- **Backend:** Discontinued the unsafe approximation of calendar months/years as 30/365-day fixed intervals; such Todoist recurring schedules now fail preflight rather than change cadence. Added source note, project-note and reminder identity checks and a note/project consistency check.
+- **Frontend:** Todoist OAuth authorization no longer automatically starts a migration. The import screen requires user acknowledgement of backup and duplicate risks before submitting; repeat imports demand fresh authorization/acknowledgement. A pure consent guard has four focused unit-test cases added to the frontend CI selection.
+- **Exact-code Go import regression result:** [Todoist Import Integrity — PASS](https://github.com/GoreeCloud/tasks/actions/runs/38094172766).
+- **Exact-code Source Safety result:** [Source Safety Baseline — PASS](https://github.com/GoreeCloud/tasks/actions/runs/38094175293).
+- **Frontend Quality:** Pending at the time this entry was authored; assess the final exact-head workflow before claiming passed. The new consent copy is temporarily inline English after connector update of the inherited large translation JSON was blocked; localization remains an open accessibility/UX acceptance task.
+
+These are **pre-import fail-closed improvements**; they do not prove post-insertion data preservation, locale completeness, safe live Todoist migration, full calendar-timezone fidelity, backup/restore or Stable acceptance.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
