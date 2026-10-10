@@ -223,14 +223,13 @@ func (m *Migration) Name() string {
 // @Failure 500 {object} models.Message "Internal server error"
 // @Router /migration/todoist/auth [get]
 func (m *Migration) AuthURL() string {
-	state, err := utils.CryptoRandomString(32)
+	authorizationURL, err := makeTodoistAuthorizationURL(utils.CryptoRandomString)
 	if err != nil {
-		state = "todoist-migration"
+		// Never continue with predictable state after a random-source failure.
+		log.Errorf("[Todoist Migration] Could not create an OAuth authorization URL")
+		return ""
 	}
-	return "https://todoist.com/oauth/authorize" +
-		"?client_id=" + config.MigrationTodoistClientID.GetString() +
-		"&scope=data:read" +
-		"&state=" + state
+	return authorizationURL
 }
 
 func parseDate(dateString string) (date time.Time, err error) {
