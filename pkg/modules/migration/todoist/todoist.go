@@ -162,6 +162,8 @@ type section struct {
 }
 
 type sync struct {
+	FullSync     *bool          `json:"full_sync"`
+	SyncToken    string         `json:"sync_token"`
 	Projects     []*project     `json:"projects"`
 	Items        []*item        `json:"items"`
 	Labels       []*label       `json:"labels"`
@@ -664,6 +666,9 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 	syncResponse := &sync{}
 	err = decodeTodoistResponse(resp, syncResponse, "sync snapshot")
 	if err != nil {
+		return
+	}
+	if err = validateTodoistInitialSnapshot(syncResponse); err != nil {
 		return
 	}
 
