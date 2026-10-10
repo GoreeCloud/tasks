@@ -14,6 +14,11 @@ export const ERROR_NO_API_URL = 'noApiUrlProvided'
 
 function candidateUrls(pUrl: string): string[] {
 	let url = normalizeApiUrl(pUrl)
+	// Explicit non-web schemes are not task-server hosts.
+	if (/^(?:javascript|data|file|blob|mailto):/i.test(url)
+		|| (/^[a-z][a-z\d+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url))) {
+		throw new InvalidApiUrlProvidedError()
+	}
 	if (url === '' || url.startsWith('/')) {
 		url = window.location.host + url
 	}
@@ -26,6 +31,11 @@ function candidateUrls(pUrl: string): string[] {
 	try {
 		urlToCheck = new URL(url)
 	} catch {
+		throw new InvalidApiUrlProvidedError()
+	}
+
+	// Do not probe URLs containing embedded credentials.
+	if (!['http:', 'https:'].includes(urlToCheck.protocol) || urlToCheck.username || urlToCheck.password) {
 		throw new InvalidApiUrlProvidedError()
 	}
 
