@@ -57,7 +57,7 @@ export const checkAndSetApiUrl = (pUrl: string | undefined | null): Promise<stri
 
 	return probe
 		.catch(e => {
-			console.warn(`Could not fetch 'info' from the provided endpoint ${pUrl}.`)
+			console.warn('Could not connect to the configured task server.')
 			window.API_URL = oldUrl
 			throw e
 		})
