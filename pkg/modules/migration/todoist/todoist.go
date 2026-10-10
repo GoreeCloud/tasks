@@ -649,8 +649,8 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 	}
 
 	if token == "" {
-		log.Debugf("[Todoist Migration] Could not get token")
-		return
+		// Empty authorization responses must not be reported as completed imports.
+		return fmt.Errorf("todoist migration: authorization did not yield an access token")
 	}
 
 	log.Debugf("[Todoist Migration] Got user token for user %d", u.ID)
