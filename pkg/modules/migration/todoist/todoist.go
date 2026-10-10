@@ -692,6 +692,9 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 		if err != nil {
 			return
 		}
+		if err = validateTodoistCompletedPage(completedSyncResponse); err != nil {
+			return
+		}
 
 		sort.Slice(completedSyncResponse.Items, func(i, j int) bool {
 			return completedSyncResponse.Items[i].CompletedDate.After(completedSyncResponse.Items[j].CompletedDate)
@@ -729,6 +732,9 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 			doneI := &item{}
 			err = decodeTodoistResponse(resp, doneI, "completed task detail")
 			if err != nil {
+				return
+			}
+			if err = validateTodoistCompletedDetail(i, doneI); err != nil {
 				return
 			}
 			log.Debugf("[Todoist Migration] Retrieved full task data for done task %s", i.TaskID)
@@ -770,6 +776,9 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 		archivedResponse := &paginatedProjects{}
 		err = decodeTodoistResponse(resp, archivedResponse, "archived project listing")
 		if err != nil {
+			return
+		}
+		if err = validateTodoistArchivedPage(archivedResponse); err != nil {
 			return
 		}
 
