@@ -67,14 +67,14 @@ export default async function setupSentry(app: App, router: Router) {
 				if (target.closest('[data-user-content]')) return
 
 				Sentry.captureMessage(
-					`Failed to load image: ${target.src}`,
+					'Failed to load an application image',
 					'warning',
 				)
 			} else if (target instanceof HTMLLinkElement) {
 				if (!isReportableResourceUrl(target.href, document.URL)) return
 
 				Sentry.captureMessage(
-					`Failed to load css: ${target.href}`,
+					'Failed to load an application stylesheet',
 					'warning',
 				)
 			}
