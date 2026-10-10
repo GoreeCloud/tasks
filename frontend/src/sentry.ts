@@ -2,6 +2,7 @@ import type {App} from 'vue'
 import type {Router} from 'vue-router'
 import {isReportableResourceUrl, redactSensitiveParams, shouldDropEvent, stripNavigationFragment} from './helpers/sentryFilters'
 import {VERSION} from './version.json'
+import {GOREECLOUD_TELEMETRY_SAMPLING} from './helpers/telemetrySampling'
 
 export default async function setupSentry(app: App, router: Router) {
 	const Sentry = await import('@sentry/vue')
@@ -13,28 +14,9 @@ export default async function setupSentry(app: App, router: Router) {
 		// Props of login and password forms hold plaintext credentials.
 		attachProps: false,
 
-		// cache offline errors
-		transport: Sentry.makeBrowserOfflineTransport(Sentry.makeFetchTransport),
-		integrations: [
-			Sentry.browserTracingIntegration({ router }),
-			// Without click detection there are no slow/multi click breadcrumbs, and
-			// so no rage click issues — those are impatience, not bugs, and they
-			// drown out actual errors.
-			Sentry.replayIntegration({
-				slowClickTimeout: 0,
-				beforeAddRecordingEvent(event) {
-					if (event.type === 5 && event.data.tag === 'performanceSpan') {
-						event.data.payload = stripNavigationFragment(event.data.payload)
-					}
-					return redactSensitiveParams(event)
-				},
-			}),
-		],
-
-		// Set tracesSampleRate to 1.0 to capture 100%
-		// of transactions for tracing.
-		// We recommend adjusting this value in production
-		tracesSampleRate: 1.0,
+		// Error reporting is opt-in; session recording is disabled.
+		integrations: [Sentry.browserTracingIntegration({router})],
+		...GOREECLOUD_TELEMETRY_SAMPLING,
 
 		// Set `tracePropagationTargets` to control for which URLs trace propagation should be enabled
 		tracePropagationTargets: [
