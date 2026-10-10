@@ -17,7 +17,6 @@
 package todoist
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -617,9 +616,8 @@ func getAccessTokenFromAuthToken(authToken string) (accessToken string, err erro
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		buf := &bytes.Buffer{}
-		_, _ = buf.ReadFrom(resp.Body)
-		return "", fmt.Errorf("could not get todoist access token: %w", migration.NewErrUpstreamRequestFailed("todoist oauth", resp.StatusCode, buf.String()))
+		// OAuth errors may contain authorization details; do not surface the body.
+		return "", fmt.Errorf("could not get todoist access token: %w", migration.NewErrUpstreamRequestFailed("todoist oauth", resp.StatusCode, ""))
 	}
 
 	token := &apiTokenResponse{}
@@ -728,13 +726,10 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 			}
 
 			if resp.StatusCode == http.StatusNotFound {
-				// Done items of deleted projects may show up here but since the project is already deleted
-				// we can't show them individually and the api returns a 404.
-				buf := bytes.Buffer{}
-				_, _ = buf.ReadFrom(resp.Body)
 				resp.Body.Close()
-				log.Debugf("[Todoist Migration] Could not retrieve task details for task %s: %s", i.TaskID, buf.String())
-				continue
+				// A completed task in the source snapshot must not disappear from a
+				// seemingly successful import because its detail lookup failed.
+				return fmt.Errorf("todoist migration: completed task %s could not be retrieved (HTTP 404)", i.TaskID)
 			}
 
 			// The v1 API returns the task directly, not wrapped
