@@ -84,6 +84,18 @@ Source code at `0ef110ee68fb6db59719b63fff896c9dc4a7bfab` extends the Todoist im
 
 These are **pre-import fail-closed improvements**; they do not prove post-insertion data preservation, locale completeness, safe live Todoist migration, full calendar-timezone fidelity, backup/restore or Stable acceptance.
 
+## October 10 — Todoist upstream response and pagination integrity
+
+**Reviewed source revision:** `f6fa9ac4bbcf8550120d4feb2101b2b0c9a2a5de`.
+
+- **Implemented:** A shared Todoist HTTP decoder now refuses non-2xx responses before accepting OAuth, full sync, completed task pages/details and archived project pages/details. Every response body is closed on success and error. Errors identify the stage without copying upstream bodies or URLs.
+- **Implemented:** Completed-task and archived-project pagination use independent cursor sets and stop on a repeated cursor, preventing an unbounded repeated-page loop from appearing successful.
+- **Focused test coverage:** Successful and malformed JSON, 301 redirects, 401 authentication failures, 429 rate limits, 500 errors, missing response, response body closure, sensitive error-body non-disclosure and cursor-repeat detection.
+- **Exact-head Todoist Import Integrity: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38094918071
+- **Exact-head Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38094918075
+- **Frontend Quality:** source has not changed from the previously passing frontend implementation; the exact-head workflow remains to be checked before any complete-checks claim.
+- **Limitations:** Responses may still need source-snapshot completeness, semantic task/comment/attachment fidelity, transactional insert, idempotency, readback reconciliation, CSRF/state binding, authorized test import and rollback evidence. No Todoist live data was accessed or imported.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
