@@ -4,6 +4,9 @@ package todoist
 
 import (
  "testing"
+ "net/http"
+ "net/http/httptest"
+ "code.vikunja.io/api/pkg/config"
  "code.vikunja.io/api/pkg/models"
  "github.com/stretchr/testify/assert"
  "github.com/stretchr/testify/require"
@@ -49,4 +52,28 @@ func TestGoreeCloudNestedSubtaskRelations(t *testing.T) {
  require.Len(t,grandkids,1)
  assert.Equal(t,"Grandchild",grandkids[0].Title)
  assert.Equal(t,"Nested note",grandkids[0].Description)
+}
+
+func TestGoreeCloudAttachmentDownloadFailureStopsConversion(t *testing.T) {
+ previous := config.OutgoingRequestsAllowNonRoutableIPs.GetBool()
+ config.OutgoingRequestsAllowNonRoutableIPs.Set("true")
+ t.Cleanup(func() { config.OutgoingRequestsAllowNonRoutableIPs.Set(previous) })
+
+ server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+  w.WriteHeader(http.StatusNotFound)
+ }))
+ defer server.Close()
+
+ source := &sync{
+  Projects: []*project{{ID: "p1", Name: "Project"}},
+  Items: []*item{{ID: "task", ProjectID: "p1", Content: "Keep attachment"}},
+  Notes: []*note{{
+   ID: "note", ItemID: "task", Content: "Source note",
+   FileAttachment: &fileAttachment{FileName: "required.txt", FileURL: server.URL},
+  }},
+ }
+ result, err := convertTodoistToVikunja(source, nil)
+ require.ErrorContains(t, err, "could not preserve attachment")
+ require.Nil(t, result)
+ assert.NotContains(t, err.Error(), server.URL)
 }
