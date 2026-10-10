@@ -328,7 +328,7 @@ func isDownloadableURL(rawURL string) bool {
 		return false
 	}
 
-	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil
 }
 
 func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVikunjaHierachie []*models.ProjectWithTasksAndBuckets, err error) {
