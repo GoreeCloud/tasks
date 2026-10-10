@@ -39,6 +39,16 @@ Latest reviewed **frontend source revision**: `4c566dffdef344be4a701912f2fb2f350
 - Migration now guards incomplete source graphs, child task metadata, unsupported nested projects, missing recurrence mappings and unsupported project-note attachments. It is **not** a complete dry-run importer, zero-loss migration, or validated task authority.
 - Error diagnostics now disable replay and performance sampling, and minimize captured resource URLs. Backend-wide security, full importer reconciliation, attachments, database and recovery gates remain open.
 
+## Continued October 10 migration integrity checks
+
+At code revision `d51cd8f5a41cdeff34f62d86021ceb23e174bc7d`, the focused [Todoist Import Integrity](https://github.com/GoreeCloud/tasks/actions/runs/38091911889) and [Source Safety](https://github.com/GoreeCloud/tasks/actions/runs/38091911912) workflows passed.
+
+- Nested project parent references preserve multi-level source ancestry, including child-first exports.
+- Preflight rejects missing/cyclic project parents and missing or opaque task-note attachment locations.
+- Bounded, SSRF-safe downloads fail conversion on HTTP errors, missing bytes or oversize files instead of losing attachments silently.
+- The migration screen warns that imports require source/destination reconciliation and are not live sync.
+- **Unverified:** actual persisted multi-level hierarchy, task-note author/comment semantics, reversible/idempotent live importer, full end-to-end database and device testing, exact source→destination reconciliation and Stable acceptance.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
