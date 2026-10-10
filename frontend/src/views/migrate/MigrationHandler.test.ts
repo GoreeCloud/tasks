@@ -8,12 +8,14 @@ import MigrationHandler from './MigrationHandler.vue'
 import {queryClient} from '@/client/queryClient'
 import {error} from '@/message'
 import en from '@/i18n/lang/en.json'
+import {clearTodoistOAuthState, rememberTodoistOAuthState} from './todoistOAuthState'
 
 const sdk = vi.hoisted(() => ({
 	migrationWekanStatus: vi.fn(),
 	migrationPlankaStatus: vi.fn(),
 	migrationTodoistStatus: vi.fn(),
 	migrationTodoistAuth: vi.fn(),
+	migrationTodoistMigrate: vi.fn(),
 }))
 
 vi.mock('@/client/generated', async importOriginal => ({
@@ -39,11 +41,16 @@ describe('MigrationHandler', () => {
 		setActivePinia(createPinia())
 		queryClient.clear()
 		vi.mocked(error).mockClear()
+		sdk.migrationTodoistStatus.mockReset()
+		sdk.migrationTodoistAuth.mockReset()
+		sdk.migrationTodoistMigrate.mockReset()
 	})
 
 	afterEach(() => {
 		wrapper?.unmount()
 		wrapper = undefined
+		clearTodoistOAuthState(sessionStorage)
+		window.history.replaceState({}, '', '/')
 	})
 
 	it('reports a failed status read inline only', async () => {
@@ -87,4 +94,36 @@ describe('MigrationHandler', () => {
 		await flushPromises()
 		expect(wrapper.find(action).attributes('loading')).toBe('false')
 	})
+	it('blocks a Todoist callback with an unexpected OAuth state before showing import consent', async () => {
+		const nonce = '0123456789abcdef0123456789abcdef'
+		expect(rememberTodoistOAuthState('https://todoist.com/oauth/authorize?state=' + nonce, sessionStorage)).toBe(true)
+		window.history.replaceState({}, '', '/migrate/todoist?code=authorized-code&state=unexpected')
+		sdk.migrationTodoistStatus.mockResolvedValue({data: {}})
+		wrapper = mount(MigrationHandler, {
+			props: {service: 'todoist', code: 'authorized-code'},
+			global: {plugins: [i18n, [VueQueryPlugin, {queryClient}]], stubs: {XButton: true}},
+		})
+		await flushPromises()
+		expect(wrapper.text()).toContain('authorization could not be verified')
+		expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+		expect(sdk.migrationTodoistMigrate).not.toHaveBeenCalled()
+		expect(sdk.migrationTodoistAuth).not.toHaveBeenCalled()
+	})
+
+	it('allows review but never auto-imports after a matching OAuth callback', async () => {
+		const nonce = '0123456789abcdef0123456789abcdef'
+		expect(rememberTodoistOAuthState('https://todoist.com/oauth/authorize?state=' + nonce, sessionStorage)).toBe(true)
+		window.history.replaceState({}, '', '/migrate/todoist?code=authorized-code&state=' + nonce)
+		sdk.migrationTodoistStatus.mockResolvedValue({data: {}})
+		wrapper = mount(MigrationHandler, {
+			props: {service: 'todoist', code: 'authorized-code'},
+			global: {plugins: [i18n, [VueQueryPlugin, {queryClient}]], stubs: {XButton: true}},
+		})
+		await flushPromises()
+		expect(wrapper.text()).toContain('Todoist authorization received')
+		expect(wrapper.find('input[type="checkbox"]').exists()).toBe(true)
+		expect(wrapper.find('x-button-stub[disabled="true"]').exists()).toBe(true)
+		expect(sdk.migrationTodoistMigrate).not.toHaveBeenCalled()
+	})
+
 })
