@@ -19,8 +19,11 @@ The inherited Vikunja Todoist OAuth importer **exists in source**. GoreeCloud Ta
 
 - Source-graph preflight validation before creating imported projects or tasks. Missing projects, sections, labels, task parents, notes and reminders, duplicate identifiers, and cyclic task ancestry produce an error rather than a superficially successful partial conversion.
 - A fix retaining subtask identities while their notes and reminders are converted; nested child relationships are covered by Go regressions.
+- Nested Todoist project ancestry is mapped into parent/child destination project references, including child-first source order; missing/cyclic ancestry is rejected. Final persisted database hierarchy still needs readback verification.
+- Task-note attachments now fail closed when the source URL is opaque, missing, credential-bearing, or fails download. Downloads use the configured maximum file size and an SSRF-safe HTTP client. Unsupported project-note attachments remain a blocking error.
+- The Todoist import screen displays a fidelity warning and requires post-import reconciliation rather than suggesting universal success.
 - GitHub Actions `Todoist Import Integrity` for the package tests. Initial successful test evidence: https://github.com/GoreeCloud/tasks/actions/runs/38082667040.
 
-**Not yet covered:** reviewed dry-run previews, stable source-ID-to-destination-ID mapping, repeated import deduplication, project hierarchy parity, unrepresentable recurrence, silent attachment exceptions, verified comment fidelity, destination readback, exact corpus reconciliation, backup/restore, conflict recovery, and rollback. The importer may be exercised only in controlled test environments until these gates pass.
+**Not yet covered:** reviewed dry-run previews, persistent source-ID-to-destination-ID mapping, repeated-import deduplication, persisted project hierarchy/readback parity, advanced/unrepresentable recurrence conversion, complete attachment and comment fidelity, destination readback, exact corpus reconciliation, backup/restore, conflict recovery, and rollback. The importer may be exercised only in controlled test environments until these gates pass.
 
 No import has been run against the owner's live Todoist data and no automatic synchronization, complete fidelity, authority cutover, or Stable acceptance is claimed.
