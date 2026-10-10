@@ -854,6 +854,7 @@
     "retry": "Retry"
   },
   "navigation": {
+    "sidebarResize": "Resize navigation sidebar",
     "overview": "Overview",
     "upcoming": "Upcoming",
     "settings": "Settings",
@@ -866,6 +867,7 @@
     "savedFilters": "Saved filters"
   },
   "misc": {
+    "goreecloudAbout": "About GoreeCloud Tasks",
     "loading": "Loading…",
     "save": "Save",
     "delete": "Delete",
@@ -1669,6 +1671,8 @@
     "14204": "Could not reach a Planka API at the given URL. Check the URL and that Vikunja can reach the instance."
   },
   "about": {
+    "upstreamAttribution": "GoreeCloud Tasks builds on Vikunja. Original author rights and open-source licenses remain in force.",
+    "upstreamSource": "Vikunja source and license",
     "title": "About",
     "version": "Version: {version}",
     "frontendVersion": "Frontend version: {version}",
