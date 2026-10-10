@@ -64,6 +64,9 @@ func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 		{"unsupported recurrence", func(s *sync) {
 			s.Items[0].Due = &dueDate{Date: "2026-10-10", IsRecurring: true, String: "every monday"}
 		}, "unsupported recurring"},
+		{"calendar month cadence", func(s *sync) {
+			s.Items[0].Due = &dueDate{Date: "2026-01-31", IsRecurring: true, String: "monthly"}
+		}, "unsupported recurring"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
