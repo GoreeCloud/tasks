@@ -32,6 +32,10 @@ This document is a crosswalk, **not a second feature catalogue or a declaration 
 
 **Important identity variance:** the *proposed catalogue* groups task progress, productivity, activity and reporting under Waypoint Pulse. The **approved Waypoint Identity standard** assigns Pulse primarily to reminders, notifications, deadlines and attention signals. Continue using the approved definition in product navigation and identity until the governing standard is explicitly revised. Productivity analytics may remain in the functional backlog without silently repurposing the identity.
 
+## Operational priority-model decision boundary
+
+The [currently approved **Priority Levels v0.1**](https://docs.google.com/document/d/1Rmno94uTFzQK4KrpaImT0QcZRgTc5CMC/edit) defines **P0 Critical, P1 Urgent, P2 High, P3 Standard, P4 Low**, consistent with the proposed Tasks catalogue. A separate [**v0.2 replacement candidate**](https://docs.google.com/document/d/1EjJoQdp-ggf1BwaMse_K32lh8dJy-4sy/edit) proposes **P0–P6**, but its candidate status does **not** authorize new numeric meanings, database migrations, UI defaults or imports. The [existing migration issue #70](https://github.com/GoreeCloud/tasks/issues/70) and Todoist qualification task track adoption and safe semantic preservation. Until the candidate is formally adopted with reconciled source/destination mappings and tested rollback, **retain v0.1 P0–P4 semantics** and do not silently reinterpret P3 or P4.
+
 ## Capability families beyond a single Waypoint domain
 
 | Catalogue area | Governing engineering requirement | Scope/verification |
