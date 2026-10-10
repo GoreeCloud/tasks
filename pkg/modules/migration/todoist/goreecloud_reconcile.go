@@ -11,11 +11,11 @@ import (
 // importCounts is a metadata-only summary. It deliberately never contains
 // source titles, note bodies, signed attachment URLs or credentials.
 type importCounts struct {
-	projects int
-	sections int
-	tasks int
-	subtasks int
-	reminders int
+	projects    int
+	sections    int
+	tasks       int
+	subtasks    int
+	reminders   int
 	attachments int
 }
 
@@ -81,7 +81,10 @@ func convertedImportCounts(projects []*models.ProjectWithTasksAndBuckets) import
 // full source-to-destination reconciliation as a separate Stable gate.
 func reconcileConvertedTodoistCounts(source *sync, converted []*models.ProjectWithTasksAndBuckets) error {
 	want, got := expectedImportCounts(source), convertedImportCounts(converted)
-	for _, metric := range []struct{name string; want, got int}{
+	for _, metric := range []struct {
+		name      string
+		want, got int
+	}{
 		{"projects", want.projects, got.projects},
 		{"sections", want.sections, got.sections},
 		{"tasks", want.tasks, got.tasks},
