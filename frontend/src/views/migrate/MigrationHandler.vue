@@ -196,6 +196,7 @@ import {useTitle} from '@/composables/useTitle'
 import {useMigrationStore} from '@/stores/migration'
 import {getErrorText} from '@/message'
 import {canStartTodoistImport} from './todoistImportGuard'
+import {clearTodoistOAuthState, consumeTodoistOAuthState, rememberTodoistOAuthState} from './todoistOAuthState'
 
 const props = defineProps<{
 	service: string,
@@ -248,6 +249,14 @@ useTitle(() => t('migrate.titleService', {name: migrator.value.name}))
 
 const migrationStore = useMigrationStore()
 
+function todoistOAuthStorage(): Storage | undefined {
+	try {
+		return sessionStorage
+	} catch {
+		return undefined
+	}
+}
+
 async function initMigration() {
 	try {
 		const provider = migrator.value.id
@@ -260,15 +269,30 @@ async function initMigration() {
 			return
 		}
 		if (!isMigratorOfKind(provider, 'oauth')) return
+		const prefix = '#token='
+		const callbackCode = location.hash.startsWith(prefix) ? location.hash.substring(prefix.length) : props.code ?? ''
+		// Inspect the returned state BEFORE requesting a new authorization URL,
+		// which would otherwise overwrite the outstanding tab-bound challenge.
+		if (provider === 'todoist' && callbackCode) {
+			confirmedAgain.value = true
+			const returnedState = new URLSearchParams(location.search).get('state')
+			if (!consumeTodoistOAuthState(returnedState, todoistOAuthStorage())) {
+				migrationError.value = 'Todoist authorization could not be verified. Start a new authorization.'
+				return
+			}
+			migratorAuthCode.value = callbackCode
+			return // Consent and an explicit button press are still required.
+		}
 		const authResult = await auth.mutateAsync(provider)
 		if (provider !== migrator.value.id) return
-		authUrl.value = authResult?.url ?? ''
-		const prefix = '#token='
-		migratorAuthCode.value = location.hash.startsWith(prefix) ? location.hash.substring(prefix.length) : props.code ?? ''
-		// OAuth authorization does not by itself permit a Todoist import.
-		if (provider === 'todoist' && migratorAuthCode.value) {
-			confirmedAgain.value = true
-		} else if (migratorAuthCode.value && previousMigrationFinishedAt.value === null) {
+		const authorizationUrl = authResult?.url ?? ''
+		if (provider === 'todoist' && !rememberTodoistOAuthState(authorizationUrl, todoistOAuthStorage())) {
+			migrationError.value = 'Todoist authorization could not be prepared securely. Try again.'
+			return
+		}
+		authUrl.value = authorizationUrl
+		migratorAuthCode.value = callbackCode
+		if (migratorAuthCode.value && previousMigrationFinishedAt.value === null) {
 			await migrate()
 		}
 	} catch (cause) {
@@ -323,6 +347,7 @@ async function migrate(credentialsConfig?: PlankaCredentials) {
 function confirmMigrateAgain() {
 	confirmedAgain.value = true
 	if (migrator.value.id === 'todoist') {
+		clearTodoistOAuthState(todoistOAuthStorage())
 		todoistImportConfirmed.value = false
 		migratorAuthCode.value = '' // Require a fresh authorization and consent.
 		return
