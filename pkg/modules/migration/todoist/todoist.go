@@ -489,7 +489,8 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 				}
 			}
 		}
-		delete(tasks, i.ID)
+		// Keep the child in the source-ID lookup: its notes, attachments and reminders
+		// are resolved after relations. Deleting it here silently discarded them.
 	}
 
 	// Task Notes -> Task Descriptions
