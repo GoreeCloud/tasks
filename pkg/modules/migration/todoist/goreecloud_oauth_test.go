@@ -30,7 +30,7 @@ func TestMakeTodoistAuthorizationURLRequiresSecureState(t *testing.T) {
 
 func TestMakeTodoistAuthorizationURLKeepsStateAndReadScope(t *testing.T) {
 	uri, err := makeTodoistAuthorizationURL(func(length int64) (string, error) {
-		require.Equal(t, 32, length)
+		require.Equal(t, int64(32), length)
 		return "fresh-test-state", nil
 	})
 	require.NoError(t, err)
