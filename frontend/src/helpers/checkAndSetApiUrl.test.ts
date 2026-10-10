@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {checkAndSetApiUrl} from './checkAndSetApiUrl'
+import {InvalidApiUrlProvidedError} from './apiUrl'
 
 const mocks = vi.hoisted(() => ({
 	clear: vi.fn(),
@@ -27,6 +28,27 @@ describe('checkAndSetApiUrl query lifecycle', () => {
 		mocks.clear.mockReset()
 		mocks.configure.mockReset()
 		mocks.update.mockReset()
+	})
+
+	it.each([
+		'ftp://example.com',
+		'file:///etc/passwd',
+		'https://person:secret@new.example.com',
+	])('rejects an unsafe task server URL without a network probe: %s', input => {
+		expect(() => checkAndSetApiUrl(input)).toThrow(InvalidApiUrlProvidedError)
+		expect(mocks.update).not.toHaveBeenCalled()
+	})
+
+	it('does not log the submitted endpoint when connectivity fails', async () => {
+		const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			mocks.update.mockRejectedValue(new Error('unreachable'))
+			await expect(checkAndSetApiUrl('https://private.example.com/a-sensitive-path')).rejects.toThrow()
+			expect(warning).toHaveBeenCalled()
+			expect(warning.mock.calls.flat().join(' ')).not.toContain('private.example.com')
+		} finally {
+			warning.mockRestore()
+		}
 	})
 
 	it('reconfigures the client and clears cache after accepting a different server', async () => {
