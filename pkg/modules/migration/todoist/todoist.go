@@ -701,13 +701,6 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 
 		for _, i := range completedSyncResponse.Items {
 
-			// Don't try to fetch task details from deleted projects (that will fail anyway)
-			_, hasProject := completedSyncResponse.Projects[i.ProjectID]
-			if hasProject && completedSyncResponse.Projects[i.ProjectID].IsDeleted {
-				log.Debugf("[Todoist Migration] Not fetching task details from task %s because its project (%s) is deleted already.", i.TaskID, i.ProjectID)
-				continue
-			}
-
 			if _, has := doneItems[i.TaskID]; has {
 				// Only set the newest completion date
 				continue
