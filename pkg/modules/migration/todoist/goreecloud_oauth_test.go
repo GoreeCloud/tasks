@@ -13,11 +13,11 @@ import (
 func TestMakeTodoistAuthorizationURLRequiresSecureState(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		generate func(int) (string, error)
+		generate func(int64) (string, error)
 	}{
-		{"generator error", func(int) (string, error) { return "", errors.New("secret diagnostic") }},
-		{"empty state", func(int) (string, error) { return "", nil }},
-		{"whitespace state", func(int) (string, error) { return "  ", nil }},
+		{"generator error", func(int64) (string, error) { return "", errors.New("secret diagnostic") }},
+		{"empty state", func(int64) (string, error) { return "", nil }},
+		{"whitespace state", func(int64) (string, error) { return "  ", nil }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			uri, err := makeTodoistAuthorizationURL(tc.generate)
@@ -29,7 +29,7 @@ func TestMakeTodoistAuthorizationURLRequiresSecureState(t *testing.T) {
 }
 
 func TestMakeTodoistAuthorizationURLKeepsStateAndReadScope(t *testing.T) {
-	uri, err := makeTodoistAuthorizationURL(func(length int) (string, error) {
+	uri, err := makeTodoistAuthorizationURL(func(length int64) (string, error) {
 		require.Equal(t, 32, length)
 		return "fresh-test-state", nil
 	})
