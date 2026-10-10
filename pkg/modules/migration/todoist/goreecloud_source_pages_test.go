@@ -28,6 +28,7 @@ func TestValidateTodoistCompletedPage(t *testing.T) {
 		{"missing project ID", func(p *paginatedCompletedTasks) { p.Items[0].ProjectID = "" }},
 		{"missing completion date", func(p *paginatedCompletedTasks) { p.Items[0].CompletedDate = time.Time{} }},
 		{"nil project metadata", func(p *paginatedCompletedTasks) { p.Projects["p1"] = nil }},
+		{"deleted project would drop a completed task", func(p *paginatedCompletedTasks) { p.Projects["p1"].IsDeleted = true }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
