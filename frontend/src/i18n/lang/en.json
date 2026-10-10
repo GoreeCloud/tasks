@@ -761,9 +761,10 @@
   },
   "migrate": {
     "title": "Import from other services",
-    "titleService": "Import your data from {name} into Vikunja",
+    "titleService": "Import data from {name} into GoreeCloud Tasks",
     "description": "Click on the logo of one of the third-party services below to get started.",
-    "descriptionDo": "Vikunja will import all lists, tasks, notes, reminders and files you have access to.",
+    "descriptionDo": "Import compatible task data into GoreeCloud Tasks, then verify what transferred.",
+    "todoistAuditWarning": "Todoist migration is still undergoing data-integrity checks. Back up Todoist first, use a test account, and reconcile tasks, comments and attachments after import. This is not ongoing synchronization.",
     "authorize": "To authorize Vikunja to access your {name} Account, click the button below.",
     "getStarted": "Get Started",
     "inProgress": "Importing in progress…",
@@ -773,7 +774,7 @@
     "importUpload": "To import data from {name} into Vikunja, click the button below to select a file.",
     "upload": "Upload file",
     "migrationStartedWillReciveEmail": "Vikunja will now import your lists/projects, tasks, notes, reminders and files from {service}. As this will take a while, we will send you an email once done. You can close this window now.",
-    "migrationFinished": "The import from {service} has finished. Everything it imported is now available in your projects.",
+    "migrationFinished": "The import process from {service} has finished. Reconcile the imported records with your source before relying on the results.",
     "migrationFailed": "The import from {service} failed: {reason}",
     "failure": {
       "reported": "The import from {service} failed. We have been notified about the error and are working on a fix.",
