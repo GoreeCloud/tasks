@@ -518,7 +518,7 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 			// Todoist puts opaque identifiers in file_url for attachments it does not host itself
 			// (mail attachments for example) - those can't be downloaded.
 			if !isDownloadableURL(n.FileAttachment.FileURL) {
-				log.Debugf("[Todoist Migration] Skipping attachment of note %s, file url %s is not downloadable", n.ID, n.FileAttachment.FileURL)
+				log.Debugf("[Todoist Migration] Skipping unsupported attachment for note %s", n.ID)
 				continue
 			}
 
@@ -526,7 +526,7 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 			buf, err := migration.DownloadFile(n.FileAttachment.FileURL)
 			if err != nil {
 				// A single broken attachment must not fail the whole migration
-				log.Errorf("[Todoist Migration] Could not download attachment of note %s from %s, skipping it. Error was: %s", n.ID, n.FileAttachment.FileURL, err)
+				log.Errorf("[Todoist Migration] Could not download attachment for note %s; skipped", n.ID)
 				continue
 			}
 
