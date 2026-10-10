@@ -1,6 +1,8 @@
 # GoreeCloud Tasks — staged Fork-to-Native implementation
 
-Each phase is an engineering workstream, **not a release promise**.
+Each phase is an engineering workstream, **not a release promise**. The [proposed Tasks capability catalogue](https://docs.google.com/document/d/1yYzCPsShY6QkqJbJjFsUa25TASRiZ8Pk/edit) covers 18 functional areas; [capability traceability](CAPABILITY_TRACEABILITY.md) maps them to approved Waypoint naming and the owning implementation workstreams. **Catalogue inclusion is not implementation evidence.**
+
+The [authoritative project specification](https://docs.google.com/document/d/1_z4T0hRNLrWFkDXmVTJLFe_mHumviM2B/edit) controls approved v0.1 scope. The [Waypoint identity standard](https://docs.google.com/document/d/1vBWITF3assryHSW4TH4oMKDIrmjDvqye/edit) controls capability-family semantics; Pulse means reminders/notifications/attention until separately revised.
 
 ## Foundation — partially implemented
 - [x] Identify source, upstream SHA, AGPL/GPL obligations and existing destination.
@@ -30,6 +32,17 @@ Each phase is an engineering workstream, **not a release promise**.
 - [ ] Test import idempotency, reversibility, incremental updates, privacy and data ownership.
 - [ ] Pass Stable acceptance, then update authority governance in place and complete safe cutover.
 - [ ] Preserve a rollback path; do not delete Todoist data during cutover.
+
+## Waypoint capability streams — planning / not yet accepted
+
+- [ ] **Capture / Focus / Horizon:** private Inbox, Today, Upcoming, Quick Add, priority semantics, due-timezone and recurrence UX; acceptance includes accessible capture and independent personal workspaces.
+- [ ] **Projects / Together / Compass:** private/shared project memberships, role-based assignment, labels, filters, search, nested hierarchy, comments and audited changes; prove unauthorized access is denied.
+- [ ] **Rhythm / Pulse / Timeline:** recurrence, reminders, notification delivery, timeline/Gantt and calendar interoperability; preserve authoritative task versus event ownership.
+- [ ] **Operations / Trail / Archive:** optional P0–P4 operational metadata, source links, history/attribution, portable exports, backup/restore and recovery.
+- [ ] **Cross-cutting security and accessibility:** Glaze UI, reduced motion, keyboard/touch/screen reader, authorization, confidential content separation and telemetry/AI minimization.
+- [ ] **Post-v0.1 options:** AI-assisted extraction, advanced automation, offline/native clients, location reminders and analytics only after separate capability approval and threat/permission reviews.
+
+**Open identity/licensing decisions:** the proposed document associates Pulse with analytics, while the approved identity associates it with reminders; keep the approved meaning. The ultimate original-native / AGPL-3.0-only target is **not yet** the current Vikunja-derived multi-license source tree. Do not prematurely relabel licenses or omit upstream attribution.
 
 ## Stable gate — pending
 Build, unit/integration/e2e, accessible UI, real device, security/privacy, backup/restore, migration reconciliation, release artifacts, rollback and owner acceptance must all pass at an exact revision before production/Stable claims.
