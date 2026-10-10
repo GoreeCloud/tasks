@@ -13,6 +13,7 @@ func validateTodoistSync(data *sync) error {
 	}
 
 	projects := make(map[string]bool, len(data.Projects))
+	projectByID := make(map[string]*project, len(data.Projects))
 	for _, p := range data.Projects {
 		if p == nil || p.ID == "" {
 			return fmt.Errorf("todoist migration: project with missing identity")
@@ -21,8 +22,21 @@ func validateTodoistSync(data *sync) error {
 			return fmt.Errorf("todoist migration: duplicate project %s", p.ID)
 		}
 		projects[p.ID] = true
-		if p.ParentID != "" {
-			return fmt.Errorf("todoist migration: nested project %s requires hierarchy preservation before import", p.ID)
+		projectByID[p.ID] = p
+	}
+	// Project parents may appear after children in the source snapshot.
+	for _, p := range data.Projects {
+		seen := map[string]bool{p.ID: true}
+		for current := p; current.ParentID != ""; {
+			parent, exists := projectByID[current.ParentID]
+			if !exists {
+				return fmt.Errorf("todoist migration: project %s refers to missing parent %s", p.ID, current.ParentID)
+			}
+			if seen[parent.ID] {
+				return fmt.Errorf("todoist migration: cyclic projects involving %s", p.ID)
+			}
+			seen[parent.ID] = true
+			current = parent
 		}
 	}
 
