@@ -17,7 +17,6 @@
 package todoist
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -614,16 +613,11 @@ func getAccessTokenFromAuthToken(authToken string) (accessToken string, err erro
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode > 399 {
-		// OAuth errors may contain authorization details; do not surface the body.
-		return "", fmt.Errorf("could not get todoist access token: %w", migration.NewErrUpstreamRequestFailed("todoist oauth", resp.StatusCode, ""))
-	}
-
 	token := &apiTokenResponse{}
-	err = json.NewDecoder(resp.Body).Decode(token)
-	return token.AccessToken, err
+	if err = decodeTodoistResponse(resp, token, "oauth token"); err != nil {
+		return "", fmt.Errorf("could not get todoist access token: %w", err)
+	}
+	return token.AccessToken, nil
 }
 
 // Migrate gets all tasks from todoist for a user and puts them into vikunja
@@ -668,10 +662,8 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
-
 	syncResponse := &sync{}
-	err = json.NewDecoder(resp.Body).Decode(syncResponse)
+	err = decodeTodoistResponse(resp, syncResponse, "sync snapshot")
 	if err != nil {
 		return
 	}
@@ -695,8 +687,7 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 		}
 
 		completedSyncResponse := &paginatedCompletedTasks{}
-		err = json.NewDecoder(resp.Body).Decode(completedSyncResponse)
-		resp.Body.Close()
+		err = decodeTodoistResponse(resp, completedSyncResponse, "completed task listing")
 		if err != nil {
 			return
 		}
@@ -735,8 +726,7 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 
 			// The v1 API returns the task directly, not wrapped
 			doneI := &item{}
-			err = json.NewDecoder(resp.Body).Decode(doneI)
-			resp.Body.Close()
+			err = decodeTodoistResponse(resp, doneI, "completed task detail")
 			if err != nil {
 				return
 			}
@@ -773,8 +763,7 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 		}
 
 		archivedResponse := &paginatedProjects{}
-		err = json.NewDecoder(resp.Body).Decode(archivedResponse)
-		resp.Body.Close()
+		err = decodeTodoistResponse(resp, archivedResponse, "archived project listing")
 		if err != nil {
 			return
 		}
@@ -802,11 +791,10 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 		}
 
 		archivedProjectData := &sync{}
-		err = json.NewDecoder(resp.Body).Decode(&archivedProjectData)
+		err = decodeTodoistResponse(resp, archivedProjectData, "archived project details")
 		if err != nil {
 			return
 		}
-		resp.Body.Close()
 
 		syncResponse.Items = append(syncResponse.Items, archivedProjectData.Items...)
 		syncResponse.Labels = append(syncResponse.Labels, archivedProjectData.Labels...)
