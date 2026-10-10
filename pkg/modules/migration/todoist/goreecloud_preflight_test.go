@@ -45,6 +45,8 @@ func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 		{"orphan section", func(s *sync) { s.Sections[0].ProjectID = "missing" }, "section"},
 		{"orphan label", func(s *sync) { s.Items[0].Labels = []string{"missing"} }, "missing label"},
 		{"orphan note", func(s *sync) { s.Notes[0].ItemID = "missing" }, "note"},
+		{"opaque note attachment", func(s *sync) { s.Notes[0].FileAttachment = &fileAttachment{FileName: "private.pdf", FileURL: "[[mail-attachment-id]]"} }, "cannot be imported without loss"},
+		{"attachment missing URL", func(s *sync) { s.Notes[0].FileAttachment = &fileAttachment{FileName: "private.pdf"} }, "cannot be imported without loss"},
 		{"orphan project note", func(s *sync) { s.ProjectNotes[0].ProjectID = "missing" }, "project note"},
 		{"unsupported project note attachment", func(s *sync) { s.ProjectNotes[0].FileAttachment = &fileAttachment{FileName: "important.pdf"} }, "preservation"},
 		{"orphan reminder", func(s *sync) { s.Reminders[0].ItemID = "missing" }, "reminder"},
