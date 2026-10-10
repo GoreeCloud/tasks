@@ -672,6 +672,7 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 
 	// Get all done tasks and projects using cursor-based pagination
 	var cursor string
+	seenCompletedCursors := make(map[string]bool)
 	doneItems := make(map[string]*doneItem)
 	iteration := 0
 
@@ -738,6 +739,9 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 		if completedSyncResponse.NextCursor == "" {
 			break
 		}
+		if err = requireUnseenTodoistCursor(completedSyncResponse.NextCursor, seenCompletedCursors); err != nil {
+			return
+		}
 		cursor = completedSyncResponse.NextCursor
 		iteration++
 		log.Debugf("[Todoist Migration] User %d has more than %d done tasks or projects, looping to get more; iteration %d", u.ID, paginationLimit, iteration)
@@ -749,6 +753,7 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 	// Get all archived projects using cursor-based pagination
 	archivedProjects := []*project{}
 	cursor = "" // reuse cursor variable
+	seenArchivedCursors := make(map[string]bool)
 	iteration = 0
 
 	for {
@@ -772,6 +777,9 @@ func (m *Migration) Migrate(u *user.User) (err error) {
 
 		if archivedResponse.NextCursor == "" {
 			break
+		}
+		if err = requireUnseenTodoistCursor(archivedResponse.NextCursor, seenArchivedCursors); err != nil {
+			return
 		}
 		cursor = archivedResponse.NextCursor
 		iteration++
