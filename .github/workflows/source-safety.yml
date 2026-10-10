@@ -1,0 +1,30 @@
+name: Source Safety Baseline
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify licenses, provenance and brand entrypoints
+        run: |
+          set -eu
+          test -s LICENSE
+          test -s desktop/LICENSE
+          test -s frontend/LICENSE
+          test -s third_party/glaze/LICENSE
+          test -s UPSTREAM.md
+          test -s frontend/src/styles/glaze/tokens.css
+          test -s frontend/src/styles/goreecloud-tasks.css
+          grep -q '6263ff12956f29bd84ed1346d9752f82e02cdd59' UPSTREAM.md
+          grep -q '<title>GoreeCloud Tasks</title>' frontend/index.html
+          if grep -q 'app.vikunja.cloud' frontend/src/views/user/DesktopLogin.vue; then
+            echo 'Unsafe upstream cloud default in desktop login' >&2
+            exit 1
+          fi
+      - name: Verify frontend manifest syntax
+        run: node -e "const p=require('./frontend/package.json'); if (p.name !== 'goreecloud-tasks-frontend') process.exit(1)"

@@ -1,0 +1,57 @@
+/*
+ * GoreeCloud Tasks first-phase Glaze visual-token consumer.
+ * Token source: GoreeCloud/glaze css/glaze.css@0798de28fe0626d6cc8bd7986dc9c4b922119c35 (MIT).
+ * This is NOT a complete Glaze V1.7 downstream conformance implementation.
+ */
+@import "./glaze/tokens.css";
+
+html.light {
+  color-scheme: light;
+  --site-background: var(--glaze-canvas);
+  --primary-h: 221deg;
+  --primary-s: 91%;
+  --primary-l: 59%;
+  --link: var(--glaze-accent);
+  --input-focus-border-color: var(--glaze-accent);
+}
+html.dark {
+  color-scheme: dark;
+  --glaze-canvas: #0d1119;
+  --glaze-canvas-accent: #121824;
+  --glaze-surface: rgba(25, 32, 45, .78);
+  --glaze-surface-strong: rgba(24, 31, 44, .96);
+  --glaze-text: #f3f6fb;
+  --glaze-muted: #a1aec0;
+  --glaze-line: rgba(193, 207, 229, .17);
+  --glaze-accent: #7aa2ff;
+  --glaze-on-accent: #0b1020;
+  --site-background: var(--glaze-canvas);
+  --primary-h: 221deg;
+  --primary-s: 100%;
+  --primary-l: 74%;
+  --link: var(--glaze-accent);
+  --input-focus-border-color: var(--glaze-accent);
+}
+html:where(.light, .dark) .navbar {
+  background: var(--glaze-surface-strong);
+  border-block-end: 1px solid var(--glaze-line);
+  backdrop-filter: blur(16px);
+}
+html:where(.light, .dark) .menu .menu-list a {
+  border-radius: var(--glaze-radius-sm);
+  transition: background-color var(--glaze-motion-fast) var(--glaze-ease-standard);
+}
+html:where(.light, .dark) .menu .menu-list a:hover {
+  background: color-mix(in srgb, var(--glaze-accent) 9%, transparent);
+}
+html:where(.light, .dark) .menu .menu-list a.router-link-exact-active {
+  background: color-mix(in srgb, var(--glaze-accent) 13%, transparent);
+  color: var(--glaze-text);
+}
+html:where(.light, .dark) :is(a, button, input, textarea, select):focus-visible {
+  outline: var(--glaze-focus-width) solid var(--glaze-accent);
+  outline-offset: var(--glaze-focus-offset);
+}
+@media (prefers-reduced-motion: reduce) {
+  html:where(.light, .dark) .menu .menu-list a { transition: none; }
+}
