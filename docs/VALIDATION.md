@@ -108,6 +108,16 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 - **Frontend:** Exact-revision check under evaluation as of initial documentation; do not treat pending work as passed.
 - **Not demonstrated:** Actual API response compatibility with representative authenticated Todoist archives, full source fidelity, a validated OAuth callback, persistence reconciliation, rollback, or Stable readiness.
 
+## October 10 — confirmed Todoist initial full snapshot
+
+**Validated code revision:** `67ede9b63513accf746d9c4840034208f55b21a8`.
+
+- **Implemented:** The initial `sync_token="*"` API response must confirm `full_sync: true`, contain a nonblank returned synchronization token, and explicitly contain the seven source resource arrays used by the importer. JSON null or absent arrays are rejected; explicit empty arrays are accepted.
+- **Focused regressions:** Nil/incremental/missing-token snapshots, absent individual collections, incomplete JSON that looks like an empty account, and valid full empty snapshots. Added additional preflight tests for missing/reused note, project-note and reminder IDs.
+- **Go Todoist Import Integrity PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38096438050 at this exact code revision.
+- **Source Safety Baseline PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38096442282 at this revision.
+- **Limitation:** Todoist documentation warns that initial full syncs may lag for large accounts. **Full-sync confirmation does not establish freshness or atomic consistency.** An incremental catch-up, account/source consistency validation, archived/completed scope coverage, record-level destination readback, backup/rollback, and representative provider API tests are still required before live import. Frontend check must be verified separately on the final head.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
