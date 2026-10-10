@@ -21,6 +21,9 @@ func validateTodoistSync(data *sync) error {
 			return fmt.Errorf("todoist migration: duplicate project %s", p.ID)
 		}
 		projects[p.ID] = true
+		if p.ParentID != "" {
+			return fmt.Errorf("todoist migration: nested project %s requires hierarchy preservation before import", p.ID)
+		}
 	}
 
 	sections := make(map[string]string, len(data.Sections))
