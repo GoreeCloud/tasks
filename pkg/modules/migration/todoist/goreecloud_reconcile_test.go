@@ -24,8 +24,8 @@ func TestGoreeCloudTodoistConvertedCountsMatchSource(t *testing.T) {
 
 func TestGoreeCloudTodoistConvertedCountsRejectMissingRecords(t *testing.T) {
 	cases := []struct {
-		name string
-		drop func(*sync, []*models.ProjectWithTasksAndBuckets) []*models.ProjectWithTasksAndBuckets
+		name     string
+		drop     func(*sync, []*models.ProjectWithTasksAndBuckets) []*models.ProjectWithTasksAndBuckets
 		expected string
 	}{
 		{"project", func(_ *sync, result []*models.ProjectWithTasksAndBuckets) []*models.ProjectWithTasksAndBuckets {
