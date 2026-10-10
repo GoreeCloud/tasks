@@ -357,11 +357,22 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 
 	sections := make(map[string]int64)
 
+	// Allocate project IDs before assigning parents: the export may list a
+	// child before its parent, and all projects live under the import root.
+	projectIDs := make(map[string]int64, len(sync.Projects))
 	for index, p := range sync.Projects {
+		projectIDs[p.ID] = int64(index+1) + pseudoParentID
+	}
+
+	for _, p := range sync.Projects {
+		parentID := pseudoParentID
+		if p.ParentID != "" {
+			parentID = projectIDs[p.ParentID]
+		}
 		project := &models.ProjectWithTasksAndBuckets{
 			Project: models.Project{
-				ID:              int64(index+1) + pseudoParentID,
-				ParentProjectID: &pseudoParentID,
+				ID:              projectIDs[p.ID],
+				ParentProjectID: &parentID,
 				Title:           p.Name,
 				HexColor:        todoistColors[p.Color],
 				IsArchived:      p.IsArchived,
