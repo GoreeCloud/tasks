@@ -18,6 +18,18 @@
 					<p>{{ $t('about.frontendVersion', {version: frontendVersion}) }}</p>
 					<p>{{ $t('about.apiVersion', {version: apiVersion}) }}</p>
 				</template>
+				<p class="mbs-3">
+					{{ $t('about.upstreamAttribution') }}
+				</p>
+				<p>
+					<a
+						href="https://github.com/go-vikunja/vikunja"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						{{ $t('about.upstreamSource') }}
+					</a>
+				</p>
 				<p v-if="proActive">
 					{{ $t('about.proActive') }}
 				</p>
