@@ -2,6 +2,8 @@
 
 **GoreeCloud Tasks** is GoreeCloud's in-development, self-hostable task-management application and intended long-term alternative to Todoist.
 
+**Capability identity:** GoreeCloud Waypoint · **Preferred presentation:** *GoreeCloud Tasks — Powered by Waypoint*. Waypoint names and groups capabilities delivered through Tasks; it is not a separate application, task authority or permission boundary.
+
 ## Current development status
 
 **Fork-to-Native — Development / not Stable.** This repository imports the Vikunja v2.7 development snapshot and starts the controlled migration to a distinct GoreeCloud experience. It is **not** a completed native rebuild, accepted deployment, production service, or approved replacement for Todoist.
@@ -23,7 +25,7 @@ The imported code retains the upstream application structure, toolchain, and leg
 
 ## Governance and migration
 
-See [Upstream provenance](UPSTREAM.md), [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), and [Todoist migration gate](docs/TODOIST_MIGRATION.md). The current live task authority remains the designated Todoist/legacy transition source until full verified GoreeCloud Tasks Stable migration and governance cutover.
+See [Upstream provenance](UPSTREAM.md), [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), [Waypoint capability traceability](docs/CAPABILITY_TRACEABILITY.md), and [Todoist migration gate](docs/TODOIST_MIGRATION.md). The [proposed features catalogue](https://docs.google.com/document/d/1yYzCPsShY6QkqJbJjFsUa25TASRiZ8Pk/edit) is a planning source, **not** a production-feature or acceptance claim. The current live task authority remains the designated Todoist/legacy transition source until full verified GoreeCloud Tasks Stable migration and governance cutover.
 
 ## Licensing
 
