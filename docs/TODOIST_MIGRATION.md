@@ -24,6 +24,11 @@ The inherited Vikunja Todoist OAuth importer **exists in source**. GoreeCloud Ta
 - The Todoist import screen displays a fidelity warning and requires post-import reconciliation rather than suggesting universal success.
 - GitHub Actions `Todoist Import Integrity` for the package tests. Initial successful test evidence: https://github.com/GoreeCloud/tasks/actions/runs/38082667040.
 
-**Not yet covered:** reviewed dry-run previews, persistent source-ID-to-destination-ID mapping, repeated-import deduplication, persisted project hierarchy/readback parity, advanced/unrepresentable recurrence conversion, complete attachment and comment fidelity, destination readback, exact corpus reconciliation, backup/restore, conflict recovery, and rollback. The importer may be exercised only in controlled test environments until these gates pass.
+- The preflight rejects whitespace-only project/section/task titles and Todoist tasks flagged as having more notes than the downloaded snapshot; skipping such records would make a complete-looking migration misleading.
+- A pre-insertion reconciliation now checks source vs converted **project, section, task, subtask, reminder and downloadable attachment counts**. Mismatches abort conversion before destination DB writes. It deliberately contains no titles, note text or signed file URLs.
+- Empty OAuth token responses and completed-task detail HTTP 404s now fail explicitly rather than allowing an empty or incomplete successful import. OAuth error bodies are no longer copied into diagnostic errors.
+
+
+**Still missing:** user-facing read-only dry-run previews, persistent source-ID-to-destination-ID mapping, repeated-import deduplication, persisted hierarchy/readback parity, advanced recurrence and timezone fidelity, exact note/comment content and authorship, attachment ownership/association fidelity, full destination readback, exact corpus reconciliation, backup/restore, conflict recovery, and rollback. **Pre-insertion count matching is not equivalent to post-insertion data reconciliation or a verified live migration.** The importer may be exercised only in controlled test environments until these gates pass.
 
 No import has been run against the owner's live Todoist data and no automatic synchronization, complete fidelity, authority cutover, or Stable acceptance is claimed.
