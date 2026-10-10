@@ -159,10 +159,15 @@ func validateTodoistSync(data *sync) error {
 			return fmt.Errorf("todoist migration: project-note attachments require a preservation strategy before import")
 		}
 	}
+	seenReminders := make(map[string]bool, len(data.Reminders))
 	for _, r := range data.Reminders {
 		if r == nil || !hasSourceTask(items, r.ItemID) {
 			return fmt.Errorf("todoist migration: reminder refers to a missing task")
 		}
+		if r.ID == "" || seenReminders[r.ID] {
+			return fmt.Errorf("todoist migration: reminder ID missing or repeated")
+		}
+		seenReminders[r.ID] = true
 		if r.Due == nil {
 			return fmt.Errorf("todoist migration: reminder %s lacks a due timestamp", r.ID)
 		}
