@@ -3,7 +3,7 @@
 ## Pinned foundation
 - Vikunja upstream source: `6263ff12956f29bd84ed1346d9752f82e02cdd59`.
 - Glaze token source: `GoreeCloud/glaze@0798de28fe0626d6cc8bd7986dc9c4b922119c35`.
-- Verified frontend CI candidate (source + CI): `e08c6e4609da3404ecc95e7ed4f9cd9bac20cede`.
+- Earlier foundation CI candidate (source + CI): `e08c6e4609da3404ecc95e7ed4f9cd9bac20cede`.
 - GitHub Actions evidence: [Frontend Quality](https://github.com/GoreeCloud/tasks/actions/runs/38077625721) and [Source Safety Baseline](https://github.com/GoreeCloud/tasks/actions/runs/38077625712).
 
 ## Completed checks on the verified candidate
@@ -19,6 +19,16 @@
 | Wordmark unit tests | Pass | 2/2 `Logo.test.ts` on GitHub Actions |
 | Production frontend bundle | Pass | GitHub Actions production build step |
 | Web document title | Source verified | `frontend/index.html` title; manual browser smoke test pending |
+
+## 2026-10-10 Fork-to-Native enhancement validation
+
+Latest reviewed **frontend source revision**: `4c566dffdef344be4a701912f2fb2f350780a686`.
+
+- **Passed, exact revision:** [Frontend Quality](https://github.com/GoreeCloud/tasks/actions/runs/38081984129), including frozen dependency installation, Vue/TypeScript check, wordmark tests, newly added API server/privacy regression tests, and production frontend bundle.
+- **Passed, exact revision:** [Source Safety Baseline](https://github.com/GoreeCloud/tasks/actions/runs/38081984231).
+- **Committed source changes:** stricter HTTP(S) API URL validation and rejection of embedded credentials, redacted connection warnings, a Glaze-based login/onboarding visual, an internal About path with explicit Vikunja attribution, keyboard-operable sidebar resizing, and updated English interface strings.
+- **Local validation limitation:** developer-laptop typecheck and Vitest attempts became unresponsive under extreme RAM/swap pressure; do not count their outcomes as passes. The independent GitHub Actions results above are authoritative for the exact source revision.
+- **Scope exclusion:** these checks do **not** establish backend/database acceptance, manual rendered UI inspection, accessibility audit, integration completeness, user-data migration, offline behavior, or Stable readiness.
 
 ## Open acceptance gates
 
