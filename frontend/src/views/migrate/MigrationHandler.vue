@@ -47,22 +47,45 @@
 					@clearError="migrationError = ''"
 				/>
 				<template v-else>
-					<p>{{ $t('migrate.authorize', {name: migrator.name}) }}</p>
 					<Message
 						v-if="migrationError"
 						variant="danger"
+						role="alert"
 						class="mbe-4"
 					>
 						{{ migrationError }}
 					</Message>
-					<XButton
-						:loading="isBusy"
-						:disabled="isBusy || undefined"
-						:href="authUrl"
-						:open-external-in-new-tab="false"
-					>
-						{{ $t('migrate.getStarted') }}
-					</XButton>
+					<template v-if="migrator.id === 'todoist' && migratorAuthCode">
+						<p>{{ $t('migrate.todoistReady') }}</p>
+						<label class="checkbox todoist-import-consent">
+							<input
+								v-model="todoistImportConfirmed"
+								type="checkbox"
+								:disabled="isBusy"
+							>
+							{{ $t('migrate.todoistConfirmImport') }}
+						</label>
+						<div class="mbs-3">
+							<XButton
+								:disabled="!todoistImportConfirmed || isBusy || undefined"
+								:loading="isBusy"
+								@click="migrate()"
+							>
+								{{ $t('migrate.todoistStartImport') }}
+							</XButton>
+						</div>
+					</template>
+					<template v-else>
+						<p>{{ $t('migrate.authorize', {name: migrator.name}) }}</p>
+						<XButton
+							:loading="isBusy"
+							:disabled="isBusy || !authUrl || undefined"
+							:href="authUrl"
+							:open-external-in-new-tab="false"
+						>
+							{{ $t('migrate.getStarted') }}
+						</XButton>
+					</template>
 				</template>
 			</template>
 			<div
@@ -172,6 +195,7 @@ import {MIGRATORS, isMigratorOfKind, type Migrator} from './migrators'
 import {useTitle} from '@/composables/useTitle'
 import {useMigrationStore} from '@/stores/migration'
 import {getErrorText} from '@/message'
+import {canStartTodoistImport} from './todoistImportGuard'
 
 const props = defineProps<{
 	service: string,
@@ -189,6 +213,7 @@ const startMigration = useStartMigrationMutation()
 const isMigrating = computed(() => startMigration.isPending.value)
 const confirmedAgain = ref(false)
 const startedHere = ref(false)
+const todoistImportConfirmed = ref(false)
 
 const migratorAuthCode = ref('')
 const migrationError = ref('')
@@ -240,13 +265,20 @@ async function initMigration() {
 		authUrl.value = authResult?.url ?? ''
 		const prefix = '#token='
 		migratorAuthCode.value = location.hash.startsWith(prefix) ? location.hash.substring(prefix.length) : props.code ?? ''
-		if (migratorAuthCode.value && previousMigrationFinishedAt.value === null) await migrate()
+		// OAuth authorization does not by itself permit a Todoist import.
+		if (provider === 'todoist' && migratorAuthCode.value) {
+			confirmedAgain.value = true
+		} else if (migratorAuthCode.value && previousMigrationFinishedAt.value === null) {
+			await migrate()
+		}
 	} catch (cause) {
 		if (!isRequestContextAbort(cause)) migrationError.value = getErrorText(cause)
 	}
 }
 watch(() => props.service, () => {
 	confirmedAgain.value = false
+	todoistImportConfirmed.value = false
+	migratorAuthCode.value = ''
 	startedHere.value = false
 	authUrl.value = ''
 	migrationError.value = ''
@@ -267,6 +299,7 @@ watch(migrationRunning, async (running) => {
 
 async function migrate(credentialsConfig?: PlankaCredentials) {
 	const provider = migrator.value.id
+	if (!canStartTodoistImport(provider, migratorAuthCode.value, todoistImportConfirmed.value)) return
 	confirmedAgain.value = true
 	migrationError.value = ''
 	try {
@@ -289,6 +322,11 @@ async function migrate(credentialsConfig?: PlankaCredentials) {
 }
 function confirmMigrateAgain() {
 	confirmedAgain.value = true
+	if (migrator.value.id === 'todoist') {
+		todoistImportConfirmed.value = false
+		migratorAuthCode.value = '' // Require a fresh authorization and consent.
+		return
+	}
 	if (migrator.value.kind !== 'credentials') return migrate()
 }
 </script>
