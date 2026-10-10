@@ -49,6 +49,7 @@ func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 		{"unsupported project note attachment", func(s *sync) { s.ProjectNotes[0].FileAttachment = &fileAttachment{FileName: "important.pdf"} }, "preservation"},
 		{"orphan reminder", func(s *sync) { s.Reminders[0].ItemID = "missing" }, "reminder"},
 		{"reminder with no due", func(s *sync) { s.Reminders[0].Due = nil }, "due timestamp"},
+		{"unsupported recurrence", func(s *sync) { s.Items[0].Due = &dueDate{Date: "2026-10-10", IsRecurring: true, String: "every monday"} }, "unsupported recurring"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
