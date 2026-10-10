@@ -525,9 +525,9 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 			// Download the attachment and put it in the file
 			buf, err := migration.DownloadFile(n.FileAttachment.FileURL)
 			if err != nil {
-				// A single broken attachment must not fail the whole migration
-				log.Errorf("[Todoist Migration] Could not download attachment for note %s; skipped", n.ID)
-				continue
+				// Never silently mark an import successful after losing a file.
+				// Do not expose signed attachment URLs or upstream error bodies.
+				return nil, fmt.Errorf("todoist migration: could not preserve attachment for note %s", n.ID)
 			}
 
 			tasks[n.ItemID].Attachments = append(tasks[n.ItemID].Attachments, &models.TaskAttachment{
