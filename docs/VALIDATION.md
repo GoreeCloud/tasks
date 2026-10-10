@@ -30,6 +30,15 @@ Latest reviewed **frontend source revision**: `4c566dffdef344be4a701912f2fb2f350
 - **Local validation limitation:** developer-laptop typecheck and Vitest attempts became unresponsive under extreme RAM/swap pressure; do not count their outcomes as passes. The independent GitHub Actions results above are authoritative for the exact source revision.
 - **Scope exclusion:** these checks do **not** establish backend/database acceptance, manual rendered UI inspection, accessibility audit, integration completeness, user-data migration, offline behavior, or Stable readiness.
 
+## Additional exact-head validation — October 10
+
+- Code head `ca39536bb40b681a49fdee22f7c2e3666405c416`.
+- [Todoist importer Go unit/regression CI: PASS](https://github.com/GoreeCloud/tasks/actions/runs/38083056204).
+- [Frontend typecheck, targeted tests and production bundle: PASS](https://github.com/GoreeCloud/tasks/actions/runs/38083059656).
+- [Source Safety Baseline: PASS](https://github.com/GoreeCloud/tasks/actions/runs/38083059710).
+- Migration now guards incomplete source graphs, child task metadata, unsupported nested projects, missing recurrence mappings and unsupported project-note attachments. It is **not** a complete dry-run importer, zero-loss migration, or validated task authority.
+- Error diagnostics now disable replay and performance sampling, and minimize captured resource URLs. Backend-wide security, full importer reconciliation, attachments, database and recovery gates remain open.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
