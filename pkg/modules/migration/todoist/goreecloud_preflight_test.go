@@ -13,14 +13,14 @@ func validGoreeCloudTodoistSnapshot() *sync {
 	return &sync{
 		Projects: []*project{{ID: "p1", Name: "Personal"}},
 		Sections: []*section{{ID: "s1", ProjectID: "p1", Name: "Work"}},
-		Labels: []*label{{ID: "l1", Name: "Important"}},
+		Labels:   []*label{{ID: "l1", Name: "Important"}},
 		Items: []*item{
 			{ID: "root", ProjectID: "p1", SectionID: "s1", Content: "Root", Labels: []string{"Important"}},
 			{ID: "child", ProjectID: "p1", ParentID: "root", Content: "Child"},
 		},
-		Notes: []*note{{ID: "n1", ItemID: "child", Content: "Preserve"}},
+		Notes:        []*note{{ID: "n1", ItemID: "child", Content: "Preserve"}},
 		ProjectNotes: []*projectNote{{ID: "pn1", ProjectID: "p1", Content: "Project description"}},
-		Reminders: []*reminder{{ID: "r1", ItemID: "child", Due: &dueDate{Date: "2026-10-10"}}},
+		Reminders:    []*reminder{{ID: "r1", ItemID: "child", Due: &dueDate{Date: "2026-10-10"}}},
 	}
 }
 
@@ -30,8 +30,8 @@ func TestGoreeCloudTodoistPreflightValid(t *testing.T) {
 
 func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 	cases := []struct {
-		name string
-		edit func(*sync)
+		name    string
+		edit    func(*sync)
 		message string
 	}{
 		{"nil project", func(s *sync) { s.Projects[0] = nil }, "project with missing"},
@@ -41,7 +41,10 @@ func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 		{"empty section name", func(s *sync) { s.Sections[0].Name = " " }, "empty name"},
 		{"duplicate project", func(s *sync) { s.Projects = append(s.Projects, &project{ID: "p1"}) }, "duplicate project"},
 		{"missing project parent", func(s *sync) { s.Projects[0].ParentID = "p2" }, "missing parent"},
-		{"cyclic project parents", func(s *sync) { s.Projects[0].ParentID = "p2"; s.Projects = append(s.Projects, &project{ID: "p2", ParentID: "p1"}) }, "cyclic"},
+		{"cyclic project parents", func(s *sync) {
+			s.Projects[0].ParentID = "p2"
+			s.Projects = append(s.Projects, &project{ID: "p2", ParentID: "p1"})
+		}, "cyclic"},
 		{"orphan task", func(s *sync) { s.Items[0].ProjectID = "missing" }, "missing project"},
 		{"duplicate task", func(s *sync) { s.Items[1].ID = "root" }, "duplicate task"},
 		{"orphan subtask", func(s *sync) { s.Items[1].ParentID = "missing" }, "missing parent"},
@@ -50,13 +53,17 @@ func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 		{"orphan section", func(s *sync) { s.Sections[0].ProjectID = "missing" }, "section"},
 		{"orphan label", func(s *sync) { s.Items[0].Labels = []string{"missing"} }, "missing label"},
 		{"orphan note", func(s *sync) { s.Notes[0].ItemID = "missing" }, "note"},
-		{"opaque note attachment", func(s *sync) { s.Notes[0].FileAttachment = &fileAttachment{FileName: "private.pdf", FileURL: "[[mail-attachment-id]]"} }, "cannot be imported without loss"},
+		{"opaque note attachment", func(s *sync) {
+			s.Notes[0].FileAttachment = &fileAttachment{FileName: "private.pdf", FileURL: "[[mail-attachment-id]]"}
+		}, "cannot be imported without loss"},
 		{"attachment missing URL", func(s *sync) { s.Notes[0].FileAttachment = &fileAttachment{FileName: "private.pdf"} }, "cannot be imported without loss"},
 		{"orphan project note", func(s *sync) { s.ProjectNotes[0].ProjectID = "missing" }, "project note"},
 		{"unsupported project note attachment", func(s *sync) { s.ProjectNotes[0].FileAttachment = &fileAttachment{FileName: "important.pdf"} }, "preservation"},
 		{"orphan reminder", func(s *sync) { s.Reminders[0].ItemID = "missing" }, "reminder"},
 		{"reminder with no due", func(s *sync) { s.Reminders[0].Due = nil }, "due timestamp"},
-		{"unsupported recurrence", func(s *sync) { s.Items[0].Due = &dueDate{Date: "2026-10-10", IsRecurring: true, String: "every monday"} }, "unsupported recurring"},
+		{"unsupported recurrence", func(s *sync) {
+			s.Items[0].Due = &dueDate{Date: "2026-10-10", IsRecurring: true, String: "every monday"}
+		}, "unsupported recurring"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
