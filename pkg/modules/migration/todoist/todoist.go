@@ -332,6 +332,9 @@ func isDownloadableURL(rawURL string) bool {
 }
 
 func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVikunjaHierachie []*models.ProjectWithTasksAndBuckets, err error) {
+	if err := validateTodoistSync(sync); err != nil {
+		return nil, err
+	}
 
 	var pseudoParentID int64 = 1
 
