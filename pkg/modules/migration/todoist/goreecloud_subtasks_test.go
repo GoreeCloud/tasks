@@ -90,7 +90,7 @@ func TestGoreeCloudEmptyAttachmentRejected(t *testing.T) {
 
 	source := &sync{
 		Projects: []*project{{ID: "p1", Name: "Project"}},
-		Items: []*item{{ID: "task", ProjectID: "p1", Content: "Keep attachment"}},
+		Items:    []*item{{ID: "task", ProjectID: "p1", Content: "Keep attachment"}},
 		Notes: []*note{{ID: "note", ItemID: "task", FileAttachment: &fileAttachment{
 			FileName: "empty.txt", FileURL: server.URL,
 		}}},
