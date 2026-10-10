@@ -303,7 +303,7 @@ func parseTodoistRepeat(due *dueDate) int64 {
 
 	matches := todoistRepeatRegex.FindStringSubmatch(s)
 	if matches == nil {
-		log.Debugf("[Todoist Migration] Could not parse recurrence %q, leaving task non-repeating", due.String)
+		log.Debugf("[Todoist Migration] Unsupported recurrence; task schedule requires review")
 		return 0
 	}
 
