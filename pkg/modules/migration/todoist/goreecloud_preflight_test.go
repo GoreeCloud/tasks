@@ -74,3 +74,22 @@ func TestGoreeCloudTodoistPreflightRejectsNilSnapshot(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, result)
 }
+
+func TestGoreeCloudTodoistNestedProjectsPreserveAncestry(t *testing.T) {
+	// Exports can list a child before its parent or grandparent.
+	source := &sync{Projects: []*project{
+		{ID: "grandchild", ParentID: "child", Name: "Grandchild"},
+		{ID: "child", ParentID: "root", Name: "Child"},
+		{ID: "root", Name: "Root"},
+	}}
+	require.NoError(t, validateTodoistSync(source))
+	result, err := convertTodoistToVikunja(source, nil)
+	require.NoError(t, err)
+	require.Len(t, result, 4)
+	require.NotNil(t, result[1].ParentProjectID)
+	require.NotNil(t, result[2].ParentProjectID)
+	require.NotNil(t, result[3].ParentProjectID)
+	require.Equal(t, result[2].ID, *result[1].ParentProjectID)
+	require.Equal(t, result[3].ID, *result[2].ParentProjectID)
+	require.Equal(t, result[0].ID, *result[3].ParentProjectID)
+}
