@@ -56,14 +56,14 @@
 						{{ migrationError }}
 					</Message>
 					<template v-if="migrator.id === 'todoist' && migratorAuthCode">
-						<p>{{ $t('migrate.todoistReady') }}</p>
+						<p>Todoist authorization received. Review your source backup before importing.</p>
 						<label class="checkbox todoist-import-consent">
 							<input
 								v-model="todoistImportConfirmed"
 								type="checkbox"
 								:disabled="isBusy"
 							>
-							{{ $t('migrate.todoistConfirmImport') }}
+							I have backed up my Todoist data, understand importing may create duplicates, and will verify imported tasks before relying on them.
 						</label>
 						<div class="mbs-3">
 							<XButton
@@ -71,7 +71,7 @@
 								:loading="isBusy"
 								@click="migrate()"
 							>
-								{{ $t('migrate.todoistStartImport') }}
+								Start Todoist import
 							</XButton>
 						</div>
 					</template>
