@@ -1,0 +1,60 @@
+<template>
+	<Modal
+		variant="hint-modal"
+		@close="$router.back()"
+	>
+		<Card
+			class="has-no-shadow"
+			:title="$t('about.title')"
+			:padding="false"
+			:show-close="true"
+			@close="$router.back()"
+		>
+			<div class="p-4">
+				<p v-if="versionsEqual">
+					{{ $t('about.version', {version: apiVersion}) }}
+				</p>
+				<template v-else>
+					<p>{{ $t('about.frontendVersion', {version: frontendVersion}) }}</p>
+					<p>{{ $t('about.apiVersion', {version: apiVersion}) }}</p>
+				</template>
+				<p class="mbs-3">
+					{{ $t('about.upstreamAttribution') }}
+				</p>
+				<p>
+					<a
+						href="https://github.com/go-vikunja/vikunja"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						{{ $t('about.upstreamSource') }}
+					</a>
+				</p>
+				<p v-if="proActive">
+					{{ $t('about.proActive') }}
+				</p>
+			</div>
+			<template #footer>
+				<XButton
+					variant="secondary"
+					@click.prevent.stop="$router.back()"
+				>
+					{{ $t('misc.close') }}
+				</XButton>
+			</template>
+		</Card>
+	</Modal>
+</template>
+
+<script setup lang="ts">
+import {computed} from 'vue'
+
+import {VERSION as frontendVersion} from '@/version.json'
+
+import {useConfigStore} from '@/stores/config'
+
+const configStore = useConfigStore()
+const apiVersion = computed(() => configStore.version)
+const versionsEqual = computed(() => apiVersion.value === frontendVersion)
+const proActive = computed(() => configStore.enabled_pro_features.length > 0)
+</script>

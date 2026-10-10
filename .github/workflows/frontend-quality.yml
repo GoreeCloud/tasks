@@ -1,0 +1,45 @@
+name: Frontend Quality
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-quality.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-quality.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-and-targeted-tests:
+    name: TypeScript and branding regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned package manager
+        run: corepack enable
+      - name: Install dependencies without lifecycle scripts
+        run: corepack pnpm install --frozen-lockfile --ignore-scripts
+      - name: Typecheck
+        run: corepack pnpm exec vue-tsc --build --force
+      - name: Run initial GoreeCloud identity regressions
+        run: corepack pnpm exec vitest run src/components/home/Logo.test.ts src/helpers/checkAndSetApiUrl.test.ts src/helpers/sentryFilters.test.ts
+      - name: Build production frontend bundle
+        run: corepack pnpm run build

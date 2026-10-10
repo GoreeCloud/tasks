@@ -1,0 +1,38 @@
+name: Todoist Import Integrity
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+    paths:
+      - 'pkg/modules/migration/todoist/**'
+      - '.github/workflows/todoist-import-integrity.yml'
+      - 'go.mod'
+      - 'go.sum'
+  pull_request:
+    paths:
+      - 'pkg/modules/migration/todoist/**'
+      - '.github/workflows/todoist-import-integrity.yml'
+      - 'go.mod'
+      - 'go.sum'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: todoist-import-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  todoist-import-regressions:
+    name: Todoist graph integrity and subtask regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Go migration regression tests
+        run: go test -count=1 ./pkg/modules/migration/todoist
