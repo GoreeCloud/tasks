@@ -61,6 +61,17 @@ Source code at `0ef110ee68fb6db59719b63fff896c9dc4a7bfab` extends the Todoist im
 
 **Not established:** a live or read-only Todoist dry run, persisted source-ID map, imported note/comment metadata fidelity, post-insert destination readback, exact corpus reconciliation, database recovery/rollback, Stable acceptance or authority cutover.
 
+## October 10 — Waypoint capability catalogue and About presentation
+
+- **Reviewed source revision:** `dca6cb431bf28cfa0e388a3619795660524a0595`.
+- **Exact-head PASS:** [Frontend Quality](https://github.com/GoreeCloud/tasks/actions/runs/38093414327) (pinned package install, Vue/TypeScript check, `Logo.test.ts`, new `About.test.ts`, URL/privacy tests and production frontend build).
+- **Exact-head PASS:** [Todoist Import Integrity](https://github.com/GoreeCloud/tasks/actions/runs/38093414263) (focused Go importer regressions).
+- **Exact-head PASS:** [Source Safety Baseline](https://github.com/GoreeCloud/tasks/actions/runs/38093414268).
+- **Documentation:** [proposed 18-section catalogue](https://docs.google.com/document/d/1yYzCPsShY6QkqJbJjFsUa25TASRiZ8Pk/edit) recorded as a Word document in the authorized GoreeCloud Drive account; `docs/CAPABILITY_TRACEABILITY.md` maps the proposal to the approved Waypoint identity and issues #2, #3 and #4.
+- **UI:** About displays “GoreeCloud Tasks — Powered by Waypoint” and retains Vikunja provenance attribution. The feature-catalogue mapping does **not** represent delivery of unimplemented analytics, native apps, AI automation, cross-system integrations or operational authorization.
+- **Documented variance:** the proposed catalogue uses Pulse for productivity and reporting; the approved Waypoint identity standard assigns Pulse to reminders and notification signals. The approved meaning remains controlling pending any authorized decision.
+- **Still pending:** actual rendered UI/assistive-technology acceptance, full backend/security/license conformance, 100% post-migration reconciliation, backup/restore, native architectural replacement, Stable qualification and live task authority cutover.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
