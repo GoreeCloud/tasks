@@ -523,7 +523,7 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 			}
 
 			// Download the attachment and put it in the file
-			buf, err := migration.DownloadFile(n.FileAttachment.FileURL)
+			buf, err := migration.DownloadFileWithHeadersLimited(utils.NewSSRFSafeHTTPClient(), n.FileAttachment.FileURL, nil, int64(config.GetMaxFileSizeInMBytes())*1024*1024)
 			if err != nil {
 				// Never silently mark an import successful after losing a file.
 				// Do not expose signed attachment URLs or upstream error bodies.
