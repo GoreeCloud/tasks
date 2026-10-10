@@ -56,14 +56,14 @@
 						{{ migrationError }}
 					</Message>
 					<template v-if="migrator.id === 'todoist' && migratorAuthCode">
-						<p>Todoist authorization received. Review your source backup before importing.</p>
+						<p>{{ $t('migrate.todoistAuthorizationReceived') }}</p>
 						<label class="checkbox todoist-import-consent">
 							<input
 								v-model="todoistImportConfirmed"
 								type="checkbox"
 								:disabled="isBusy"
 							>
-							I have backed up my Todoist data, understand importing may create duplicates, and will verify imported tasks before relying on them.
+							{{ $t('migrate.todoistImportConsent') }}
 						</label>
 						<div class="mbs-3">
 							<XButton
@@ -71,7 +71,7 @@
 								:loading="isBusy"
 								@click="migrate()"
 							>
-								Start Todoist import
+								{{ $t('migrate.todoistImportButton') }}
 							</XButton>
 						</div>
 					</template>
@@ -277,7 +277,7 @@ async function initMigration() {
 			confirmedAgain.value = true
 			const returnedState = new URLSearchParams(location.search).get('state')
 			if (!consumeTodoistOAuthState(returnedState, todoistOAuthStorage())) {
-				migrationError.value = 'Todoist authorization could not be verified. Start a new authorization.'
+				migrationError.value = t('migrate.todoistOAuthMismatch')
 				return
 			}
 			migratorAuthCode.value = callbackCode
@@ -287,7 +287,7 @@ async function initMigration() {
 		if (provider !== migrator.value.id) return
 		const authorizationUrl = authResult?.url ?? ''
 		if (provider === 'todoist' && !rememberTodoistOAuthState(authorizationUrl, todoistOAuthStorage())) {
-			migrationError.value = 'Todoist authorization could not be prepared securely. Try again.'
+			migrationError.value = t('migrate.todoistOAuthUnavailable')
 			return
 		}
 		authUrl.value = authorizationUrl
