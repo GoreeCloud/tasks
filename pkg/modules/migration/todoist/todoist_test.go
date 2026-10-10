@@ -739,6 +739,7 @@ func TestIsDownloadableURL(t *testing.T) {
 		{name: "todoist mail attachment id", url: "[[outlook=id3=aWQ9MDAwMDAwMDBDRjVENTQ1RjUzOTJERDQ1OER]]", want: false},
 		{name: "no scheme", url: "todoist.com/file.md", want: false},
 		{name: "no host", url: "https://", want: false},
+		{name: "URL with credentials", url: "https://user:secret@todoist.com/file.md", want: false},
 		{name: "other scheme", url: "file:///etc/passwd", want: false},
 		{name: "empty", url: "", want: false},
 		{name: "invalid", url: "https://%zz", want: false},
