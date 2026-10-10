@@ -130,9 +130,17 @@ func validateTodoistSync(data *sync) error {
 		}
 	}
 
+	seenNotes := make(map[string]bool, len(data.Notes))
 	for _, note := range data.Notes {
 		if note == nil || !hasSourceTask(items, note.ItemID) {
 			return fmt.Errorf("todoist migration: note refers to a missing task")
+		}
+		if note.ID == "" || seenNotes[note.ID] {
+			return fmt.Errorf("todoist migration: note ID missing or repeated")
+		}
+		seenNotes[note.ID] = true
+		if note.ProjectID != "" && items[note.ItemID].ProjectID != note.ProjectID {
+			return fmt.Errorf("todoist migration: note and task project mismatch")
 		}
 		if note.FileAttachment != nil && !isDownloadableURL(note.FileAttachment.FileURL) {
 			return fmt.Errorf("todoist migration: note %s has an attachment that cannot be imported without loss", note.ID)
