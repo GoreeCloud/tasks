@@ -53,6 +53,7 @@ func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 		{"orphan section", func(s *sync) { s.Sections[0].ProjectID = "missing" }, "section"},
 		{"orphan label", func(s *sync) { s.Items[0].Labels = []string{"missing"} }, "missing label"},
 		{"orphan note", func(s *sync) { s.Notes[0].ItemID = "missing" }, "note"},
+		{"foreign note project", func(s *sync) { s.Notes[0].ProjectID = "other" }, "project mismatch"},
 		{"opaque note attachment", func(s *sync) {
 			s.Notes[0].FileAttachment = &fileAttachment{FileName: "private.pdf", FileURL: "[[mail-attachment-id]]"}
 		}, "cannot be imported without loss"},
