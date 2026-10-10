@@ -84,8 +84,8 @@ useTitle(() => title.value)
 
 <style lang="scss" scoped>
 .no-auth-wrapper {
-	background: var(--site-background) url("@/assets/llama.svg?url") no-repeat
-		fixed bottom left;
+	background: radial-gradient(circle at 18% 10%, rgba(124, 92, 255, .13), transparent 40%),
+		linear-gradient(140deg, var(--glaze-canvas-accent), var(--glaze-canvas));
 	min-block-size: 100vh;
 	display: flex;
 	flex-direction: column;
@@ -101,12 +101,13 @@ useTitle(() => title.value)
 	inline-size: 100%;
 	min-block-size: 60vh;
 	display: flex;
-	background-color: var(--white);
-	box-shadow: var(--shadow-md);
+	background-color: var(--glaze-surface-strong);
+	border: 1px solid var(--glaze-line);
+	box-shadow: var(--glaze-shadow-raised);
 	overflow: hidden;
 
 	@media screen and (min-width: $desktop) {
-		border-radius: $radius;
+		border-radius: var(--glaze-radius-xl);
 	}
 }
 
@@ -122,7 +123,7 @@ useTitle(() => title.value)
 	}
 
 	@media screen and (min-width: $tablet) {
-		background: url("@/assets/no-auth-image.jpg") no-repeat bottom/cover;
+		background: linear-gradient(148deg, #112753, #3152a2 58%, #605ab6);
 		position: relative;
 
 		&.has-message {
