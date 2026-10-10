@@ -134,6 +134,14 @@
 		<div
 			v-if="!isMobile"
 			class="resize-handle"
+			role="separator"
+			aria-orientation="vertical"
+			:aria-label="$t('navigation.sidebarResize')"
+			:aria-valuenow="currentWidth"
+			:aria-valuemin="200"
+			:aria-valuemax="500"
+			tabindex="0"
+			@keydown="resizeWithKeyboard"
 			@mousedown="startResize"
 			@touchstart="startResize"
 		/>
@@ -161,7 +169,7 @@ const configStore = useConfigStore()
 
 const timeTrackingEnabled = computed(() => configStore.isProFeatureEnabled(PRO_FEATURE.TIME_TRACKING))
 
-const {sidebarWidthStyle, isResizing, startResize, isMobile} = useSidebarResize()
+const {sidebarWidthStyle, currentWidth, isResizing, startResize, resizeWithKeyboard, isMobile} = useSidebarResize()
 
 const projects = computed(() => projectList.notArchivedRootProjects)
 const favoriteProjects = computed(() => projectList.favoriteProjects)
@@ -223,8 +231,9 @@ const savedFilterProjects = computed(() => projectList.savedFilterProjects)
 	inset-block-start: 0;
 	inset-block-end: 0;
 	inset-inline-end: 0;
-	inline-size: 4px;
+	inline-size: 8px;
 	cursor: ew-resize;
+	&:focus-visible { outline: 3px solid var(--glaze-accent); outline-offset: -3px; }
 	background: transparent;
 	transition: background-color $transition-duration ease;
 	touch-action: none;
