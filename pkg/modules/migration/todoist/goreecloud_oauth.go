@@ -13,7 +13,7 @@ import (
 // makeTodoistAuthorizationURL returns an error if fresh unpredictable state
 // cannot be generated. A fixed or missing OAuth state is never a safe fallback.
 // This does not itself validate the state on the redirect callback.
-func makeTodoistAuthorizationURL(generateState func(int) (string, error)) (string, error) {
+func makeTodoistAuthorizationURL(generateState func(int64) (string, error)) (string, error) {
 	state, err := generateState(32)
 	if err != nil || strings.TrimSpace(state) == "" {
 		return "", fmt.Errorf("todoist migration: cannot generate OAuth state")
