@@ -105,6 +105,9 @@ func validateTodoistSync(data *sync) error {
 		if note == nil || !hasSourceTask(items, note.ItemID) {
 			return fmt.Errorf("todoist migration: note refers to a missing task")
 		}
+		if note.FileAttachment != nil && !isDownloadableURL(note.FileAttachment.FileURL) {
+			return fmt.Errorf("todoist migration: note %s has an attachment that cannot be imported without loss", note.ID)
+		}
 	}
 	for _, note := range data.ProjectNotes {
 		if note == nil || !projects[note.ProjectID] {
