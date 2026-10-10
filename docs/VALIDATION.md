@@ -96,6 +96,18 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 - **Frontend Quality:** source has not changed from the previously passing frontend implementation; the exact-head workflow remains to be checked before any complete-checks claim.
 - **Limitations:** Responses may still need source-snapshot completeness, semantic task/comment/attachment fidelity, transactional insert, idempotency, readback reconciliation, CSRF/state binding, authorized test import and rollback evidence. No Todoist live data was accessed or imported.
 
+## October 10 — completed-task identity, deleted projects and OAuth fallback
+
+**Verified code revision:** `e2ccb60d2d44a26b3d78714de344535ca7dea765`.
+
+- **Source-page integrity:** Completed task pages must have non-null task records, identifiers, project references and completion timestamps. Nil project metadata is rejected; returned detail records must match the source task and project IDs. Archived project pages reject nil/unnamed IDs and duplicate project IDs.
+- **No silent omission:** A completed item associated with a deleted source project is rejected rather than skipped; this is a fail-closed safety decision pending a supported preservation mechanism.
+- **OAuth defense-in-depth:** A cryptographic random-state generation failure no longer falls back to a fixed state; the authorization URL is not issued. The auth URL encodes query parameters. **OAuth callback state validation and anti-CSRF binding remain absent** and require separate implementation and testing.
+- **Go CI:** [Todoist Import Integrity — PASS](https://github.com/GoreeCloud/tasks/actions/runs/38095428885) at this code revision, including newly added page/detail/OAuth regressions.
+- **Source safety:** [Source Safety Baseline — PASS](https://github.com/GoreeCloud/tasks/actions/runs/38095428912) at this revision.
+- **Frontend:** Exact-revision check under evaluation as of initial documentation; do not treat pending work as passed.
+- **Not demonstrated:** Actual API response compatibility with representative authenticated Todoist archives, full source fidelity, a validated OAuth callback, persistence reconciliation, rollback, or Stable readiness.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
