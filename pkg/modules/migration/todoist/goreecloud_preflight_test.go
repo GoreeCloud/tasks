@@ -35,6 +35,10 @@ func TestGoreeCloudTodoistPreflightRejectsIncompleteSource(t *testing.T) {
 		message string
 	}{
 		{"nil project", func(s *sync) { s.Projects[0] = nil }, "project with missing"},
+		{"empty project name", func(s *sync) { s.Projects[0].Name = "  " }, "empty name"},
+		{"empty task title", func(s *sync) { s.Items[0].Content = "  " }, "empty title"},
+		{"missing task notes", func(s *sync) { s.Items[0].HasMoreNotes = true }, "additional notes"},
+		{"empty section name", func(s *sync) { s.Sections[0].Name = " " }, "empty name"},
 		{"duplicate project", func(s *sync) { s.Projects = append(s.Projects, &project{ID: "p1"}) }, "duplicate project"},
 		{"missing project parent", func(s *sync) { s.Projects[0].ParentID = "p2" }, "missing parent"},
 		{"cyclic project parents", func(s *sync) { s.Projects[0].ParentID = "p2"; s.Projects = append(s.Projects, &project{ID: "p2", ParentID: "p1"}) }, "cyclic"},
