@@ -11,6 +11,10 @@
 			@close="$router.back()"
 		>
 			<div class="p-4">
+				<p class="mbs-3">
+					<strong>{{ $t('about.waypointPresentation') }}</strong>
+				</p>
+				<p>{{ $t('about.waypointScope') }}</p>
 				<p v-if="versionsEqual">
 					{{ $t('about.version', {version: apiVersion}) }}
 				</p>
