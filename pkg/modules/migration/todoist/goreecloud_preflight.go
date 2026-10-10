@@ -146,10 +146,15 @@ func validateTodoistSync(data *sync) error {
 			return fmt.Errorf("todoist migration: note %s has an attachment that cannot be imported without loss", note.ID)
 		}
 	}
+	seenProjectNotes := make(map[string]bool, len(data.ProjectNotes))
 	for _, note := range data.ProjectNotes {
 		if note == nil || !projects[note.ProjectID] {
 			return fmt.Errorf("todoist migration: project note refers to a missing project")
 		}
+		if note.ID == "" || seenProjectNotes[note.ID] {
+			return fmt.Errorf("todoist migration: project-note ID missing or repeated")
+		}
+		seenProjectNotes[note.ID] = true
 		if note.FileAttachment != nil {
 			return fmt.Errorf("todoist migration: project-note attachments require a preservation strategy before import")
 		}
