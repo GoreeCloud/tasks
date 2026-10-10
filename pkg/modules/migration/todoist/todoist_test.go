@@ -771,13 +771,13 @@ func TestParseTodoistRepeat(t *testing.T) {
 		{name: "every other week", due: &dueDate{String: "every other week", IsRecurring: true}, want: 2 * secondsPerWeek},
 		{name: "every 2 weeks", due: &dueDate{String: "every 2 weeks", IsRecurring: true}, want: 2 * secondsPerWeek},
 
-		{name: "every month", due: &dueDate{String: "every month", IsRecurring: true}, want: secondsPerMonth},
-		{name: "monthly", due: &dueDate{String: "monthly", IsRecurring: true}, want: secondsPerMonth},
-		{name: "every 3 months", due: &dueDate{String: "every 3 months", IsRecurring: true}, want: 3 * secondsPerMonth},
+		{name: "every month requires calendar semantics", due: &dueDate{String: "every month", IsRecurring: true}, want: 0},
+		{name: "monthly requires calendar semantics", due: &dueDate{String: "monthly", IsRecurring: true}, want: 0},
+		{name: "every 3 months requires calendar semantics", due: &dueDate{String: "every 3 months", IsRecurring: true}, want: 0},
 
-		{name: "every year", due: &dueDate{String: "every year", IsRecurring: true}, want: secondsPerYear},
-		{name: "yearly", due: &dueDate{String: "yearly", IsRecurring: true}, want: secondsPerYear},
-		{name: "annually", due: &dueDate{String: "annually", IsRecurring: true}, want: secondsPerYear},
+		{name: "every year requires calendar semantics", due: &dueDate{String: "every year", IsRecurring: true}, want: 0},
+		{name: "yearly requires calendar semantics", due: &dueDate{String: "yearly", IsRecurring: true}, want: 0},
+		{name: "annually requires calendar semantics", due: &dueDate{String: "annually", IsRecurring: true}, want: 0},
 
 		{name: "case insensitive", due: &dueDate{String: "Every Day", IsRecurring: true}, want: secondsPerDay},
 		{name: "time of day stripped", due: &dueDate{String: "every day at 9am", IsRecurring: true}, want: secondsPerDay},
