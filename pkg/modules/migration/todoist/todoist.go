@@ -541,6 +541,12 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 				return nil, fmt.Errorf("todoist migration: could not preserve attachment for note %s", n.ID)
 			}
 
+			// The structure importer ignores zero-byte attachments. Reject them here
+			// rather than silently dropping an otherwise valid source file.
+			if buf.Len() == 0 {
+				return nil, fmt.Errorf("todoist migration: empty attachment for note %s cannot be preserved", n.ID)
+			}
+
 			tasks[n.ItemID].Attachments = append(tasks[n.ItemID].Attachments, &models.TaskAttachment{
 				File: &files.File{
 					Name:    n.FileAttachment.FileName,
