@@ -68,6 +68,9 @@ func validateTodoistSync(data *sync) error {
 		if i.SectionID != "" && sections[i.SectionID] != i.ProjectID {
 			return fmt.Errorf("todoist migration: task %s refers to missing or foreign section %s", i.ID, i.SectionID)
 		}
+		if i.Due != nil && i.Due.IsRecurring && parseTodoistRepeat(i.Due) == 0 {
+			return fmt.Errorf("todoist migration: task %s uses an unsupported recurring schedule", i.ID)
+		}
 		for _, name := range i.Labels {
 			if !labels[name] {
 				return fmt.Errorf("todoist migration: task %s refers to missing label %s", i.ID, name)
