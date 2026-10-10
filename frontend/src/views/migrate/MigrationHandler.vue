@@ -2,6 +2,13 @@
 	<div class="content">
 		<h1>{{ $t('migrate.titleService', {name: migrator.name}) }}</h1>
 		<p>{{ $t('migrate.descriptionDo') }}</p>
+		<Message
+			v-if="migrator.id === 'todoist'"
+			variant="warning"
+			class="mbe-4"
+		>
+			{{ $t('migrate.todoistAuditWarning') }}
+		</Message>
 
 		<template v-if="!migrationRunning && previousMigrationFinishedAt === null">
 			<!-- the credentials form stays mounted while migrating so its input survives an error -->
