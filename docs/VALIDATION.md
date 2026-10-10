@@ -49,6 +49,18 @@ At code revision `d51cd8f5a41cdeff34f62d86021ceb23e174bc7d`, the focused [Todois
 - The migration screen warns that imports require source/destination reconciliation and are not live sync.
 - **Unverified:** actual persisted multi-level hierarchy, task-note author/comment semantics, reversible/idempotent live importer, full end-to-end database and device testing, exact source→destination reconciliation and Stable acceptance.
 
+## October 10 — pre-insertion record-count and completeness checks
+
+Source code at `0ef110ee68fb6db59719b63fff896c9dc4a7bfab` extends the Todoist importer:
+
+- A metadata-only comparison checks counts of projects, sections, tasks, subtasks, reminders and attachments between the validated Todoist snapshot and converted model **before database insertion**.
+- Whitespace-only titles and truncated task-note snapshots are now rejected rather than silently dropped.
+- Missing OAuth access tokens or inaccessible completed-task detail records fail import explicitly; OAuth error response bodies are not propagated into logs or error strings.
+- Regression tests inject dropped projects, sections, tasks, subtasks, reminders and attachments to demonstrate count failures.
+- Verified focused Go test and source-safety results for this **code revision**: [Todoist Import Integrity](https://github.com/GoreeCloud/tasks/actions/runs/38092487341) and [Source Safety Baseline](https://github.com/GoreeCloud/tasks/actions/runs/38092487210), both passed. Frontend Quality is a separate gate, not implied by these checks.
+
+**Not established:** a live or read-only Todoist dry run, persisted source-ID map, imported note/comment metadata fidelity, post-insert destination readback, exact corpus reconciliation, database recovery/rollback, Stable acceptance or authority cutover.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
