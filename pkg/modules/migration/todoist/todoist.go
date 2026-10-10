@@ -255,19 +255,17 @@ func parseDate(dateString string) (date time.Time, err error) {
 	return date, err
 }
 
-// Matching the existing migration importers, months are treated as 30 days and years as 365.
+// Fixed-duration intervals are only safe to translate for day/week patterns.
+// Calendar months and years vary in length and must be handled as true calendar
+// recurrences rather than silently approximating them as 30/365 days.
 const (
 	secondsPerDay   int64 = 60 * 60 * 24
 	secondsPerWeek        = secondsPerDay * 7
-	secondsPerMonth       = secondsPerDay * 30
-	secondsPerYear        = secondsPerDay * 365
 )
 
 var repeatUnitSeconds = map[string]int64{
-	"day":   secondsPerDay,
-	"week":  secondsPerWeek,
-	"month": secondsPerMonth,
-	"year":  secondsPerYear,
+	"day":  secondsPerDay,
+	"week": secondsPerWeek,
 }
 
 var (
@@ -277,8 +275,9 @@ var (
 
 // parseTodoistRepeat translates Todoist's recurrence into a repeat interval in seconds.
 // Todoist exposes recurrence only as free text (e.g. "every 3 weeks"), so we parse the
-// common, unambiguous interval phrases. Patterns we can't represent (specific weekdays,
-// days of the month, non-English strings) return 0, leaving the task non-repeating. Only
+// common, unambiguous fixed-duration phrases. Patterns we can't represent (calendar
+// months/years, specific weekdays, non-English strings) return 0; preflight then
+// refuses the import rather than silently changing the source recurrence. Only
 // the cadence is kept - the due date already anchors the actual day and time.
 func parseTodoistRepeat(due *dueDate) int64 {
 	if due == nil || !due.IsRecurring {
@@ -294,10 +293,8 @@ func parseTodoistRepeat(due *dueDate) int64 {
 		return secondsPerDay
 	case "weekly":
 		return secondsPerWeek
-	case "monthly":
-		return secondsPerMonth
-	case "yearly", "annually":
-		return secondsPerYear
+	case "monthly", "yearly", "annually":
+		return 0
 	}
 
 	matches := todoistRepeatRegex.FindStringSubmatch(s)
@@ -318,7 +315,11 @@ func parseTodoistRepeat(due *dueDate) int64 {
 		interval = 2
 	}
 
-	return interval * repeatUnitSeconds[matches[3]]
+	seconds, supported := repeatUnitSeconds[matches[3]]
+	if !supported {
+		return 0 // calendar month/year is not equivalent to a fixed duration
+	}
+	return interval * seconds
 }
 
 func isDownloadableURL(rawURL string) bool {
