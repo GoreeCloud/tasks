@@ -655,7 +655,7 @@ func TestConvertTodoistToVikunja(t *testing.T) {
 
 func TestConvertTodoistToVikunjaWithBrokenAttachment(t *testing.T) {
 	// Todoist returns opaque identifiers instead of urls for attachments it does not host itself.
-	// Those must not fail the whole migration, see https://github.com/go-vikunja/vikunja/issues/3435
+	// Source identifiers which are not downloadable cannot be silently discarded.
 	testSync := &sync{
 		Projects: []*project{
 			{
@@ -686,11 +686,8 @@ func TestConvertTodoistToVikunjaWithBrokenAttachment(t *testing.T) {
 	}
 
 	hierachie, err := convertTodoistToVikunja(testSync, make(map[string]*doneItem))
-	require.NoError(t, err)
-	require.Len(t, hierachie, 2)
-	require.Len(t, hierachie[1].Tasks, 1)
-	assert.Empty(t, hierachie[1].Tasks[0].Attachments)
-	assert.Equal(t, "Lorem Ipsum dolor sit amet", hierachie[1].Tasks[0].Description)
+	require.ErrorContains(t, err, "cannot be imported without loss")
+	require.Nil(t, hierachie)
 }
 
 func TestConvertTodoistToVikunjaPreservesDescriptions(t *testing.T) {
