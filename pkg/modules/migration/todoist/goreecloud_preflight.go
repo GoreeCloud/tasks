@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package todoist
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // validateTodoistSync checks graph integrity before creating any destination
 // records. Unsupported or incomplete source references must stop an import,
@@ -20,6 +23,9 @@ func validateTodoistSync(data *sync) error {
 		}
 		if projects[p.ID] {
 			return fmt.Errorf("todoist migration: duplicate project %s", p.ID)
+		}
+		if strings.TrimSpace(p.Name) == "" {
+			return fmt.Errorf("todoist migration: project %s has an empty name", p.ID)
 		}
 		projects[p.ID] = true
 		projectByID[p.ID] = p
@@ -48,6 +54,9 @@ func validateTodoistSync(data *sync) error {
 		if section.IsDeleted {
 			continue
 		}
+		if strings.TrimSpace(section.Name) == "" {
+			return fmt.Errorf("todoist migration: section %s has an empty name", section.ID)
+		}
 		if !projects[section.ProjectID] {
 			return fmt.Errorf("todoist migration: section %s refers to missing project %s", section.ID, section.ProjectID)
 		}
@@ -75,6 +84,12 @@ func validateTodoistSync(data *sync) error {
 		}
 		if _, exists := items[i.ID]; exists {
 			return fmt.Errorf("todoist migration: duplicate task %s", i.ID)
+		}
+		if strings.TrimSpace(i.Content) == "" {
+			return fmt.Errorf("todoist migration: task %s has an empty title", i.ID)
+		}
+		if i.HasMoreNotes {
+			return fmt.Errorf("todoist migration: task %s has additional notes not present in the snapshot", i.ID)
 		}
 		if !projects[i.ProjectID] {
 			return fmt.Errorf("todoist migration: task %s refers to missing project %s", i.ID, i.ProjectID)
