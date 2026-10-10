@@ -41,3 +41,5 @@ jobs:
         run: corepack pnpm exec vue-tsc --build --force
       - name: Run initial GoreeCloud identity regressions
         run: corepack pnpm exec vitest run src/components/home/Logo.test.ts
+      - name: Build production frontend bundle
+        run: corepack pnpm run build
