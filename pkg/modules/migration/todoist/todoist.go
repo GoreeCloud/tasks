@@ -594,6 +594,11 @@ func convertTodoistToVikunja(sync *sync, doneItems map[string]*doneItem) (fullVi
 		)
 	}
 
+	// Compare source and converted record counts before touching a database.
+	if err = reconcileConvertedTodoistCounts(sync, fullVikunjaHierachie); err != nil {
+		return nil, err
+	}
+
 	return
 }
 
