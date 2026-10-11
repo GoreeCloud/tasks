@@ -180,6 +180,10 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 
 This is source and automated-build evidence only. No Stable claim, production deployment or task-authority transfer.
 
+## Multiline Quick Add duplicate-title follow-up
+
+The hierarchy parser now records the source `parentIndex` and a focused regression asserts distinct parent positions for duplicate titles (source revisions `9803fe0` and `d8514d9`). **Incomplete:** `AddTask.vue` still resolves created parent tasks by title and can link duplicate-named tasks incorrectly; UI wiring, execution of the new regression and a bulk-create interaction check remain pending. No completed duplicate-title fix is claimed.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
