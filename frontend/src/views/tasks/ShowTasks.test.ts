@@ -99,6 +99,30 @@ describe('Upcoming filters', () => {
 		expect(lastQuery().filter_include_nulls).toBe(false)
 	})
 
+	it('changes sort order without changing the active date filter', async () => {
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		await wrapper.setProps({sort: 'priority'})
+		await flushPromises()
+		expect(lastQuery().sort_by).toEqual(['priority', 'due_date', 'id'])
+		expect(lastQuery().order_by).toEqual(['desc', 'asc', 'desc'])
+		expect(lastQuery().filter).toBe("done = false && due_date < 'now/d+1d' && due_date > 'now/d'")
+
+		await wrapper.setProps({sort: 'newest'})
+		await flushPromises()
+		expect(lastQuery().sort_by).toEqual(['created', 'id'])
+		expect(lastQuery().order_by).toEqual(['desc', 'desc'])
+	})
+
+	it('uses the default sort order for unexpected deep-link values', async () => {
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		await wrapper.setProps({sort: 'unknown'})
+		await flushPromises()
+		expect(lastQuery().sort_by).toEqual(['due_date', 'id'])
+		expect(lastQuery().order_by).toEqual(['asc', 'desc'])
+	})
+
 	it('does not reload tasks when sidebar settings change', async () => {
 		await mountUpcoming()
 		await flushPromises()
