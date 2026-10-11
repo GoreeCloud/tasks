@@ -142,6 +142,18 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 - **Exact-revision Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38097857411
 - **Unverified:** Representative real-provider API compatibility, complete task/comment/attachment fidelity, post-insertion persistence readback, source snapshot freshness, OAuth nonce revocation, import idempotency, backup and rollback. No owner-data import or release authority transfer was performed.
 
+## October 10 — Todoist due-date and unsupported source-resource safety
+
+**Implementation revision:** `92c3938e95540f2a3112c1d5cc706c4aa62d7fb3`.
+
+- **Timestamp semantics:** Fixed instants now parse RFC3339 with numeric UTC offsets and fractional-second precision. Floating local-time timestamps are explicitly rejected by preflight for tasks and reminders until Todoist's source user timezone and destination floating-time semantics can be preserved. Malformed date values and unsupported timezone metadata reject instead of shifting task deadlines. All-day dates continue to use existing end-of-day conversion and require calendar fidelity review.
+- **Unsupported resource detection:** Location reminders and saved location collections are decoded from the source Sync response. Any nonempty data, plus shared projects whose collaboration/permissions cannot be preserved, aborts before destination writes.
+- **User-facing restrictions:** English Todoist migration warning now lists floating local times, geo reminders, saved locations, and shared projects as blocked source features; no silent source-data omission is presented as successful.
+- **Focused Go importer + handler tests PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38098549529
+- **Source Safety Baseline PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38098549535
+- **Frontend Quality:** confirm at final revision; https://github.com/GoreeCloud/tasks/actions/runs/38098549525
+- **Unverified:** Full Todoist provider integration, source timezone user-profile handling, all-day/recurrence DST semantics, shared/geo feature migration, completed/archived snapshot freshness, actual persisted record-level parity, restoration, idempotency and Stable status. No live source import or production authority transfer.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
