@@ -132,6 +132,7 @@ describe('useQuickAddTask', () => {
 		const result = await quickAdd().createNewTasksBulk([{title: 'Buy milk *Urgent', project_id: 1}])
 
 		expect(result.error).toBeNull()
+		expect(result.incompleteDetails).toBe(1)
 		expect(result.tasks[0]).toMatchObject({id: 7, title: 'Buy milk'})
 		expect(sdk.labelsCreate).not.toHaveBeenCalled()
 		expect(error).toHaveBeenCalledTimes(1)
