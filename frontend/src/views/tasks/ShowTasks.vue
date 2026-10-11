@@ -53,6 +53,15 @@
 					@keydown.esc="searchText = ''"
 				>
 			</label>
+			<XButton
+				v-if="searchText"
+				class="task-clear-search-button"
+				:shadow="false"
+				:aria-label="$t('task.show.clearSearch')"
+				@click="searchText = ''"
+			>
+				{{ $t('task.show.clearSearch') }}
+			</XButton>
 			<div class="task-sort-control">
 				<label>
 					<span>{{ $t('project.list.sort') }}</span>
