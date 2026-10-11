@@ -11,7 +11,7 @@ function cleanupTitle(title: string) {
 	return title.replace(/^((\* |\+ |- )(\[ \] )?)/g, '')
 }
 
-const spaceRegex = /^ */
+const spaceRegex = /^[ \t]*/
 
 /**
  * @param taskTitles should be multiple lines of task tiles with indention to declare their parent/subtask
