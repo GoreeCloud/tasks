@@ -107,6 +107,13 @@ task two`, PrefixMode.Default)
 		expect(tasks).to.have.length(1)
 		expect(tasks[0].parent).toBeNull()
 	})
+	it('Preserves distinct parent positions for tasks with the same title', () => {
+		const tasks = parseSubtasksViaIndention('Parent\n  Child\nParent\n  Child', PrefixMode.Default)
+		expect(tasks.map(task => task.parentIndex)).toEqual([null, 0, null, 2])
+		// Names are intentionally the same; only the positions distinguish the parents.
+		expect(tasks[1].parent).toBe(tasks[3].parent)
+	})
+
 	it('Should add the list of the parent task as list for all sub tasks', () => {
 		const tasks = parseSubtasksViaIndention(
 `parent task +list
