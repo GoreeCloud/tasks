@@ -3995,6 +3995,10 @@ export type MigrationMigrateBodyWritable = {
      * The OAuth code obtained after authorizing against the auth url.
      */
     code?: string;
+    /**
+     * The signed OAuth callback state required for GoreeCloud Tasks Todoist imports.
+     */
+    state?: string;
 };
 
 export type OverviewWritable = {
