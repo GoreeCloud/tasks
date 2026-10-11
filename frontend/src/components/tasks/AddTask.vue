@@ -219,6 +219,9 @@ async function submitTask() {
 			error(e)
 		}
 
+		if (bulk.incompleteDetails > 0 && !errorMessage.value) {
+			errorMessage.value = t('task.bulkCreateDetailsIncomplete')
+		}
 		assertClientRequestContext(context)
 		if (allCreated.length > 0) {
 			emit('tasksAdded', allCreated)
