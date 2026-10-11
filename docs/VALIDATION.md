@@ -231,6 +231,19 @@ The hierarchy parser records the source `parentIndex`. Quick Add now uses `index
 - Isolated authorized-laptop Vitest: **11/11 passed** across `useQuickAddTask.test.ts` and `TodayTasks.test.ts`. Focused `pkg/models` Go tests for bulk creation, task relation create/delete and label create/delete: **PASS**. No production database or live user tasks were modified.
 - Still pending: backend API persisted readback/recovery for partial metadata writes, browser/Glaze design and accessibility acceptance, full regression and threat-model coverage, rollback evidence and production/Stable authority gates.
 
+## October 10, 2026 — Today due times, search keyboard access, and reconnect reads
+
+**Executable source:** `8ca2a239e75d02c7253b2b253071903016e53d50` (draft branch; not a production acceptance).
+
+- **Implemented:** `AddTask.vue` now calls `getTodayQuickAddDueDate(new Date())`. The helper honors future configured due times and selects 23:59:59.999 local time if the chosen time already passed. It preserves the original timestamp and prevents late-evening captures from receiving an earlier same-day due time.
+- **Implemented:** cross-project list search focuses on unmodified `/` outside inputs, contenteditable fields, and modals. It advertises `aria-keyshortcuts` and exposes a localized, visible Clear search toolbar action.
+- **Implemented:** the task-list view listens for the browser `online` event and retries a prior failed list **read** only for an authenticated session without an ongoing fetch; it does not replay any task creation or metadata mutation.
+- **Isolated focused frontend tests:** 36/36 passed at earlier executable revision `0b9ab7c8`, across due-time tests, Quick Add, Today, and task-list keyboard tests. Clear search and reconnect were added afterward; their dedicated regression additions remain pending due to blocked source-test edits.
+- **Exact-head [Frontend Quality](https://github.com/GoreeCloud/tasks/actions/runs/38108768603): PASS**, Vue TypeScript checking, existing identity and task regressions, production frontend bundle.
+- **Exact-head [Source Safety](https://github.com/GoreeCloud/tasks/actions/runs/38108768558): PASS**.
+- **Exact-head [Go guard](https://github.com/GoreeCloud/tasks/actions/runs/38108768559): PASS**. No Todoist data migration or cutover.
+- **Still required:** dedicated new-feature browser integration tests (particularly Clear search and online recovery), genuine network reconnection simulation, task database persisted-state recovery, keyboard/screen-reader and Glaze acceptance, full security suites, release rollback and Stable authority.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
