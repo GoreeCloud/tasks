@@ -39,6 +39,7 @@
 			v-if="projectList.hasProjects"
 			:key="showTasksKey"
 			:label-ids="labelIds"
+			:sort="sort"
 			class="show-tasks"
 			@tasksLoaded="tasksLoaded = true"
 			@clearLabelFilter="handleClearLabelFilter"
@@ -82,6 +83,7 @@ const projectHistory = computed(() => {
 		.filter(l => Boolean(l))
 })
 
+const sort = computed(() => typeof route.query.sort === 'string' ? route.query.sort : undefined)
 const tasksLoaded = ref(false)
 
 const deletionScheduledAt = computed(() => parseDateOrNull(authStore.info?.deletion_scheduled_at))
