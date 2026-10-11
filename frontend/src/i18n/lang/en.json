@@ -1099,6 +1099,7 @@
     "bulkCreateMayHaveSucceeded": "Some tasks may already exist. Review your task list before retrying to avoid duplicates.",
     "bulkCreateRelationsIncomplete": "Tasks were created, but some parent and subtask links could not be saved. Review your tasks before retrying.",
     "bulkCreateDetailsIncomplete": "Tasks were created, but some labels or assignees could not be saved. Review the tasks before retrying.",
+    "quickAddCouldNotStart": "The task could not be prepared. Your draft remains available; try again.",
     "addReminder": "Add a reminder…",
     "removeReminder": "Remove this reminder",
     "doneSuccess": "The task was successfully marked as done.",
