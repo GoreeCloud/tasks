@@ -93,10 +93,11 @@
 		</Message>
 		<template v-if="!loading && !loadError && !hasTasks && showNothingToDo">
 			<div class="tasks-empty-state" role="status">
-				<h3>{{ $t('task.show.noTasks') }}</h3>
-				<LlamaCool class="llama-cool" aria-hidden="true" />
+				<h3>{{ searchTerm.trim() ? $t('task.show.noSearchResults') : $t('task.show.noTasks') }}</h3>
+				<XButton v-if="searchTerm.trim()" :shadow="false" @click="searchText = ''">{{ $t('task.show.clearSearch') }}</XButton>
+				<LlamaCool v-else class="llama-cool" aria-hidden="true" />
 				<RouterLink
-					v-if="route.name === 'tasks.range'"
+					v-if="route.name === 'tasks.range' && !searchTerm.trim()"
 					:to="{name: 'tasks.today'}"
 				>
 					{{ $t('input.datepickerRange.ranges.today') }}
