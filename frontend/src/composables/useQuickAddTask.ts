@@ -164,7 +164,9 @@ export function useQuickAddTask() {
 			if (!task) return
 			// `error` stays reserved for failed creates: the caller restores the typed title on it.
 			try {
-				result.tasks[index] = (await finishTask(task, item, context)).task
+				const finished = await finishTask(task, item, context)
+				result.tasks[index] = finished.task
+				if (finished.skipped.length > 0) incompleteDetails++
 			} catch {
 				assertClientRequestContext(context)
 				incompleteDetails++
