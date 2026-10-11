@@ -16,6 +16,8 @@
 				</span>
 				<textarea
 					:id="textareaId"
+					:aria-invalid="errorMessage !== ''"
+					:aria-describedby="errorMessage !== '' ? errorId : undefined"
 					ref="newTaskInput"
 					v-model="newTaskTitle"
 					v-focus
@@ -49,6 +51,8 @@
 		<Expandable :open="errorMessage !== ''">
 			<p
 				v-if="errorMessage !== ''"
+				:id="errorId"
+				role="alert"
 				class="pbs-3 mbs-0 help is-danger"
 			>
 				{{ errorMessage }}
@@ -88,6 +92,7 @@ const emit = defineEmits<{
 }>()
 
 const textareaId = computed(() => `task-add-textarea-${Math.random().toString(36).substr(2, 9)}`)
+const errorId = computed(() => `${textareaId.value}-error`)
 
 const newTaskTitle = ref('')
 const {textarea: newTaskInput} = useAutoHeightTextarea(newTaskTitle)
