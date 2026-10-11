@@ -60,11 +60,27 @@ func RegisterMigratorForEvents(factory func() migration.Migrator) {
 // AuthURL is the web handler to get the auth url
 func (mw *MigrationWeb) AuthURL(c *echo.Context) error {
 	ms := mw.MigrationStruct()
+	if bound, ok := ms.(migration.UserBoundOAuth); ok {
+		currentUser, err := user2.GetCurrentUser(c)
+		if err != nil {
+			return err
+		}
+		authorizationURL, err := bound.AuthURLForUser(currentUser)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusServiceUnavailable, "Could not create a secure migration authorization")
+		}
+		return c.JSON(http.StatusOK, &AuthURL{URL: authorizationURL})
+	}
 	return c.JSON(http.StatusOK, &AuthURL{URL: ms.AuthURL()})
 }
 
 // StartMigration validates credentials and dispatches a migration while holding its claim.
 func StartMigration(ms migration.Migrator, u *user2.User) error {
+	if bound, ok := ms.(migration.UserBoundOAuth); ok {
+		if err := bound.ValidateOAuthState(u); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid or expired migration authorization")
+		}
+	}
 	status, err := migration.ClaimMigration(ms, u)
 	if err != nil {
 		return err
