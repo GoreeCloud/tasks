@@ -18,6 +18,8 @@
 					:id="textareaId"
 					:aria-invalid="errorMessage !== ''"
 					:aria-describedby="errorMessage !== '' ? errorId : undefined"
+					:aria-keyshortcuts="defaultDueToday ? 'N' : undefined"
+					:title="defaultDueToday ? $t('task.quickAddShortcutHint') : undefined"
 					ref="newTaskInput"
 					v-model="newTaskTitle"
 					v-focus
