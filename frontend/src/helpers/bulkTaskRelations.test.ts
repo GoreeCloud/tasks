@@ -23,6 +23,17 @@ describe('bulk task relations', () => {
 		expect(resolveBulkTaskRelations(tasks, [{id: 1}, null])).toEqual([])
 		expect(resolveBulkTaskRelations(tasks, [{id: 1}, {id: 1}])).toEqual([])
 	})
+	it('rejects ambiguous repeated API IDs rather than linking to the wrong task', () => {
+		const tasks = indexCreatableTasks([parsed('parent A'), parsed('child A', 0), parsed('parent B'), parsed('child B', 2)])
+		expect(resolveBulkTaskRelations(tasks, [{id: 1}, {id: 2}, {id: 1}, {id: 3}])).toEqual([])
+		expect(resolveBulkTaskRelations(tasks, [{id: 1}, {id: 2}, {id: 4}, {id: 2}])).toEqual([])
+	})
+
+	it('preserves unrelated valid links when other API IDs are repeated', () => {
+		const tasks = indexCreatableTasks([parsed('parent'), parsed('child', 0), parsed('duplicate'), parsed('duplicate')])
+		expect(resolveBulkTaskRelations(tasks, [{id: 1}, {id: 2}, {id: 9}, {id: 9}])).toEqual([{childId: 2, parentId: 1}])
+	})
+
 	it('rejects invalid destination identities', () => {
 		const tasks = indexCreatableTasks([parsed('parent'), parsed('child', 0)])
 		expect(resolveBulkTaskRelations(tasks, [{id: 0}, {id: 2}])).toEqual([])
