@@ -118,6 +118,18 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 - **Source Safety Baseline PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38096442282 at this revision.
 - **Limitation:** Todoist documentation warns that initial full syncs may lag for large accounts. **Full-sync confirmation does not establish freshness or atomic consistency.** An incremental catch-up, account/source consistency validation, archived/completed scope coverage, record-level destination readback, backup/rollback, and representative provider API tests are still required before live import. Frontend check must be verified separately on the final head.
 
+## October 10 — user-bound Todoist OAuth state and explicit consent
+
+**Verified source revision:** `938d0849b97b5de19b1961651060aa1020a273d6`.
+
+- **Server:** The Todoist auth URL now requires the authenticated destination user and contains a signed state binding that user, a random nonce, and an issuance timestamp. An invalid/expired/cross-user state is refused by the shared migration handler **before** a migration claim or dispatch, including direct calls to the migrate API.
+- **Client:** A browser-tab-scoped challenge is recorded from the Todoist authorization URL and is consumed when the OAuth callback arrives. Absent or mismatched callbacks cannot reach the consent screen; even successful callbacks cannot auto-import. The code and validated state are submitted together.
+- **Language readiness:** English consent and authorization-error strings moved to the source translation catalog; other locales still require translations.
+- **Go importer + handler tests PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38097125070
+- **Frontend typecheck + targeted Vitest + bundle PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38097125089
+- **Source Safety Baseline PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38097125134
+- **Limitations:** Stateless backend signatures do not implement durable nonce consumption/revocation; same-user replay within the validity window still needs threat-model review. Representative Todoist OAuth provider flows, cross-tab/browser login transitions, proxy compatibility, session expiry, domain and time skew, actual task migration, rollback and full-data reconciliation remain unverified.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
