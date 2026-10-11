@@ -51,6 +51,7 @@ async function mountUpcoming() {
 			mocks: {$t: (key: string) => key},
 			stubs: {
 				Card: true,
+				Message: {template: '<div><slot /></div>'},
 				XButton: true,
 				'i18n-t': true,
 				DatepickerWithRange: {render: () => null},
@@ -144,7 +145,7 @@ describe('Upcoming filters', () => {
 		sdk.tasksList.mockRejectedValueOnce(new Error('Request failed'))
 		const wrapper = await mountUpcoming()
 		await flushPromises()
-		expect(wrapper.findComponent({name: 'Message'}).exists()).toBe(true)
+		expect(wrapper.find('.task-load-error').exists()).toBe(true)
 		await wrapper.findComponent({name: 'XButton'}).trigger('click')
 		await flushPromises()
 		expect(sdk.tasksList).toHaveBeenCalledTimes(2)
