@@ -14,6 +14,12 @@ func validateTodoistSync(data *sync) error {
 	if data == nil {
 		return fmt.Errorf("todoist migration: empty source snapshot")
 	}
+	// These Sync API resources are not represented in destination records.
+	// Refuse the source snapshot rather than silently dropping geo reminders
+	// or saved location data from an apparently successful import.
+	if len(data.LocationReminders) != 0 || len(data.Locations) != 0 {
+		return fmt.Errorf("todoist migration: unsupported location reminder or location data")
+	}
 
 	projects := make(map[string]bool, len(data.Projects))
 	projectByID := make(map[string]*project, len(data.Projects))
@@ -26,6 +32,10 @@ func validateTodoistSync(data *sync) error {
 		}
 		if strings.TrimSpace(p.Name) == "" {
 			return fmt.Errorf("todoist migration: project %s has an empty name", p.ID)
+		}
+		if p.Shared {
+			// The current import structure cannot preserve collaborator access.
+			return fmt.Errorf("todoist migration: shared project permissions are unsupported")
 		}
 		projects[p.ID] = true
 		projectByID[p.ID] = p
