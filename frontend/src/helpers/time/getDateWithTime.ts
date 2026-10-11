@@ -40,3 +40,16 @@ export function getDateWithTime(date: Date): Date {
 	newDate.setHours(timeParts.hours, timeParts.minutes, 0, 0)
 	return newDate
 }
+
+/**
+ * Today quick capture must not create tasks that are already overdue.
+ * Prefer the user's selected due time while it is still ahead today;
+ * otherwise use the end of the current local day.
+ */
+export function getTodayQuickAddDueDate(now: Date): Date {
+	const due = getDateWithTime(now)
+	if (due.getTime() <= now.getTime()) {
+		due.setHours(23, 59, 59, 999)
+	}
+	return due
+}
