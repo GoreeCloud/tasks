@@ -2,7 +2,7 @@ import {createPinia} from 'pinia'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {QueryClient, VueQueryPlugin} from '@tanstack/vue-query'
 import {reactive} from 'vue'
-import {enableAutoUnmount, flushPromises, shallowMount} from '@vue/test-utils'
+import {enableAutoUnmount, flushPromises, mount, shallowMount} from '@vue/test-utils'
 import {createMemoryHistory, createRouter} from 'vue-router'
 
 const sdk = vi.hoisted(() => ({
@@ -28,16 +28,17 @@ vi.mock('vue-i18n', async importOriginal => ({
 }))
 
 import ShowTasks from './ShowTasks.vue'
+import XButton from '@/components/input/Button.vue'
 
 enableAutoUnmount(afterEach)
 
-async function mountUpcoming() {
+async function mountUpcoming(realButtons = false) {
 	const router = createRouter({
 		history: createMemoryHistory(),
 		routes: [{path: '/', component: {render: () => null}}],
 	})
 	await router.push('/')
-	return shallowMount(ShowTasks, {
+	return (realButtons ? mount : shallowMount)(ShowTasks, {
 		props: {
 			dateFrom: 'now/d',
 			dateTo: 'now/d+1d',
@@ -52,7 +53,11 @@ async function mountUpcoming() {
 			stubs: {
 				Card: true,
 				Message: {template: '<div><slot /></div>'},
-				XButton: true,
+				XButton: realButtons ? XButton : true,
+				FancyCheckbox: true,
+				SingleTaskInProject: true,
+				LlamaCool: true,
+				PaginationEmit: true,
 				'i18n-t': true,
 				DatepickerWithRange: {render: () => null},
 			},
@@ -205,6 +210,70 @@ describe('Upcoming filters', () => {
 		expect((wrapper.find('input[type="search"]').element as HTMLInputElement).value).toBe('')
 		await vi.waitFor(() => expect(lastQuery().q).toBe(''), {timeout: 1500})
 		expect(lastQuery().filter).toContain("due_date < 'now/d+1d'")
+	})
+
+
+	it('ignores composing, repeated, and combobox-originated slash shortcuts', async () => {
+		const wrapper = await mountUpcoming()
+		document.body.append(wrapper.element)
+		await flushPromises()
+		const search = wrapper.find<HTMLInputElement>('input[type="search"]').element
+		const editor = document.createElement('textarea')
+		document.body.append(editor)
+		editor.focus()
+		for (const options of [{isComposing: true}, {repeat: true}]) {
+			const event = new KeyboardEvent('keydown', {key: '/', bubbles: true, cancelable: true, ...options})
+			document.dispatchEvent(event)
+			expect(event.defaultPrevented).toBe(false)
+			expect(document.activeElement).toBe(editor)
+		}
+		const combobox = document.createElement('div')
+		combobox.setAttribute('role', 'combobox')
+		const child = document.createElement('span')
+		child.tabIndex = 0
+		combobox.append(child)
+		document.body.append(combobox)
+		child.focus()
+		const event = new KeyboardEvent('keydown', {key: '/', bubbles: true, cancelable: true})
+		child.dispatchEvent(event)
+		expect(event.defaultPrevented).toBe(false)
+		expect(document.activeElement).toBe(child)
+		expect(document.activeElement).not.toBe(search)
+		combobox.remove()
+		editor.remove()
+		wrapper.element.remove()
+	})
+
+	it('restores search input focus after the real toolbar clear button is activated', async () => {
+		const wrapper = await mountUpcoming(true)
+		document.body.append(wrapper.element)
+		await flushPromises()
+		const search = wrapper.find<HTMLInputElement>('input[type="search"]')
+		await search.setValue('review notes')
+		const clear = wrapper.find<HTMLButtonElement>('button.task-clear-search-button')
+		expect(clear.exists()).toBe(true)
+		clear.element.focus()
+		expect(document.activeElement).toBe(clear.element)
+		await clear.trigger('click')
+		expect(search.element.value).toBe('')
+		expect(document.activeElement).toBe(search.element)
+		wrapper.element.remove()
+	})
+
+	it('restores search input focus after the real empty-results clear button is activated', async () => {
+		const wrapper = await mountUpcoming(true)
+		document.body.append(wrapper.element)
+		await flushPromises()
+		const search = wrapper.find<HTMLInputElement>('input[type="search"]')
+		await search.setValue('no matches')
+		await vi.waitFor(() => expect(wrapper.find('.tasks-empty-state button').exists()).toBe(true), {timeout: 2000})
+		const clear = wrapper.find<HTMLButtonElement>('.tasks-empty-state button')
+		clear.element.focus()
+		expect(document.activeElement).toBe(clear.element)
+		await clear.trigger('click')
+		expect(search.element.value).toBe('')
+		expect(document.activeElement).toBe(search.element)
+		wrapper.element.remove()
 	})
 
 	it('clears inline search with Escape while preserving list filters', async () => {
