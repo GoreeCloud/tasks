@@ -81,6 +81,14 @@ describe('Upcoming filters', () => {
 		await flushPromises()
 		expect(sdk.tasksList).toHaveBeenCalledTimes(1)
 	})
+	it('disables manual refresh before a session is authenticated', async () => {
+		auth.authenticated = false
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		expect(wrapper.find('.task-refresh-button').attributes('disabled')).toBeDefined()
+		expect(sdk.tasksList).not.toHaveBeenCalled()
+	})
+
 	it('reloads tasks when overdue tasks are enabled and disabled', async () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
