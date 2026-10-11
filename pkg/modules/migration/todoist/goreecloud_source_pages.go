@@ -8,8 +8,8 @@ import "fmt"
 // records returned by the completed-task API. Reject incomplete pages instead
 // of panicking, losing task metadata or reporting an apparent successful import.
 func validateTodoistCompletedPage(page *paginatedCompletedTasks) error {
-	if page == nil {
-		return fmt.Errorf("todoist migration: missing completed task page")
+	if page == nil || page.Items == nil {
+		return fmt.Errorf("todoist migration: completed task page omitted the items collection")
 	}
 	for _, task := range page.Items {
 		if task == nil || task.TaskID == "" || task.ProjectID == "" {
@@ -45,8 +45,8 @@ func validateTodoistCompletedDetail(expected *doneItem, actual *item) error {
 // validateTodoistArchivedPage runs before dereferencing archived project IDs.
 // A malformed page must never trigger a panic or silently discard source data.
 func validateTodoistArchivedPage(page *paginatedProjects) error {
-	if page == nil {
-		return fmt.Errorf("todoist migration: missing archived project page")
+	if page == nil || page.Results == nil {
+		return fmt.Errorf("todoist migration: archived project page omitted the results collection")
 	}
 	seen := make(map[string]bool, len(page.Results))
 	for _, project := range page.Results {
