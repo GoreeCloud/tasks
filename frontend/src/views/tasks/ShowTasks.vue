@@ -58,7 +58,7 @@
 				class="task-clear-search-button"
 				:shadow="false"
 				:aria-label="$t('task.show.clearSearch')"
-				@click="searchText = ''"
+				@click="clearSearch"
 			>
 				{{ $t('task.show.clearSearch') }}
 			</XButton>
@@ -125,7 +125,7 @@
 		<template v-if="!loading && !loadError && !hasTasks && showNothingToDo">
 			<div class="tasks-empty-state" role="status">
 				<h3>{{ searchTerm.trim() ? $t('task.show.noSearchResults') : $t('task.show.noTasks') }}</h3>
-				<XButton v-if="searchTerm.trim()" :shadow="false" @click="searchText = ''">{{ $t('task.show.clearSearch') }}</XButton>
+				<XButton v-if="searchTerm.trim()" :shadow="false" @click="clearSearch">{{ $t('task.show.clearSearch') }}</XButton>
 				<LlamaCool v-else class="llama-cool" aria-hidden="true" />
 				<RouterLink
 					v-if="route.name === 'tasks.range' && !searchTerm.trim()"
@@ -235,11 +235,16 @@ const searchText = ref('')
 const taskSearchInput = ref<HTMLInputElement | null>(null)
 const searchTerm = refDebounced(searchText, 250)
 
+function clearSearch() {
+	searchText.value = ''
+	taskSearchInput.value?.focus()
+}
+
 useEventListener(document, 'keydown', event => {
-	if (event.defaultPrevented || event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+	if (event.defaultPrevented || event.isComposing || event.repeat || event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
 	if (!authStore.authenticated) return
 	const target = event.target
-	if (target instanceof Element && target.closest('input, textarea, select, [contenteditable], [role="textbox"]')) return
+	if (target instanceof Element && target.closest('input, textarea, select, [contenteditable], [role="textbox"], [role="combobox"]')) return
 	if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return
 	const input = taskSearchInput.value
 	if (!input || input.disabled) return
