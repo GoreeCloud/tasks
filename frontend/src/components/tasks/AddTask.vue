@@ -154,8 +154,7 @@ async function addTask() {
 	try {
 		newTaskTitle.value = ''
 
-		const entries = await Promise.all(tasksToCreate
-			.filter(({title}) => title !== '')
+		const entries = await Promise.all(indexedTasks
 			.map(async ({title, project}) => ({
 				title,
 				project_id: (project !== null
@@ -170,53 +169,28 @@ async function addTask() {
 			return
 		}
 
-		// Separate from createdTasks: duplicate lines create two tasks but collapse
-		// into a single map entry.
 		const allCreated: ITask[] = []
 
 		assertClientRequestContext(context)
 		const bulk = await createNewTasksBulk(entries)
-		entries.forEach(({title}, index) => {
-			const task = bulk.tasks[index]
-			if (task === null) {
-				return
-			}
-			createdTasks.set(title, task)
-			allCreated.push(task)
-		})
+		const relations = resolveBulkTaskRelations(indexedTasks, bulk.tasks)
+		for (const created of bulk.tasks) {
+			if (created) allCreated.push(created)
+		}
 
-		const allParentTasks = tasksToCreate.filter(t => t.parent !== null).map(t => t.parent)
-		const createRelation = async (t: TaskWithParent) => {
-			const createdTask = createdTasks.get(t.title)
-			if (typeof createdTask === 'undefined') {
-				return
-			}
-
-			const isParent = allParentTasks.includes(t.title)
-			if (t.parent === null && !isParent) {
-				return
-			}
-
-			const createdParentTask = createdTasks.get(t.parent ?? '')
-			if (typeof createdTask === 'undefined' || typeof createdParentTask === 'undefined') {
-				return
-			}
-
+		const createRelation = async ({childId, parentId}: (typeof relations)[number]) => {
 			assertClientRequestContext(context)
-			const rel = await createRelationMutation.mutateAsync({
-				taskId: createdTask.id!,
-				other_task_id: createdParentTask.id,
+			return createRelationMutation.mutateAsync({
+				taskId: childId,
+				other_task_id: parentId,
 				relation_kind: RELATION_KIND.PARENTTASK,
 			})
-
-			return rel
 		}
 
 		try {
-			await runWrites(tasksToCreate, createRelation, configStore.concurrent_writes)
+			await runWrites(relations, createRelation, configStore.concurrent_writes)
 		} catch (e) {
-			// The tasks themselves exist by now — reporting and moving on beats
-			// restoring the input and letting the user duplicate all of them.
+			// Created tasks already exist; retrying the entire batch could duplicate them.
 			error(e)
 		}
 
