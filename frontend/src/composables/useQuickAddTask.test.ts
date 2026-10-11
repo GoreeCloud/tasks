@@ -125,6 +125,23 @@ describe('useQuickAddTask', () => {
 		expect(error).not.toHaveBeenCalled()
 	})
 
+	it('continues attaching labels after one failure without claiming the failed label', async () => {
+		sdk.labelsList.mockResolvedValue({data: {items: [
+			{id: 9, title: 'Urgent'},
+			{id: 10, title: 'Later'},
+		], total_pages: 1}})
+		sdk.tasksBulkCreate.mockResolvedValue({data: {tasks: [{id: 7, title: 'Buy milk', project_id: 1}]}})
+		sdk.taskLabelsCreate.mockImplementation(async ({body}: {body: {label_id: number}}) => {
+			if (body.label_id === 9) throw new Error('attachment rejected')
+			return {data: {}}
+		})
+		const result = await quickAdd().createNewTasksBulk([{title: 'Buy milk *Urgent *Later', project_id: 1}])
+		expect(sdk.taskLabelsCreate).toHaveBeenCalledTimes(2)
+		expect(result.error).toBeNull()
+		expect(result.incompleteDetails).toBe(1)
+		expect(result.tasks[0]?.labels?.map(label => label.id)).toEqual([10])
+	})
+
 	it('reports a failed label write on a bulk create without failing the create', async () => {
 		sdk.labelsList.mockResolvedValue({data: {items: [{id: 9, title: 'Urgent'}], total_pages: 1}})
 		sdk.tasksBulkCreate.mockResolvedValue({data: {tasks: [{id: 7, title: 'Buy milk', project_id: 1}]}})
