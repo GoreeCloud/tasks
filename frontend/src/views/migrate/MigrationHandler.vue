@@ -258,9 +258,25 @@ function todoistOAuthStorage(): Storage | undefined {
 	}
 }
 
+// Do not leave Todoist authorization codes and signed state in browser history
+// while waiting on status/auth requests. Capture them before scrubbing the URL.
+function scrubTodoistOAuthCallback() {
+	const callbackURL = new URL(location.href)
+	callbackURL.searchParams.delete('code')
+	callbackURL.searchParams.delete('state')
+	if (callbackURL.hash.startsWith('#token=')) callbackURL.hash = ''
+	window.history.replaceState(window.history.state, '', callbackURL.pathname + callbackURL.search + callbackURL.hash)
+}
+
 async function initMigration() {
 	try {
 		const provider = migrator.value.id
+		const prefix = '#token='
+		const callbackCode = location.hash.startsWith(prefix) ? location.hash.substring(prefix.length) : props.code ?? ''
+		const returnedState = new URLSearchParams(location.search).get('state')
+		if (provider === 'todoist' && (callbackCode || returnedState !== null)) {
+			scrubTodoistOAuthCallback()
+		}
 		const current = await status.refetch()
 		if (provider !== migrator.value.id) return
 		if (current.isError) throw current.error
@@ -270,13 +286,10 @@ async function initMigration() {
 			return
 		}
 		if (!isMigratorOfKind(provider, 'oauth')) return
-		const prefix = '#token='
-		const callbackCode = location.hash.startsWith(prefix) ? location.hash.substring(prefix.length) : props.code ?? ''
 		// Inspect the returned state BEFORE requesting a new authorization URL,
 		// which would otherwise overwrite the outstanding tab-bound challenge.
 		if (provider === 'todoist' && callbackCode) {
 			confirmedAgain.value = true
-			const returnedState = new URLSearchParams(location.search).get('state')
 			if (!consumeTodoistOAuthState(returnedState, todoistOAuthStorage())) {
 				migrationError.value = t('migrate.todoistOAuthMismatch')
 				return
