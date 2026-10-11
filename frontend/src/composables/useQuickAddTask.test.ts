@@ -120,6 +120,7 @@ describe('useQuickAddTask', () => {
 		])
 
 		expect(result.tasks).toHaveLength(3)
+		expect(result.incompleteDetails).toBe(3)
 		expect(sdk.taskLabelsCreate).not.toHaveBeenCalled()
 		expect(error).not.toHaveBeenCalled()
 	})
