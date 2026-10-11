@@ -70,7 +70,8 @@ import type {Task as ITask} from '@/client/generated'
 
 import Expandable from '@/components/base/Expandable.vue'
 import QuickAddMagic from '@/components/tasks/partials/QuickAddMagic.vue'
-import {parseSubtasksViaIndention, type TaskWithParent} from '@/helpers/parseSubtasksViaIndention'
+import {parseSubtasksViaIndention} from '@/helpers/parseSubtasksViaIndention'
+import {indexCreatableTasks, resolveBulkTaskRelations} from '@/helpers/bulkTaskRelations'
 import {getLabelsFromPrefix} from '@/modules/quickAddMagic'
 import {runWrites} from '@/helpers/runWrites'
 import {error} from '@/message'
@@ -131,10 +132,8 @@ async function addTask() {
 
 	const context = captureClientRequestContext()
 	const taskTitleBackup = newTaskTitle.value
-	// Keyed by the title the task had before quick add magic parsed it. A Map,
-	// because a user-entered `__proto__` would corrupt plain-object lookups.
-	const createdTasks = new Map<ITask['title'], ITask>()
 	const tasksToCreate = parseSubtasksViaIndention(newTaskTitle.value, authStore.settings.frontend_settings.quick_add_magic_mode)
+	const indexedTasks = indexCreatableTasks(tasksToCreate)
 
 	// We ensure all labels exist prior to passing them down to the create task method
 	// In the store it will only ever see one task at a time so there's no way to reliably 
