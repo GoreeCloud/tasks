@@ -81,6 +81,10 @@
 				{{ $t('task.show.overdue') }}
 			</FancyCheckbox>
 		</p>
+		<Message v-if="loadError" variant="danger" class="task-load-error mbe-3">
+			<span>{{ $t('task.show.loadFailed') }}</span>
+			<XButton :shadow="false" @click="updateTasks">{{ $t('task.show.retry') }}</XButton>
+		</Message>
 		<template v-if="!loading && !loadError && !hasTasks && showNothingToDo">
 			<div class="tasks-empty-state" role="status">
 				<h3>{{ $t('task.show.noTasks') }}</h3>
@@ -395,6 +399,13 @@ watchEffect(() => setTitle(pageTitle.value))
 		color: inherit;
 		&:focus-visible { outline: 3px solid var(--glaze-accent); outline-offset: 2px; }
 	}
+}
+
+.task-load-error {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
 }
 
 .tasks-empty-state {
