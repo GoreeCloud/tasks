@@ -124,6 +124,15 @@ describe('MigrationHandler', () => {
 		expect(wrapper.find('input[type="checkbox"]').exists()).toBe(true)
 		expect(wrapper.find('x-button-stub[disabled="true"]').exists()).toBe(true)
 		expect(sdk.migrationTodoistMigrate).not.toHaveBeenCalled()
+
+		sdk.migrationTodoistMigrate.mockResolvedValue({data: {}})
+		await wrapper.find('input[type="checkbox"]').setValue(true)
+		await flushPromises()
+		await wrapper.find('x-button-stub').trigger('click')
+		await flushPromises()
+		expect(sdk.migrationTodoistMigrate).toHaveBeenCalledWith({
+			body: {code: 'authorized-code', state: nonce},
+		})
 	})
 
 })
