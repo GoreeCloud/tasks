@@ -142,7 +142,7 @@ describe('task domain helpers', () => {
 		expect(buildQuickAddTask(explicit, input, PREFIXES[PrefixMode.Default], []).due_date)
 			.toBe('2026-10-12T15:00:00.000Z')
 		const undated = buildQuickAddTask(parsed, {title: 'Write report', project_id: 1}, PREFIXES[PrefixMode.Default], [])
-		expect(undated.due_date).toBeNull()
+		expect(undated.due_date).toBeUndefined()
 	})
 	it('cleans only resolved assignees while preserving quick-add labels', () => {
 		const input = {title: 'Task @alice @missing *label', project_id: 1}
