@@ -32,6 +32,17 @@
 				</li>
 				<li>
 					<RouterLink
+						v-shortcut="SHORTCUTS.navigation.today"
+						:to="{ name: 'tasks.today'}"
+					>
+						<span class="menu-item-icon icon">
+							<Icon icon="calendar" />
+						</span>
+						{{ $t('input.datepickerRange.ranges.today') }}
+					</RouterLink>
+				</li>
+				<li>
+					<RouterLink
 						v-shortcut="SHORTCUTS.navigation.upcoming"
 						:to="{ name: 'tasks.range'}"
 					>

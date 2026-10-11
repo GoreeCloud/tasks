@@ -8,6 +8,7 @@ export const SHORTCUTS = {
 	showKeyboardShortcuts: 'Shift+Slash',
 	navigation: {
 		overview: 'KeyG KeyO',
+		today: 'KeyG KeyT',
 		upcoming: 'KeyG KeyU',
 		projects: 'KeyG KeyP',
 		labels: 'KeyG KeyA',

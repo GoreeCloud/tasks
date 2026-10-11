@@ -21,6 +21,7 @@ import Register from '@/views/user/Register.vue'
 import LinkSharingAuth from '@/views/sharing/LinkSharingAuth.vue'
 import OpenIdAuth from '@/views/user/OpenIdAuth.vue'
 import UpcomingTasks from '@/views/tasks/ShowTasks.vue'
+import TodayTasks from '@/views/tasks/TodayTasks.vue'
 
 import NotFoundComponent from '@/views/404.vue'
 
@@ -220,6 +221,15 @@ const router = createRouter({
 			name: 'task.detail',
 			component: () => import('@/views/tasks/TaskDetailView.vue'),
 			props: route => ({ taskId: Number(route.params.id as string) }),
+		},
+		{
+			path: '/tasks/by/today',
+			name: 'tasks.today',
+			component: TodayTasks,
+			props: route => ({
+				showOverdue: route.query.showOverdue !== 'false',
+				showNulls: route.query.showNulls === 'true',
+			}),
 		},
 		{
 			path: '/tasks/by/upcoming',
