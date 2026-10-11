@@ -15,7 +15,7 @@ import {useConfigStore} from '@/stores/config'
 import {parseTaskText, PREFIXES} from '@/modules/quickAddMagic'
 import {buildQuickAddTask} from '@/helpers/task'
 import {getRandomColorHex} from '@/helpers/color/randomColor'
-import {runWrites} from '@/helpers/runWrites'
+import {runWrites, runWritesSettled} from '@/helpers/runWrites'
 import {error} from '@/message'
 import {i18n} from '@/i18n'
 import {taskRemindersFromSettings} from '@/helpers/userSettings'
@@ -124,23 +124,30 @@ export function useQuickAddTask() {
 		context = captureClientRequestContext(),
 	) {
 		const {labels, skipped} = await ensureLabelsExist(parsedLabels, context)
-		await runWrites(labels, label => {
+		const savedLabels: Label[] = []
+		const {failed} = await runWritesSettled(labels, async label => {
 			assertClientRequestContext(context)
-			return addLabel.mutateAsync({taskId: task.id!, label: {...label, id: label.id!}})
+			await addLabel.mutateAsync({taskId: task.id!, label: {...label, id: label.id!}})
+			savedLabels.push(label)
 		}, config.concurrent_writes)
-		return {task: {...task, labels: [...(task.labels ?? []), ...labels]}, skipped}
+		assertClientRequestContext(context)
+		return {task: {...task, labels: [...(task.labels ?? []), ...savedLabels]}, skipped, incompleteDetails: failed > 0}
 	}
 
 	async function finishTask(task: Task, built: Awaited<ReturnType<typeof build>>, context: ClientRequestContext) {
 		assertClientRequestContext(context)
-		await runWrites(built.task.assignees ?? [], user => {
+		const savedAssignees: NonNullable<Task['assignees']> = []
+		const {failed} = await runWritesSettled(built.task.assignees ?? [], async user => {
 			assertClientRequestContext(context)
-			return addAssignee.mutateAsync({taskId: task.id!, user: {...user, id: user.id!}})
+			await addAssignee.mutateAsync({taskId: task.id!, user: {...user, id: user.id!}})
+			savedAssignees.push(user)
 		}, config.concurrent_writes)
-		return addLabelsToTask(
-			{task: {...task, assignees: built.task.assignees}, parsedLabels: built.parsedLabels},
+		assertClientRequestContext(context)
+		const finished = await addLabelsToTask(
+			{task: {...task, assignees: [...(task.assignees ?? []), ...savedAssignees]}, parsedLabels: built.parsedLabels},
 			context,
 		)
+		return {...finished, incompleteDetails: failed > 0 || finished.incompleteDetails}
 	}
 
 	async function createNewTask(input: Partial<Task>) {
@@ -148,8 +155,9 @@ export function useQuickAddTask() {
 		const built = await build(input, context)
 		assertClientRequestContext(context)
 		const created = await create.mutateAsync({...built.task, project_id: built.task.project_id!})
-		const {task, skipped} = await finishTask(created, built, context)
+		const {task, skipped, incompleteDetails} = await finishTask(created, built, context)
 		reportSkippedLabels(skipped)
+		if (incompleteDetails) error({message: i18n.global.t('task.bulkCreateDetailsIncomplete')})
 		return task
 	}
 
@@ -166,7 +174,7 @@ export function useQuickAddTask() {
 			try {
 				const finished = await finishTask(task, item, context)
 				result.tasks[index] = finished.task
-				if (finished.skipped.length > 0) incompleteDetails++
+				if (finished.skipped.length > 0 || finished.incompleteDetails) incompleteDetails++
 			} catch {
 				assertClientRequestContext(context)
 				incompleteDetails++
