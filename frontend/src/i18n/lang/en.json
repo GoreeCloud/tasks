@@ -1098,6 +1098,7 @@
     "bulkCreateUnexpectedResponse": "The server returned an unexpected number of created tasks.",
     "bulkCreateMayHaveSucceeded": "Some tasks may already exist. Review your task list before retrying to avoid duplicates.",
     "bulkCreateRelationsIncomplete": "Tasks were created, but some parent and subtask links could not be saved. Review your tasks before retrying.",
+    "bulkCreateDetailsIncomplete": "Tasks were created, but some labels or assignees could not be saved. Review the tasks before retrying.",
     "addReminder": "Add a reminder…",
     "removeReminder": "Remove this reminder",
     "doneSuccess": "The task was successfully marked as done.",
