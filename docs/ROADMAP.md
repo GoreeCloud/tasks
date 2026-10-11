@@ -12,6 +12,12 @@ The [authoritative project specification](https://docs.google.com/document/d/1_z
 - [ ] Run representative functional, accessibility, security, API and UI regression validation.
 - [ ] Finish official asset, icon, onboarding, settings, locale and upstream trademark review.
 
+## Current priority: feature development
+
+Feature delivery now takes priority over Todoist import. Focus first on everyday task management, the Glaze user experience, accessibility, reliability and data safety. The Todoist transition remains deferred until the core application is qualified.
+
+The draft source now includes Today quick capture, cross-project sort options, task-list pagination, and task-fetch retry handling. Source implementation and CI build checks are not full product acceptance; the new task-list regression tests must still be run in the dedicated test lane.
+
 ## Core product rebuild — pending
 - [ ] Redesign navigation, inbox/today/upcoming, projects, labels, filters and task editor as coherent Glaze experiences.
 - [ ] Implement robust keyboard navigation, shortcut discovery, drag-and-drop, touch, contrast and reduced motion.
