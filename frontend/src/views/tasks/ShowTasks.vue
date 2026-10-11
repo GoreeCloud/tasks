@@ -63,6 +63,15 @@
 					</select>
 				</label>
 			</div>
+			<XButton
+				class="task-refresh-button"
+				:shadow="false"
+				:disabled="loading"
+				:loading="loading"
+				@click="updateTasks"
+			>
+				{{ $t('task.show.refreshTasks') }}
+			</XButton>
 		</div>
 		<p
 			v-if="!showAll"
@@ -417,6 +426,8 @@ watchEffect(() => setTitle(pageTitle.value))
 	justify-content: space-between;
 	margin-block-end: 0.75rem;
 }
+
+.task-refresh-button { flex-shrink: 0; }
 
 .task-search-control {
 	flex: 1 1 13rem;
