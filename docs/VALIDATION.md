@@ -190,6 +190,7 @@ The hierarchy parser records the source `parentIndex`. Quick Add now uses `index
 - **Go regression workflow: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101020964
 - **New helper scenarios:** isolated smoke checks passed for duplicate names, filtered entries, missing/invalid IDs; their Vitest file is committed but has **not** been executed by the current frontend workflow.
 - **Still pending:** Dedicated run of `bulkTaskRelations.test.ts`, `parseSubtasksViaIndention.test.ts` and `ShowTasks.test.ts`; complete bulk failure-recovery/readback tests, accessibility and representative-device verification. Workflow expansion was blocked by tool safety checks. Do not claim comprehensive recovery or Stable.
+- **Follow-up parser fix:** Mixed space/tab indentation now recognizes tab-prefixed children in the parser, with a new nested-tab regression on commit `9bb175d`. The new parser case has not yet run in the focused CI suite.
 
 ## Open acceptance gates
 
