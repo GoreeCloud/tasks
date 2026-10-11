@@ -192,6 +192,19 @@ The hierarchy parser records the source `parentIndex`. Quick Add now uses `index
 - **Still pending:** Dedicated run of `bulkTaskRelations.test.ts`, `parseSubtasksViaIndention.test.ts` and `ShowTasks.test.ts`; complete bulk failure-recovery/readback tests, accessibility and representative-device verification. Workflow expansion was blocked by tool safety checks. Do not claim comprehensive recovery or Stable.
 - **Follow-up parser fix:** Mixed space/tab indentation now recognizes tab-prefixed children in the parser, with a new nested-tab regression on commit `9bb175d`. The new parser case has not yet run in the focused CI suite.
 
+## October 10 — concurrent Quick Add and Today feature validation
+
+**Feature source revision:** `ec2a9c168f96d3a15be9a3c11f70059e39a12add`.
+
+- **Quick Add duplicate-submit defense:** The submission lock activates synchronously before label/project preparation, avoiding a second concurrent bulk task creation before mutation loading begins. Capture errors are associated with the textarea and announced using `role="alert"`.
+- **Today quick capture:** Tasks entered in Today default to a due date within the current day; an explicit parsed date takes precedence. Quick Add in other views retains its existing date defaults.
+- **Bulk write fidelity:** Failed post-creation label/assignee operations are counted as incomplete details. Quick Add surfaces a warning without misrepresenting partially created tasks as absent or re-submitting all input.
+- **Focused tests: PASS, 48/48 in five files** on a clean GoreeCloud Tasks branch checkout using the pinned pnpm dependencies and `vitest run`: `bulkTaskRelations.test.ts`, `parseSubtasksViaIndention.test.ts`, `ShowTasks.test.ts`, `task.test.ts` and `useQuickAddTask.test.ts`. A previously failing retry case was traced to a shallow test stub hiding the message's slot and corrected. This is real local execution, independent from CI.
+- **Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101681975
+- **Go regression workflow: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101681930
+- **Frontend CI on this revision:** https://github.com/GoreeCloud/tasks/actions/runs/38101681979 — confirm conclusion after completion.
+- **Remaining gates:** The CI workflow still omits these five task-specific files from its targeted command. No runtime browser interaction acceptance, full backend/database recovery, accessibility conformance, backup/restore, production rollout or Stable qualification is demonstrated here.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
