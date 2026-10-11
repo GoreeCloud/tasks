@@ -151,6 +151,7 @@ async function addTask() {
 		currentProjectId = Number(router.currentRoute.value.params.projectId)
 	}
 
+	let bulkWriteAttempted = false
 	try {
 		newTaskTitle.value = ''
 
@@ -172,6 +173,7 @@ async function addTask() {
 		const allCreated: ITask[] = []
 
 		assertClientRequestContext(context)
+		bulkWriteAttempted = true
 		const bulk = await createNewTasksBulk(entries)
 		const relations = resolveBulkTaskRelations(indexedTasks, bulk.tasks)
 		for (const created of bulk.tasks) {
@@ -200,13 +202,19 @@ async function addTask() {
 		}
 
 		if (bulk.error !== null) {
-			newTaskTitle.value = taskTitleBackup
+			// The server may have accepted some entries before returning an error.
+			errorMessage.value = t('task.bulkCreateMayHaveSucceeded')
 			error(bulk.error)
 		}
 	} catch (e) {
-		newTaskTitle.value = taskTitleBackup
+		if (!bulkWriteAttempted) newTaskTitle.value = taskTitleBackup
 		if (e instanceof Error && e.message === 'NO_PROJECT') {
 			errorMessage.value = t('project.create.addProjectRequired')
+			return
+		}
+		if (bulkWriteAttempted) {
+			errorMessage.value = t('task.bulkCreateMayHaveSucceeded')
+			error(e)
 			return
 		}
 		throw e
