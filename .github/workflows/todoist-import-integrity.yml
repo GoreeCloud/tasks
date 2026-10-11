@@ -7,12 +7,16 @@ on:
       - 'fix/**'
     paths:
       - 'pkg/modules/migration/todoist/**'
+      - 'pkg/modules/migration/handler/**'
+      - 'pkg/modules/migration/migrator.go'
       - '.github/workflows/todoist-import-integrity.yml'
       - 'go.mod'
       - 'go.sum'
   pull_request:
     paths:
       - 'pkg/modules/migration/todoist/**'
+      - 'pkg/modules/migration/handler/**'
+      - 'pkg/modules/migration/migrator.go'
       - '.github/workflows/todoist-import-integrity.yml'
       - 'go.mod'
       - 'go.sum'
@@ -35,4 +39,4 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Go migration regression tests
-        run: go test -count=1 ./pkg/modules/migration/todoist
+        run: go test -count=1 ./pkg/modules/migration/todoist ./pkg/modules/migration/handler
