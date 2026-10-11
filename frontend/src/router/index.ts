@@ -229,6 +229,7 @@ const router = createRouter({
 			props: route => ({
 				showOverdue: route.query.showOverdue !== 'false',
 				showNulls: route.query.showNulls === 'true',
+				sort: typeof route.query.sort === 'string' ? route.query.sort : undefined,
 			}),
 		},
 		{
@@ -240,6 +241,7 @@ const router = createRouter({
 				dateTo: parseDateOrString(route.query.to as string, getNextWeekDate()),
 				showNulls: route.query.showNulls === 'true',
 				showOverdue: route.query.showOverdue === 'true',
+				sort: typeof route.query.sort === 'string' ? route.query.sort : undefined,
 			}),
 		},
 		{
