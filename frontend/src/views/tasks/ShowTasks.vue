@@ -38,6 +38,16 @@
 		>
 			{{ $t('task.show.savedFilterIgnored') }}
 		</Message>
+		<div class="task-sort-control">
+			<label>
+				<span>{{ $t('project.list.sort') }}</span>
+				<select :value="selectedSort" @change="setSortFromEvent">
+					<option value="due">{{ $t('task.attributes.dueDate') }}</option>
+					<option value="priority">{{ $t('task.attributes.priority') }}</option>
+					<option value="newest">{{ $t('task.attributes.created') }}</option>
+				</select>
+			</label>
+		</div>
 		<p
 			v-if="!showAll"
 			class="show-tasks-options"
@@ -139,12 +149,14 @@ const props = withDefaults(defineProps<{
 	showNulls?: boolean,
 	showOverdue?: boolean,
 	labelIds?: string[],
+	sort?: string,
 }>(), {
 	showNulls: false,
 	showOverdue: false,
 	dateFrom: undefined,
 	dateTo: undefined,
 	labelIds: undefined,
+	sort: undefined,
 })
 
 const emit = defineEmits<{
@@ -172,6 +184,7 @@ const showNothingToDo = ref<boolean>(false)
 setTimeout(() => showNothingToDo.value = true, 100)
 
 const showAll = computed(() => typeof props.dateFrom === 'undefined' || typeof props.dateTo === 'undefined')
+const selectedSort = computed(() => props.sort === 'priority' || props.sort === 'newest' ? props.sort : 'due')
 
 const filteredLabels = computed(() => {
 	if (!props.labelIds || props.labelIds.length === 0) {
@@ -219,8 +232,9 @@ function setDate(dates: dateStrings) {
 	const from = dates.dateFrom ?? props.dateFrom
 	const to = dates.dateTo ?? props.dateTo
 	router.push({
-		name: route.name as string,
+		name: route.name === 'tasks.today' ? 'tasks.range' : route.name as string,
 		query: {
+			...route.query,
 			from: from instanceof Date ? from.toISOString() : from,
 			to: to instanceof Date ? to.toISOString() : to,
 			showOverdue: props.showOverdue ? 'true' : 'false',
@@ -249,6 +263,15 @@ function setShowNulls(show: boolean) {
 	})
 }
 
+function setSortFromEvent(event: Event) {
+	const selected = (event.target as HTMLSelectElement).value
+	if (selected !== 'due' && selected !== 'priority' && selected !== 'newest') return
+	void router.push({
+		name: route.name as string,
+		query: {...route.query, sort: selected === 'due' ? undefined : selected},
+	})
+}
+
 function clearLabelFilter() {
 	emit('clearLabelFilter')
 }
@@ -263,8 +286,8 @@ async function loadPendingTasks(from: Date|string|undefined, to: Date|string|und
 	}
 
 	const params: TaskFilterParams = {
-		sort_by: ['due_date', 'id'],
-		order_by: ['asc', 'desc'],
+		sort_by: selectedSort.value === 'priority' ? ['priority', 'due_date', 'id'] : selectedSort.value === 'newest' ? ['created', 'id'] : ['due_date', 'id'],
+		order_by: selectedSort.value === 'priority' ? ['desc', 'asc', 'desc'] : selectedSort.value === 'newest' ? ['desc', 'desc'] : ['asc', 'desc'],
 		filter: 'done = false',
 		filter_include_nulls: props.showNulls,
 		q: '',
@@ -311,6 +334,7 @@ watch(
 		() => props.showOverdue,
 		() => props.showNulls,
 		() => props.labelIds,
+		() => props.sort,
 	],
 	([from, to, filterId]) => loadPendingTasks(from, to, filterId),
 	{immediate: true},
@@ -327,6 +351,21 @@ watchEffect(() => setTitle(pageTitle.value))
 .show-tasks-options {
 	display: flex;
 	flex-direction: column;
+}
+
+.task-sort-control {
+	display: flex;
+	justify-content: flex-end;
+	margin-block-end: 0.75rem;
+	label { display: inline-flex; gap: 0.5rem; align-items: center; font-weight: 600; }
+	select {
+		padding: 0.375rem 0.75rem;
+		border: 1px solid var(--grey-300);
+		border-radius: 0.5rem;
+		background: var(--site-background);
+		color: inherit;
+		&:focus-visible { outline: 3px solid var(--glaze-accent); outline-offset: 2px; }
+	}
 }
 
 .llama-cool {
