@@ -33,7 +33,7 @@ describe('Today task list state', () => {
 		projectList.hasProjects = false
 		const wrapper = shallowMount(TodayTasks, {
 			props: {showOverdue: false, showNulls: false},
-			global: {stubs: {RouterLink: {name: 'RouterLink', props: ['to'], template: '<a><slot /></a>'}}},
+			global: {mocks: {$t: (key: string) => key}, stubs: {RouterLink: {name: 'RouterLink', props: ['to'], template: '<a><slot /></a>'}}},
 		})
 		expect(wrapper.findComponent({name: 'AddTask'}).exists()).toBe(false)
 		expect(wrapper.findComponent({name: 'RouterLink'}).props('to')).toEqual({name: 'project.create'})
@@ -44,7 +44,8 @@ describe('Today task list state', () => {
 		projectList.isLoading = true
 		const wrapper = shallowMount(TodayTasks, {
 			props: {showOverdue: false, showNulls: false},
+			global: {mocks: {$t: (key: string) => key}},
 		})
-		expect(wrapper.findComponent({name: 'RouterLink'}).exists()).toBe(false)
+		expect(wrapper.find('a.button').exists()).toBe(false)
 	})
 })
