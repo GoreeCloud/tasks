@@ -82,8 +82,8 @@
 			</FancyCheckbox>
 		</p>
 		<Message v-if="loadError" variant="danger" class="task-load-error mbe-3">
-			<span>{{ $t('task.show.loadFailed') }}</span>
-			<XButton :shadow="false" @click="updateTasks">{{ $t('task.show.retry') }}</XButton>
+			<span>{{ $t('error.error') }}. {{ $t('offline.text') }}</span>
+			<XButton :shadow="false" @click="updateTasks">{{ $t('sharing.retry') }}</XButton>
 		</Message>
 		<template v-if="!loading && !loadError && !hasTasks && showNothingToDo">
 			<div class="tasks-empty-state" role="status">
