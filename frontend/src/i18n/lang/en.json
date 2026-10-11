@@ -764,7 +764,7 @@
     "titleService": "Import data from {name} into GoreeCloud Tasks",
     "description": "Click on the logo of one of the third-party services below to get started.",
     "descriptionDo": "Import compatible task data into GoreeCloud Tasks, then verify what transferred.",
-    "todoistAuditWarning": "Todoist migration is still undergoing data-integrity checks. Back up Todoist first, use a test account, and reconcile tasks, comments and attachments after import. This is not ongoing synchronization.",
+    "todoistAuditWarning": "Todoist migration is restricted to controlled testing. Floating local-time due dates, location reminders or saved locations, and shared projects currently block imports to prevent data loss. Back up Todoist and verify every imported task, note and attachment. This is not ongoing synchronization.",
     "todoistAuthorizationReceived": "Todoist authorization received. Review your source backup before importing.",
     "todoistImportConsent": "I have backed up my Todoist data, understand importing may create duplicates, and will verify imported tasks before relying on them.",
     "todoistImportButton": "Start Todoist import",
