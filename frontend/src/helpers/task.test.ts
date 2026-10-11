@@ -132,6 +132,18 @@ describe('task domain helpers', () => {
 			relative_to: 'due_date',
 		}])
 	})
+	it('applies a Today capture deadline when no explicit date is parsed', () => {
+		const defaultDue = '2026-10-10T15:00:00.000Z'
+		const input = {title: 'Write report', project_id: 1, due_date: defaultDue}
+		const parsed = parseTaskText(input.title, PrefixMode.Default)
+		expect(buildQuickAddTask(parsed, input, PREFIXES[PrefixMode.Default], []).due_date).toBe(defaultDue)
+
+		const explicit = {...parsed, date: new Date('2026-10-12T15:00:00.000Z')}
+		expect(buildQuickAddTask(explicit, input, PREFIXES[PrefixMode.Default], []).due_date)
+			.toBe('2026-10-12T15:00:00.000Z')
+		const undated = buildQuickAddTask(parsed, {title: 'Write report', project_id: 1}, PREFIXES[PrefixMode.Default], [])
+		expect(undated.due_date).toBeNull()
+	})
 	it('cleans only resolved assignees while preserving quick-add labels', () => {
 		const input = {title: 'Task @alice @missing *label', project_id: 1}
 		const parsed = parseTaskText(input.title, PrefixMode.Default)
