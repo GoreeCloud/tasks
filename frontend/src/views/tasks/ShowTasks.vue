@@ -376,6 +376,7 @@ watch(
 		() => props.labelIds,
 		() => props.sort,
 		searchTerm,
+		userAuthenticated,
 	],
 	([from, to, filterId]) => {
 		currentPage.value = 1
