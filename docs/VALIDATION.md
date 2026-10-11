@@ -194,15 +194,15 @@ The hierarchy parser records the source `parentIndex`. Quick Add now uses `index
 
 ## October 10 — concurrent Quick Add and Today feature validation
 
-**Feature source revision:** `ec2a9c168f96d3a15be9a3c11f70059e39a12add`.
+**Validated feature source revision:** `e3462884635fb187f7e884063b0276a22fff6bf0`.
 
 - **Quick Add duplicate-submit defense:** The submission lock activates synchronously before label/project preparation, avoiding a second concurrent bulk task creation before mutation loading begins. Capture errors are associated with the textarea and announced using `role="alert"`.
 - **Today quick capture:** Tasks entered in Today default to a due date within the current day; an explicit parsed date takes precedence. Quick Add in other views retains its existing date defaults.
 - **Bulk write fidelity:** Failed post-creation label/assignee operations are counted as incomplete details. Quick Add surfaces a warning without misrepresenting partially created tasks as absent or re-submitting all input.
-- **Focused tests: PASS, 48/48 in five files** on a clean GoreeCloud Tasks branch checkout using the pinned pnpm dependencies and `vitest run`: `bulkTaskRelations.test.ts`, `parseSubtasksViaIndention.test.ts`, `ShowTasks.test.ts`, `task.test.ts` and `useQuickAddTask.test.ts`. A previously failing retry case was traced to a shallow test stub hiding the message's slot and corrected. This is real local execution, independent from CI.
-- **Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101681975
-- **Go regression workflow: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101681930
-- **Frontend CI on this revision:** https://github.com/GoreeCloud/tasks/actions/runs/38101681979 — confirm conclusion after completion.
+- **Focused tests: PASS, 48/48 in five files at validated revision** on an isolated GoreeCloud Tasks branch checkout using the pinned pnpm dependencies and `vitest run`: `bulkTaskRelations.test.ts`, `parseSubtasksViaIndention.test.ts`, `ShowTasks.test.ts`, `task.test.ts` and `useQuickAddTask.test.ts`. A previously failing retry case was traced to a shallow test stub hiding the message's slot and corrected. This is real local execution, independent from CI.
+- **Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101760759
+- **Go regression workflow: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101760675
+- **Frontend Quality CI, including TypeScript and production build: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101760662. A caught TypeScript mismatch in the new undated deadline fallback was corrected before this run.
 - **Remaining gates:** The CI workflow still omits these five task-specific files from its targeted command. No runtime browser interaction acceptance, full backend/database recovery, accessibility conformance, backup/restore, production rollout or Stable qualification is demonstrated here.
 
 ## Open acceptance gates
