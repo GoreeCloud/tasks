@@ -166,6 +166,20 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 - **Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38099169770
 - **Not proven:** The client guard is not server-side, durable, cross-session import idempotency; an upstream or server partial failure can still leave unknown destination state. Real Todoist API flows, complete source/destination readback, timezone-aware recurring deadlines, repeatable recovery, backup and rollback, release and Stable acceptance remain blocked. No live owner-data import or authority cutover occurred.
 
+## October 10 — Today, sorting, pagination, and task-fetch recovery
+
+**Last executable source revision:** `05f3f2f6855aaca408babe6acebf98dc3b8e9cb9` (the subsequent roadmap change is documentation-only).
+
+- **Implemented:** Today focus route, main navigation and keyboard shortcut, reusable quick capture, and default overdue inclusion.
+- **Implemented:** Overview/Today/Upcoming selectable sort orders (due date, priority, newest first) preserved in their route queries. Invalid sort parameters fall back to the existing due-date order.
+- **Implemented:** Cross-project list pagination with filter-change reset; empty results no longer show an idle spinner; fetch failures offer an accessible retry affordance rather than claiming there are no tasks.
+- **Frontend typecheck, existing targeted tests and production build: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38100071067
+- **Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38100071064
+- **Go importer regression workflow: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38100071095
+- **Pending:** The newly authored task-list sorting, pagination and error-recovery tests in `frontend/src/views/tasks/ShowTasks.test.ts` were not included in the existing targeted workflow command. They require a dedicated execution before being represented as passed; manual Glaze/accessibility, cross-browser and representative interaction acceptance also remain open.
+
+This is source and automated-build evidence only. No Stable claim, production deployment or task-authority transfer.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
