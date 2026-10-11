@@ -158,6 +158,7 @@ export function useQuickAddTask() {
 		const built = await Promise.all(entries.map(entry => build(entry, context)))
 		assertClientRequestContext(context)
 		const result = await bulk.mutateAsync(built.map(item => item.task))
+		let incompleteDetails = 0
 		await runWrites(built.map((item, index) => ({item, index})), async ({item, index}) => {
 			const task = result.tasks[index]
 			if (!task) return
@@ -166,9 +167,10 @@ export function useQuickAddTask() {
 				result.tasks[index] = (await finishTask(task, item, context)).task
 			} catch {
 				assertClientRequestContext(context)
+				incompleteDetails++
 			}
 		}, config.concurrent_writes)
-		return result
+		return {...result, incompleteDetails}
 	}
 
 	return {
