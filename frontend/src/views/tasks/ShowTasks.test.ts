@@ -140,6 +140,16 @@ describe('Upcoming filters', () => {
 		expect(lastQuery().page).toBe(1)
 	})
 
+	it('shows a retry action rather than an empty state when loading fails', async () => {
+		sdk.tasksList.mockRejectedValueOnce(new Error('Request failed'))
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		expect(wrapper.findComponent({name: 'Message'}).exists()).toBe(true)
+		await wrapper.findComponent({name: 'XButton'}).trigger('click')
+		await flushPromises()
+		expect(sdk.tasksList).toHaveBeenCalledTimes(2)
+	})
+
 	it('does not reload tasks when sidebar settings change', async () => {
 		await mountUpcoming()
 		await flushPromises()
