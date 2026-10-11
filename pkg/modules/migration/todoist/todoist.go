@@ -39,7 +39,8 @@ const paginationLimit = 200
 
 // Migration is the todoist migration struct
 type Migration struct {
-	Code string `json:"code"`
+	Code  string `json:"code"`
+	State string `json:"state"`
 }
 
 type apiTokenResponse struct {
@@ -225,13 +226,32 @@ func (m *Migration) Name() string {
 // @Failure 500 {object} models.Message "Internal server error"
 // @Router /migration/todoist/auth [get]
 func (m *Migration) AuthURL() string {
-	authorizationURL, err := makeTodoistAuthorizationURL(utils.CryptoRandomString)
-	if err != nil {
-		// Never continue with predictable state after a random-source failure.
-		log.Errorf("[Todoist Migration] Could not create an OAuth authorization URL")
-		return ""
+	// The unauthenticated Migrator interface has no user context. Returning an
+	// unsigned state would permit login CSRF; the handler must use the
+	// authenticated AuthURLForUser path instead.
+	return ""
+}
+
+func (m *Migration) AuthURLForUser(u *user.User) (string, error) {
+	if u == nil {
+		return "", fmt.Errorf("todoist migration: missing authenticated user")
 	}
-	return authorizationURL
+	nonce, err := utils.CryptoRandomString(32)
+	if err != nil {
+		return "", fmt.Errorf("todoist migration: failed to create secure authorization state")
+	}
+	state, err := signTodoistState(u.ID, nonce, time.Now(), config.ServiceSecret.GetString())
+	if err != nil {
+		return "", err
+	}
+	return makeTodoistAuthorizationURLWithState(state)
+}
+
+func (m *Migration) ValidateOAuthState(u *user.User) error {
+	if u == nil || strings.TrimSpace(m.Code) == "" {
+		return fmt.Errorf("todoist migration: missing authorization")
+	}
+	return verifyTodoistState(m.State, u.ID, time.Now(), config.ServiceSecret.GetString())
 }
 
 func parseDate(dateString string) (date time.Time, err error) {
