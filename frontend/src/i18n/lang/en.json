@@ -1120,6 +1120,7 @@
       "clearLabelFilter": "Clear label filter",
       "savedFilterIgnored": "Your saved homepage filter is not applied while viewing tasks by label.",
       "searchTasks": "Search these tasks…",
+      "searchShortcutHint": "Press / to focus task search",
       "noSearchResults": "No matching tasks",
       "clearSearch": "Clear search",
       "refreshTasks": "Refresh tasks"
