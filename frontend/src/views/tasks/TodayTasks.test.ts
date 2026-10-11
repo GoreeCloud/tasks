@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {createPinia} from 'pinia'
 import {enableAutoUnmount, shallowMount} from '@vue/test-utils'
 import {nextTick, reactive} from 'vue'
 
@@ -20,7 +21,7 @@ describe('Today task list state', () => {
 	it('keeps the same list instance after Quick Add emits a task', async () => {
 		const wrapper = shallowMount(TodayTasks, {
 			props: {showOverdue: false, showNulls: false},
-			global: {mocks: {$t: (key: string) => key}},
+			global: {plugins: [createPinia()], mocks: {$t: (key: string) => key}},
 		})
 		const list = wrapper.findComponent({name: 'ShowTasks'})
 		const add = wrapper.findComponent({name: 'AddTask'})
@@ -36,7 +37,7 @@ describe('Today task list state', () => {
 		projectList.hasProjects = false
 		const wrapper = shallowMount(TodayTasks, {
 			props: {showOverdue: false, showNulls: false},
-			global: {mocks: {$t: (key: string) => key}, stubs: {RouterLink: {name: 'RouterLink', props: ['to'], template: '<a><slot /></a>'}}},
+			global: {plugins: [createPinia()], mocks: {$t: (key: string) => key}, stubs: {RouterLink: {name: 'RouterLink', props: ['to'], template: '<a><slot /></a>'}}},
 		})
 		expect(wrapper.findComponent({name: 'AddTask'}).exists()).toBe(false)
 		expect(wrapper.findComponent({name: 'RouterLink'}).props('to')).toEqual({name: 'project.create'})
@@ -47,7 +48,7 @@ describe('Today task list state', () => {
 		projectList.isLoading = true
 		const wrapper = shallowMount(TodayTasks, {
 			props: {showOverdue: false, showNulls: false},
-			global: {mocks: {$t: (key: string) => key}},
+			global: {plugins: [createPinia()], mocks: {$t: (key: string) => key}},
 		})
 		expect(wrapper.find('a.button').exists()).toBe(false)
 	})
