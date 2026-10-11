@@ -36,9 +36,9 @@
 			<p class="control">
 				<XButton
 					class="add-task-button"
-					:disabled="newTaskTitle === '' || showLoading || undefined"
+					:disabled="newTaskTitle === '' || submitting || loading || showLoading"
 					icon="plus"
-					:loading="loading"
+					:loading="loading || submitting"
 					:aria-label="$t('project.list.add')"
 					@click="addTask()"
 				>
@@ -95,6 +95,7 @@ const textareaId = computed(() => `task-add-textarea-${Math.random().toString(36
 const errorId = computed(() => `${textareaId.value}-error`)
 
 const newTaskTitle = ref('')
+const submitting = ref(false)
 const {textarea: newTaskInput} = useAutoHeightTextarea(newTaskTitle)
 
 const {t} = useI18n({useScope: 'global'})
@@ -125,6 +126,18 @@ function resetEmptyTitleError() {
 }
 
 async function addTask() {
+	if (submitting.value || loading.value) return
+	submitting.value = true
+	try {
+		await submitTask()
+	} catch (cause) {
+		error(cause)
+	} finally {
+		submitting.value = false
+	}
+}
+
+async function submitTask() {
 	if (newTaskTitle.value === '') {
 		errorMessage.value = t('project.create.addTitleRequired')
 		return
