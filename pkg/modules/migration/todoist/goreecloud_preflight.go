@@ -97,6 +97,9 @@ func validateTodoistSync(data *sync) error {
 		if i.SectionID != "" && sections[i.SectionID] != i.ProjectID {
 			return fmt.Errorf("todoist migration: task %s refers to missing or foreign section %s", i.ID, i.SectionID)
 		}
+		if err := validateTodoistDueDate(i.Due); err != nil {
+			return fmt.Errorf("todoist migration: task %s: %w", i.ID, err)
+		}
 		if i.Due != nil && i.Due.IsRecurring && parseTodoistRepeat(i.Due) == 0 {
 			return fmt.Errorf("todoist migration: task %s uses an unsupported recurring schedule", i.ID)
 		}
@@ -170,6 +173,9 @@ func validateTodoistSync(data *sync) error {
 		seenReminders[r.ID] = true
 		if r.Due == nil {
 			return fmt.Errorf("todoist migration: reminder %s lacks a due timestamp", r.ID)
+		}
+		if err := validateTodoistDueDate(r.Due); err != nil {
+			return fmt.Errorf("todoist migration: reminder %s: %w", r.ID, err)
 		}
 	}
 	return nil
