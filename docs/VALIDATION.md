@@ -182,7 +182,14 @@ This is source and automated-build evidence only. No Stable claim, production de
 
 ## Multiline Quick Add duplicate-title follow-up
 
-The hierarchy parser now records the source `parentIndex` and a focused regression asserts distinct parent positions for duplicate titles (source revisions `9803fe0` and `d8514d9`). **Incomplete:** `AddTask.vue` still resolves created parent tasks by title and can link duplicate-named tasks incorrectly; UI wiring, execution of the new regression and a bulk-create interaction check remain pending. No completed duplicate-title fix is claimed.
+The hierarchy parser records the source `parentIndex`. Quick Add now uses `indexCreatableTasks` and `resolveBulkTaskRelations` instead of matching created tasks by duplicate-prone title strings. The resolver preserves input positions when blank titles were dropped and skips links when parent/child creation failed. The UI does not restore the entire batch after an uncertain bulk-write result and now warns about potentially created tasks and incomplete relationships.
+
+- **Executable source revision:** `3118d171bce2ec5799ee4ca05cd02c8e182b2e6d`.
+- **Typecheck, legacy focused tests, production frontend bundle: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101020900
+- **Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101021050
+- **Go regression workflow: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101020964
+- **New helper scenarios:** isolated smoke checks passed for duplicate names, filtered entries, missing/invalid IDs; their Vitest file is committed but has **not** been executed by the current frontend workflow.
+- **Still pending:** Dedicated run of `bulkTaskRelations.test.ts`, `parseSubtasksViaIndention.test.ts` and `ShowTasks.test.ts`; complete bulk failure-recovery/readback tests, accessibility and representative-device verification. Workflow expansion was blocked by tool safety checks. Do not claim comprehensive recovery or Stable.
 
 ## Open acceptance gates
 
