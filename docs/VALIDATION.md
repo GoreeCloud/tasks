@@ -130,6 +130,18 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 - **Source Safety Baseline PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38097125134
 - **Limitations:** Stateless backend signatures do not implement durable nonce consumption/revocation; same-user replay within the validity window still needs threat-model review. Representative Todoist OAuth provider flows, cross-tab/browser login transitions, proxy compatibility, session expiry, domain and time skew, actual task migration, rollback and full-data reconciliation remain unverified.
 
+## October 10 — strict paginated responses and callback URL hygiene
+
+**Verified source revision:** `d6f02afa4d9ba3700bc8b82b8d65e65408241db9`.
+
+- **Backend source fidelity:** Todoist completed-task listing pages require an explicit `items` array, and archived-project listing pages require an explicit `results` array. JSON `null`, `{}`, or missing/null collections fail rather than masquerade as accounts with zero source records; explicit empty arrays remain valid.
+- **HTTP response integrity:** The Todoist decoder requires a single complete JSON value. Trailing garbage or appended JSON documents are rejected without copying private upstream response content into diagnostics. Response bodies close even when parsing fails.
+- **Frontend privacy:** The Todoist OAuth code and signed state are captured then removed from the browser address bar before any awaited status or authorization call. Mounted tests verify URL cleanup for accepted and rejected callbacks; signed user binding and explicit consent remain required.
+- **Exact-revision Go importer + handler tests: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38097857423
+- **Exact-revision Frontend Quality: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38097857440
+- **Exact-revision Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38097857411
+- **Unverified:** Representative real-provider API compatibility, complete task/comment/attachment fidelity, post-insertion persistence readback, source snapshot freshness, OAuth nonce revocation, import idempotency, backup and rollback. No owner-data import or release authority transfer was performed.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
