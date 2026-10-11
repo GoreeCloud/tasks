@@ -118,6 +118,18 @@ describe('Upcoming filters', () => {
 		expect(lastQuery().order_by).toEqual(['desc', 'desc'])
 	})
 
+	it('filters task lists by search text and resets pagination', async () => {
+		sdk.tasksList.mockImplementation(async () => ({data: {items: [], total_pages: 3}}))
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		wrapper.findComponent({name: 'PaginationEmit'}).vm.$emit('pageChanged', 2)
+		await flushPromises()
+		expect(lastQuery().page).toBe(2)
+		await wrapper.find('input[type="search"]').setValue('weekly report')
+		await vi.waitFor(() => expect(lastQuery().q).toBe('weekly report'), {timeout: 1500})
+		expect(lastQuery().page).toBe(1)
+		expect(lastQuery().filter).toBe("done = false && due_date < 'now/d+1d' && due_date > 'now/d'")
+	})
 	it('uses the default sort order for unexpected deep-link values', async () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
