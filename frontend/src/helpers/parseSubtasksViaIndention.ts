@@ -3,6 +3,7 @@ import {getProjectFromPrefix, PrefixMode} from '@/modules/quickAddMagic'
 export interface TaskWithParent {
 	title: string,
 	parent: string | null,
+	parentIndex: number | null,
 	project: string | null,
 }
 
@@ -47,6 +48,7 @@ export function parseSubtasksViaIndention(taskTitles: string, prefixMode: Prefix
 		const task: TaskWithParent = {
 			title: cleanupTitle(title),
 			parent: null,
+			parentIndex: null,
 			project: null,
 		}
 
@@ -71,6 +73,7 @@ export function parseSubtasksViaIndention(taskTitles: string, prefixMode: Prefix
 			} while (parentSpaces >= matchedSpaces)
 			task.title = cleanupTitle(task.title.replace(spaceRegex, ''))
 			task.parent = task.parent.replace(spaceRegex, '')
+			task.parentIndex = index - pi + 1
 			if (task.project === null) {
 				// This allows to specify a project once for the parent task and inherit it to all subtasks
 				task.project = getProjectFromPrefix(task.parent, prefixMode)
