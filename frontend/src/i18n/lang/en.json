@@ -1120,7 +1120,8 @@
       "savedFilterIgnored": "Your saved homepage filter is not applied while viewing tasks by label.",
       "searchTasks": "Search these tasks…",
       "noSearchResults": "No matching tasks",
-      "clearSearch": "Clear search"
+      "clearSearch": "Clear search",
+      "refreshTasks": "Refresh tasks"
     },
     "detail": {
       "chooseDueDate": "Click here to set a due date",
