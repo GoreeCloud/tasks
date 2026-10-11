@@ -166,6 +166,7 @@ import DatepickerWithRange from '@/components/date/DatepickerWithRange.vue'
 import PaginationEmit from '@/components/misc/PaginationEmit.vue'
 import XLabel from '@/components/tasks/partials/Label.vue'
 import {DATE_RANGES} from '@/components/date/dateRanges'
+import {buildLabelFilter} from '@/helpers/buildLabelFilter'
 import LlamaCool from '@/assets/llama-cool.svg?component'
 import {useAuthStore} from '@/stores/auth'
 import {useProjects} from '@/composables/useProjects'
@@ -346,7 +347,7 @@ async function loadPendingTasks(from: Date|string|undefined, to: Date|string|und
 
 	// Add label filtering
 	if (props.labelIds && props.labelIds.length > 0) {
-		const labelFilter = `labels in ${props.labelIds.join(', ')}`
+		const labelFilter = buildLabelFilter(props.labelIds)
 		params.filter += params.filter ? ` && ${labelFilter}` : labelFilter
 	}
 
