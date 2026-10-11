@@ -38,7 +38,12 @@
 		>
 			{{ $t('task.show.savedFilterIgnored') }}
 		</Message>
-		<div class="task-sort-control">
+		<div class="task-list-toolbar">
+			<label class="task-search-control">
+				<span class="is-sr-only">{{ $t('task.show.searchTasks') }}</span>
+				<input v-model="searchText" type="search" :placeholder="$t('task.show.searchTasks')" autocomplete="off" />
+			</label>
+			<div class="task-sort-control">
 			<label>
 				<span>{{ $t('project.list.sort') }}</span>
 				<select :value="selectedSort" @change="setSortFromEvent">
@@ -47,6 +52,7 @@
 					<option value="newest">{{ $t('task.attributes.created') }}</option>
 				</select>
 			</label>
+			</div>
 		</div>
 		<p
 			v-if="!showAll"
@@ -126,7 +132,7 @@
 			@pageChanged="setPage"
 		/>
 		<div
-			v-else-if="loading"
+			v-if="loading && !hasTasks && !loadError"
 			:class="{ 'is-loading': showLoading}"
 			class="spinner"
 		/>
@@ -135,6 +141,7 @@
 
 <script setup lang="ts">
 import {computed, ref, watch, watchEffect} from 'vue'
+import {refDebounced} from '@vueuse/core'
 import {useRoute, useRouter} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 
@@ -191,6 +198,8 @@ const {t} = useI18n({useScope: 'global'})
 
 const taskScope = ref<TaskScope | null>(null)
 const currentPage = ref(1)
+const searchText = ref('')
+const searchTerm = refDebounced(searchText, 250)
 const taskQuery = useTasks(
 	() => taskScope.value ?? {},
 	{enabled: () => authStore.authenticated && taskScope.value !== null, page: () => currentPage.value},
@@ -310,7 +319,7 @@ async function loadPendingTasks(from: Date|string|undefined, to: Date|string|und
 		order_by: selectedSort.value === 'priority' ? ['desc', 'asc', 'desc'] : selectedSort.value === 'newest' ? ['desc', 'desc'] : ['asc', 'desc'],
 		filter: 'done = false',
 		filter_include_nulls: props.showNulls,
-		q: '',
+		q: searchTerm.value.trim(),
 		expand: ['comment_count', 'is_unread'],
 	}
 
@@ -365,6 +374,7 @@ watch(
 		() => props.showNulls,
 		() => props.labelIds,
 		() => props.sort,
+		searchTerm,
 	],
 	([from, to, filterId]) => {
 		currentPage.value = 1
