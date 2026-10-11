@@ -140,6 +140,18 @@ describe('Upcoming filters', () => {
 		expect(lastQuery().page).toBe(1)
 		expect(lastQuery().filter).toBe("done = false && due_date < 'now/d+1d' && due_date > 'now/d'")
 	})
+	it('preserves valid label filters but fails closed for malformed route IDs', async () => {
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		await wrapper.setProps({labelIds: ['02', '2', '3']})
+		await flushPromises()
+		expect(lastQuery().filter).toContain('labels in 2, 3')
+		await wrapper.setProps({labelIds: ['2', '3) || done = true']})
+		await flushPromises()
+		expect(lastQuery().filter).toContain('labels in 0')
+		expect(lastQuery().filter).not.toContain('done = true')
+	})
+
 	it('uses the default sort order for unexpected deep-link values', async () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
