@@ -61,3 +61,23 @@ func TestDecodeTodoistResponseRejectsMissingResponse(t *testing.T) {
 	require.ErrorContains(t, decodeTodoistResponse(nil, &destination, "sync"), "no response body")
 	require.ErrorContains(t, decodeTodoistResponse(&http.Response{StatusCode: http.StatusOK}, &destination, "sync"), "no response body")
 }
+
+func TestDecodeTodoistResponseRequiresOnlyOneJSONDocument(t *testing.T) {
+	for _, value := range []string{
+		`{"value":"first"} {"value":"second"}`,
+		`{"value":"first"}null`,
+		`{"value":"first"}PRIVATE_SOURCE_SECRET`,
+	} {
+		body := &trackedTodoistBody{Reader: strings.NewReader(value)}
+		var result map[string]any
+		err := decodeTodoistResponse(&http.Response{StatusCode: http.StatusOK, Body: body}, &result, "source page")
+		require.ErrorContains(t, err, "unexpected trailing JSON data")
+		require.NotContains(t, err.Error(), "PRIVATE_SOURCE_SECRET")
+		require.True(t, body.closed)
+	}
+
+	body := &trackedTodoistBody{Reader: strings.NewReader("  {} \n\t ")}
+	var result map[string]any
+	require.NoError(t, decodeTodoistResponse(&http.Response{StatusCode: http.StatusOK, Body: body}, &result, "source page"))
+	require.True(t, body.closed)
+}
