@@ -217,6 +217,7 @@ const startedHere = ref(false)
 const todoistImportConfirmed = ref(false)
 
 const migratorAuthCode = ref('')
+const migratorAuthState = ref('')
 const migrationError = ref('')
 
 const migrator = computed<Migrator>(() => MIGRATORS[props.service as keyof typeof MIGRATORS])
@@ -281,6 +282,7 @@ async function initMigration() {
 				return
 			}
 			migratorAuthCode.value = callbackCode
+			migratorAuthState.value = returnedState ?? ''
 			return // Consent and an explicit button press are still required.
 		}
 		const authResult = await auth.mutateAsync(provider)
@@ -303,6 +305,7 @@ watch(() => props.service, () => {
 	confirmedAgain.value = false
 	todoistImportConfirmed.value = false
 	migratorAuthCode.value = ''
+	migratorAuthState.value = ''
 	startedHere.value = false
 	authUrl.value = ''
 	migrationError.value = ''
@@ -336,7 +339,8 @@ async function migrate(credentialsConfig?: PlankaCredentials) {
 			await startMigration.mutateAsync({kind: 'credentials', provider, body: credentialsConfig})
 		} else if (isMigratorOfKind(provider, 'oauth')) {
 			if (!migratorAuthCode.value) return
-			await startMigration.mutateAsync({kind: 'oauth', provider, body: {code: migratorAuthCode.value}})
+			const payload = {code: migratorAuthCode.value, ...(provider === 'todoist' ? {state: migratorAuthState.value} : {})}
+			await startMigration.mutateAsync({kind: 'oauth', provider, body: payload})
 		} else return
 		migrationStore.start(provider)
 		if (provider === migrator.value.id) startedHere.value = true
@@ -350,6 +354,7 @@ function confirmMigrateAgain() {
 		clearTodoistOAuthState(todoistOAuthStorage())
 		todoistImportConfirmed.value = false
 		migratorAuthCode.value = '' // Require a fresh authorization and consent.
+		migratorAuthState.value = ''
 		return
 	}
 	if (migrator.value.kind !== 'credentials') return migrate()
