@@ -160,6 +160,41 @@ describe('Upcoming filters', () => {
 		expect(lastQuery().filter).not.toContain('done = true')
 	})
 
+	it('focuses search with / when focus is not in an editable element', async () => {
+		const wrapper = await mountUpcoming()
+		document.body.append(wrapper.element)
+		await flushPromises()
+		const search = wrapper.find<HTMLInputElement>('input[type="search"]').element
+		const shortcut = new KeyboardEvent('keydown', {key: '/', bubbles: true, cancelable: true})
+		document.dispatchEvent(shortcut)
+		expect(shortcut.defaultPrevented).toBe(true)
+		expect(document.activeElement).toBe(search)
+		expect(search.getAttribute('aria-keyshortcuts')).toBe('/')
+		wrapper.element.remove()
+	})
+
+	it('does not take / away from a textarea or an open modal', async () => {
+		const wrapper = await mountUpcoming()
+		document.body.append(wrapper.element)
+		await flushPromises()
+		const textarea = document.createElement('textarea')
+		document.body.append(textarea)
+		textarea.focus()
+		const editing = new KeyboardEvent('keydown', {key: '/', bubbles: true, cancelable: true})
+		textarea.dispatchEvent(editing)
+		expect(editing.defaultPrevented).toBe(false)
+		expect(document.activeElement).toBe(textarea)
+		textarea.remove()
+		const modal = document.createElement('dialog')
+		modal.setAttribute('open', '')
+		document.body.append(modal)
+		const shortcut = new KeyboardEvent('keydown', {key: '/', bubbles: true, cancelable: true})
+		document.dispatchEvent(shortcut)
+		expect(shortcut.defaultPrevented).toBe(false)
+		modal.remove()
+		wrapper.element.remove()
+	})
+
 	it('clears inline search with Escape while preserving list filters', async () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
