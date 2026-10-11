@@ -142,6 +142,22 @@ describe('useQuickAddTask', () => {
 		expect(result.tasks[0]?.labels?.map(label => label.id)).toEqual([10])
 	})
 
+	it('keeps only successfully assigned users after one assignee write fails', async () => {
+		sdk.projectsUsersSearch.mockResolvedValue({data: {items: [
+			{id: 3, username: 'jane'},
+			{id: 4, username: 'bob'},
+		]}})
+		sdk.tasksBulkCreate.mockResolvedValue({data: {tasks: [{id: 7, title: 'Buy milk', project_id: 1}]}})
+		sdk.taskAssigneesCreate.mockImplementation(async ({body}: {body: {user_id: number}}) => {
+			if (body.user_id === 3) throw new Error('assignment rejected')
+			return {data: {}}
+		})
+		const result = await quickAdd().createNewTasksBulk([{title: 'Buy milk @jane @bob', project_id: 1}])
+		expect(sdk.taskAssigneesCreate).toHaveBeenCalledTimes(2)
+		expect(result.incompleteDetails).toBe(1)
+		expect(result.tasks[0]?.assignees?.map(user => user.id)).toEqual([4])
+	})
+
 	it('reports a failed label write on a bulk create without failing the create', async () => {
 		sdk.labelsList.mockResolvedValue({data: {items: [{id: 9, title: 'Urgent'}], total_pages: 1}})
 		sdk.tasksBulkCreate.mockResolvedValue({data: {tasks: [{id: 7, title: 'Buy milk', project_id: 1}]}})
