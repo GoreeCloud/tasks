@@ -154,6 +154,18 @@ These are **pre-import fail-closed improvements**; they do not prove post-insert
 - **Frontend Quality:** confirm at final revision; https://github.com/GoreeCloud/tasks/actions/runs/38098549525
 - **Unverified:** Full Todoist provider integration, source timezone user-profile handling, all-day/recurrence DST semantics, shared/geo feature migration, completed/archived snapshot freshness, actual persisted record-level parity, restoration, idempotency and Stable status. No live source import or production authority transfer.
 
+## October 10 — one-shot Todoist import and source interval overflow guard
+
+**Verified executable source revision:** `465f9a42be50b2b55e727b422a6c069bd9d2be57`.
+
+- **UI repeat-write defense:** One consent/authorization callback can initiate at most one Todoist import attempt. After any failed or uncertain import response, the client discards the callback credentials and offers a fresh OAuth authorization link rather than allowing a second submission of the same code. In-place changes to the route authorization code now reinitialize callback validation.
+- **Recurrence safety:** Unrepresentably large day/week repeat intervals are rejected by the pre-insertion source preflight; an integer overflow cannot silently produce a negative or incorrect destination interval.
+- **Completed task fidelity:** Source completed-task project metadata, when provided, must agree with the completed task's project identity. Mismatches fail before importing.
+- **Go importer and migration handler regressions: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38099169727
+- **Frontend typecheck, focused Vitest and production build: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38099169701
+- **Source Safety Baseline: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38099169770
+- **Not proven:** The client guard is not server-side, durable, cross-session import idempotency; an upstream or server partial failure can still leave unknown destination state. Real Todoist API flows, complete source/destination readback, timezone-aware recurring deadlines, repeatable recovery, backup and rollback, release and Stable acceptance remain blocked. No live owner-data import or authority cutover occurred.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
