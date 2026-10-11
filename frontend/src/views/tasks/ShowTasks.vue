@@ -81,11 +81,17 @@
 				{{ $t('task.show.overdue') }}
 			</FancyCheckbox>
 		</p>
-		<template v-if="!loading && (!tasks || tasks.length === 0) && showNothingToDo">
-			<h3 class="has-text-centered mbs-6">
-				{{ $t('task.show.noTasks') }}
-			</h3>
-			<LlamaCool class="llama-cool" />
+		<template v-if="!loading && !taskQuery.isError.value && !hasTasks && showNothingToDo">
+			<div class="tasks-empty-state" role="status">
+				<h3>{{ $t('task.show.noTasks') }}</h3>
+				<LlamaCool class="llama-cool" aria-hidden="true" />
+				<RouterLink
+					v-if="route.name === 'tasks.range'"
+					:to="{name: 'tasks.today'}"
+				>
+					{{ $t('input.datepickerRange.ranges.today') }}
+				</RouterLink>
+			</div>
 		</template>
 
 		<Card
@@ -110,7 +116,7 @@
 			</ul>
 		</Card>
 		<div
-			v-else
+			v-else-if="loading"
 			:class="{ 'is-loading': showLoading}"
 			class="spinner"
 		/>
@@ -366,6 +372,14 @@ watchEffect(() => setTitle(pageTitle.value))
 		color: inherit;
 		&:focus-visible { outline: 3px solid var(--glaze-accent); outline-offset: 2px; }
 	}
+}
+
+.tasks-empty-state {
+	padding: 1.5rem;
+	text-align: center;
+	border: 1px solid var(--grey-200);
+	border-radius: 1rem;
+	background: var(--site-background);
 }
 
 .llama-cool {
