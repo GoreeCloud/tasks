@@ -2,6 +2,7 @@
 	<div
 		v-cy="'showTasks'"
 		class="is-max-width-desktop has-text-start"
+		:aria-busy="loading && !hasTasks"
 	>
 		<h2 class="mbe-2 title">
 			{{ pageTitle }}
@@ -46,6 +47,7 @@
 					type="search"
 					:placeholder="$t('task.show.searchTasks')"
 					autocomplete="off"
+					@keydown.esc="searchText = ''"
 				>
 			</label>
 			<div class="task-sort-control">
