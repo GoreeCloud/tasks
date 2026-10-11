@@ -195,6 +195,18 @@ describe('Upcoming filters', () => {
 		wrapper.element.remove()
 	})
 
+	it('shows a clear-search control while filtering and preserves date scope', async () => {
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		expect(wrapper.find('.task-clear-search-button').exists()).toBe(false)
+		await wrapper.find('input[type="search"]').setValue('review notes')
+		expect(wrapper.find('.task-clear-search-button').exists()).toBe(true)
+		await wrapper.find('.task-clear-search-button').trigger('click')
+		expect((wrapper.find('input[type="search"]').element as HTMLInputElement).value).toBe('')
+		await vi.waitFor(() => expect(lastQuery().q).toBe(''), {timeout: 1500})
+		expect(lastQuery().filter).toContain("due_date < 'now/d+1d'")
+	})
+
 	it('clears inline search with Escape while preserving list filters', async () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
