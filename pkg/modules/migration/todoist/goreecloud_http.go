@@ -5,6 +5,7 @@ package todoist
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"code.vikunja.io/api/pkg/modules/migration"
@@ -27,8 +28,14 @@ func decodeTodoistResponse(resp *http.Response, destination any, stage string) e
 			migration.NewErrUpstreamRequestFailed("todoist "+stage, resp.StatusCode, ""),
 		)
 	}
-	if err := json.NewDecoder(resp.Body).Decode(destination); err != nil {
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(destination); err != nil {
 		return fmt.Errorf("todoist migration: %s could not be decoded: %w", stage, err)
+	}
+	// Do not accept multiple JSON values in a single upstream response.
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return fmt.Errorf("todoist migration: %s has unexpected trailing JSON data", stage)
 	}
 	return nil
 }
