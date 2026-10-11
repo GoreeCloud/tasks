@@ -250,6 +250,11 @@ const taskQuery = useTasks(
 	() => taskScope.value ?? {},
 	{enabled: () => authStore.authenticated && taskScope.value !== null, page: () => currentPage.value},
 )
+// Recover a failed list read when connectivity returns; never replay mutations.
+useEventListener(window, 'online', () => {
+	if (!authStore.authenticated || !taskQuery.isError.value || taskQuery.isFetching.value) return
+	void taskQuery.refetch()
+})
 const tasks = taskQuery.tasks
 const totalPages = taskQuery.totalPages
 const loadError = taskQuery.isError
