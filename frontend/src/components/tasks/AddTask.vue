@@ -133,6 +133,7 @@ async function addTask() {
 	try {
 		await submitTask()
 	} catch (cause) {
+		errorMessage.value = t('task.quickAddCouldNotStart')
 		error(cause)
 	} finally {
 		submitting.value = false
