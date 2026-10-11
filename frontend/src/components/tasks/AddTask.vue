@@ -77,7 +77,7 @@ import QuickAddMagic from '@/components/tasks/partials/QuickAddMagic.vue'
 import {parseSubtasksViaIndention} from '@/helpers/parseSubtasksViaIndention'
 import {indexCreatableTasks, resolveBulkTaskRelations} from '@/helpers/bulkTaskRelations'
 import {getLabelsFromPrefix} from '@/modules/quickAddMagic'
-import {getDateWithTime} from '@/helpers/time/getDateWithTime'
+import {getTodayQuickAddDueDate} from '@/helpers/time/getDateWithTime'
 import {runWritesSettled} from '@/helpers/runWrites'
 import {error} from '@/message'
 
@@ -177,7 +177,7 @@ async function submitTask() {
 	try {
 		newTaskTitle.value = ''
 
-		const defaultDueDate = props.defaultDueToday ? getDateWithTime(new Date()).toISOString() : undefined
+		const defaultDueDate = props.defaultDueToday ? getTodayQuickAddDueDate(new Date()).toISOString() : undefined
 		const entries = await Promise.all(indexedTasks
 			.map(async ({title, project}) => ({
 				title,
