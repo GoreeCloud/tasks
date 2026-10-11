@@ -205,6 +205,20 @@ The hierarchy parser records the source `parentIndex`. Quick Add now uses `index
 - **Frontend Quality CI, including TypeScript and production build: PASS** — https://github.com/GoreeCloud/tasks/actions/runs/38101760662. A caught TypeScript mismatch in the new undated deadline fallback was corrected before this run.
 - **Remaining gates:** The CI workflow still omits these five task-specific files from its targeted command. No runtime browser interaction acceptance, full backend/database recovery, accessibility conformance, backup/restore, production rollout or Stable qualification is demonstrated here.
 
+## October 10, 2026 — task recovery and list continuity
+
+**Exact validated executable source:** `b9cf57533b7841ed8544b6233632877f44677fcb`. This evidence does not qualify a production release.
+
+- Quick Add preparation errors now have a valid English message. The caller preserves draft text before the bulk write begins.
+- Bulk relation mapping refuses duplicate API task IDs, preventing ambiguous parent/subtask relationships.
+- Relationship creation uses `runWritesSettled` to wait for every attempted independent relation write before reporting incomplete links; concurrent mode does not short-circuit after an early failure and serial mode continues after individual errors. Existing account-context fencing and uncertain-create warnings remain.
+- Today Quick Add no longer forces a task-list remount. The bulk mutation already invalidates active task-list membership caches, preserving local list search and pagination.
+- **Local focused Vitest: 67/67 passed across 8 task feature files** in a checkout of the exact source revision on the authorized laptop.
+- **GitHub Frontend Quality: PASS** (TypeScript, identity/Tasks regressions, production frontend build): https://github.com/GoreeCloud/tasks/actions/runs/38106192714
+- **GitHub Source Safety Baseline: PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38106192779
+- **GitHub Todoist Import Integrity: PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38106192715
+- Remaining: representative browser/Glaze interaction and accessibility checks, backend/database post-write readback, full regression/security test suites, disaster recovery, deployment and Stable/authority qualification.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
