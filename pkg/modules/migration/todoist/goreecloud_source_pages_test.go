@@ -3,6 +3,7 @@
 package todoist
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func validTodoistCompletedPage() *paginatedCompletedTasks {
 
 func TestValidateTodoistCompletedPage(t *testing.T) {
 	require.NoError(t, validateTodoistCompletedPage(validTodoistCompletedPage()))
-	require.ErrorContains(t, validateTodoistCompletedPage(nil), "missing completed")
+	require.ErrorContains(t, validateTodoistCompletedPage(nil), "omitted the items collection")
 	tests := []struct {
 		name   string
 		mutate func(*paginatedCompletedTasks)
@@ -52,11 +53,31 @@ func TestValidateTodoistArchivedPage(t *testing.T) {
 	require.NoError(t, validateTodoistArchivedPage(&paginatedProjects{
 		Results: []*project{{ID: "p1"}, {ID: "p2"}},
 	}))
-	require.NoError(t, validateTodoistArchivedPage(&paginatedProjects{}))
-	require.ErrorContains(t, validateTodoistArchivedPage(nil), "missing archived")
+	require.NoError(t, validateTodoistArchivedPage(&paginatedProjects{Results: []*project{}}))
+	require.ErrorContains(t, validateTodoistArchivedPage(&paginatedProjects{}), "omitted the results collection")
+	require.ErrorContains(t, validateTodoistArchivedPage(nil), "omitted the results collection")
 	require.Error(t, validateTodoistArchivedPage(&paginatedProjects{Results: []*project{nil}}))
 	require.Error(t, validateTodoistArchivedPage(&paginatedProjects{Results: []*project{{ID: ""}}}))
 	require.ErrorContains(t, validateTodoistArchivedPage(&paginatedProjects{
 		Results: []*project{{ID: "p1"}, {ID: "p1"}},
 	}), "duplicate")
+}
+
+func TestTodoistPageCollectionsMustBeExplicitInJSON(t *testing.T) {
+	for _, raw := range []string{`null`, `{}`, `{"items":null}`} {
+		var page paginatedCompletedTasks
+		require.NoError(t, json.Unmarshal([]byte(raw), &page))
+		require.ErrorContains(t, validateTodoistCompletedPage(&page), "omitted the items collection")
+	}
+	for _, raw := range []string{`null`, `{}`, `{"results":null}`} {
+		var page paginatedProjects
+		require.NoError(t, json.Unmarshal([]byte(raw), &page))
+		require.ErrorContains(t, validateTodoistArchivedPage(&page), "omitted the results collection")
+	}
+	var completed paginatedCompletedTasks
+	require.NoError(t, json.Unmarshal([]byte(`{"items":[]}`), &completed))
+	require.NoError(t, validateTodoistCompletedPage(&completed))
+	var archived paginatedProjects
+	require.NoError(t, json.Unmarshal([]byte(`{"results":[]}`), &archived))
+	require.NoError(t, validateTodoistArchivedPage(&archived))
 }
