@@ -152,6 +152,30 @@ describe('Upcoming filters', () => {
 		expect(lastQuery().filter).not.toContain('done = true')
 	})
 
+	it('clears inline search with Escape while preserving list filters', async () => {
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		const search = wrapper.find('input[type="search"]')
+		await search.setValue('weekly report')
+		await vi.waitFor(() => expect(lastQuery().q).toBe('weekly report'), {timeout: 1500})
+		await search.trigger('keydown.esc')
+		await vi.waitFor(() => expect(lastQuery().q).toBe(''), {timeout: 1500})
+		expect(lastQuery().filter).toContain("due_date < 'now/d+1d'")
+	})
+
+	it('refreshes current tasks without resetting sort or search settings', async () => {
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		await wrapper.setProps({sort: 'priority'})
+		await flushPromises()
+		const previousCalls = sdk.tasksList.mock.calls.length
+		await wrapper.find('.task-refresh-button').trigger('click')
+		await flushPromises()
+		expect(sdk.tasksList).toHaveBeenCalledTimes(previousCalls + 1)
+		expect(lastQuery().sort_by).toEqual(['priority', 'due_date', 'id'])
+		expect(lastQuery().filter).toContain("due_date < 'now/d+1d'")
+	})
+
 	it('uses the default sort order for unexpected deep-link values', async () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
@@ -180,7 +204,7 @@ describe('Upcoming filters', () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
 		expect(wrapper.find('.task-load-error').exists()).toBe(true)
-		await wrapper.findComponent({name: 'XButton'}).trigger('click')
+		await wrapper.find('.task-load-error').findComponent({name: 'XButton'}).trigger('click')
 		await flushPromises()
 		expect(sdk.tasksList).toHaveBeenCalledTimes(2)
 	})
