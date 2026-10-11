@@ -255,24 +255,24 @@ func (m *Migration) ValidateOAuthState(u *user.User) error {
 }
 
 func parseDate(dateString string) (date time.Time, err error) {
-	if len(dateString) == 10 {
-		// We're probably dealing with a date in the form of 2021-11-23 without a time
+	if len(dateString) == len("2006-01-02") {
 		date, err = time.Parse("2006-01-02", dateString)
-		if err == nil {
-			// round the day to eod
-			return date.Add(time.Hour*23 + time.Minute*59), nil
+		if err != nil {
+			return time.Time{}, err
 		}
+		// Keep the legacy end-of-day representation for all-day dates.
+		return date.Add(time.Hour*23 + time.Minute*59), nil
 	}
 
-	date, err = time.Parse("2006-01-02T15:04:05Z", dateString)
-	if err != nil {
-		date, err = time.Parse("2006-01-02T15:04:05", dateString)
+	// Todoist sends fixed timestamps with Z (often fractional seconds), but
+	// RFC3339 also permits an explicit UTC offset. Retain the source instant.
+	if date, err = time.Parse(time.RFC3339Nano, dateString); err == nil {
+		return date, nil
 	}
-	if err != nil {
-		date, err = time.Parse("2006-01-02", dateString)
-	}
-
-	return date, err
+	// Floating timestamps deliberately remain distinguishable from fixed
+	// timestamps. validateTodoistSync must reject them until the source
+	// user's timezone is known and floating semantics can be preserved.
+	return time.Parse("2006-01-02T15:04:05.999999999", dateString)
 }
 
 // Fixed-duration intervals are only safe to translate for day/week patterns.
