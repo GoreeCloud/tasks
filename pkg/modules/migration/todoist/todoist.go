@@ -343,6 +343,11 @@ func parseTodoistRepeat(due *dueDate) int64 {
 	if !supported {
 		return 0 // calendar month/year is not equivalent to a fixed duration
 	}
+	// A valid-looking recurrence must not wrap int64 and become a negative or
+	// incorrect destination repeat interval.
+	if interval > (1<<63-1)/seconds {
+		return 0
+	}
 	return interval * seconds
 }
 

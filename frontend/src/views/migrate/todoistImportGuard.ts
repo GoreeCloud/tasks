@@ -4,7 +4,8 @@ export function canStartTodoistImport(
 	provider: string,
 	authorizationCode: string,
 	confirmed: boolean,
+	alreadyAttempted = false,
 ): boolean {
 	if (provider !== 'todoist') return true
-	return authorizationCode.trim().length > 0 && confirmed
+	return authorizationCode.trim().length > 0 && confirmed && !alreadyAttempted
 }

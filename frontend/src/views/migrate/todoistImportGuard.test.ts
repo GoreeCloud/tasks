@@ -18,3 +18,12 @@ describe('Todoist import consent', () => {
 		expect(canStartTodoistImport('csv', '', false)).toBe(true)
 	})
 })
+
+	describe('one-shot submission before a fresh OAuth authorization', () => {
+		it('blocks another Todoist import after an attempt even when consent stays checked', () => {
+			expect(canStartTodoistImport('todoist', 'code', true, true)).toBe(false)
+		})
+		it('does not restrict unrelated import providers', () => {
+			expect(canStartTodoistImport('csv', '', false, true)).toBe(true)
+		})
+	})

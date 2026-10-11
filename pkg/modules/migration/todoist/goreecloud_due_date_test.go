@@ -67,3 +67,17 @@ func TestTodoistPreflightRejectsUnresolvableTaskAndReminderDueTimes(t *testing.T
 	source.Reminders[0].Due = &dueDate{Date:"2026-10-10T10:30:00"}
 	require.ErrorContains(t, validateTodoistSync(source), "floating due times")
 }
+
+func TestTodoistRepeatingIntervalOverflowFailsClosed(t *testing.T) {
+	for _, expression := range []string{
+		"every 9223372036854775807 days",
+		"every 9223372036854775807 weeks",
+		"every 999999999999999999999999 weeks",
+	} {
+		due := &dueDate{Date: "2026-10-10", String: expression, IsRecurring: true}
+		require.Zero(t, parseTodoistRepeat(due), expression)
+		source := validGoreeCloudTodoistSnapshot()
+		source.Items[0].Due = due
+		require.ErrorContains(t, validateTodoistSync(source), "unsupported recurring schedule")
+	}
+}

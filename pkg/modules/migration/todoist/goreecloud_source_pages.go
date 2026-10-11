@@ -19,8 +19,8 @@ func validateTodoistCompletedPage(page *paginatedCompletedTasks) error {
 			return fmt.Errorf("todoist migration: completed task has no completion timestamp")
 		}
 		if project, exists := page.Projects[task.ProjectID]; exists {
-			if project == nil {
-				return fmt.Errorf("todoist migration: completed task references an invalid project record")
+			if project == nil || project.ID != task.ProjectID {
+				return fmt.Errorf("todoist migration: completed task references mismatched project metadata")
 			}
 			if project.IsDeleted {
 				return fmt.Errorf("todoist migration: completed task belongs to a deleted project and cannot be preserved")

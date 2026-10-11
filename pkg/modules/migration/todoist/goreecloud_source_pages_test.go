@@ -81,3 +81,9 @@ func TestTodoistPageCollectionsMustBeExplicitInJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"results":[]}`), &archived))
 	require.NoError(t, validateTodoistArchivedPage(&archived))
 }
+
+func TestTodoistCompletedPageRejectsMismatchedProjectMetadata(t *testing.T) {
+	page := validTodoistCompletedPage()
+	page.Projects["p1"].ID = "p2"
+	require.ErrorContains(t, validateTodoistCompletedPage(page), "mismatched project metadata")
+}

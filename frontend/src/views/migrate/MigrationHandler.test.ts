@@ -139,4 +139,47 @@ describe('MigrationHandler', () => {
 		})
 	})
 
+	it('requires a fresh OAuth link after a failed or uncertain import response', async () => {
+		const first = '0123456789abcdef0123456789abcdef'
+		const next = 'fedcba9876543210fedcba9876543210'
+		expect(rememberTodoistOAuthState('https://todoist.com/oauth/authorize?state=' + first, sessionStorage)).toBe(true)
+		window.history.replaceState({}, '', '/migrate/todoist?code=authorized-code&state=' + first)
+		sdk.migrationTodoistStatus.mockResolvedValue({data: {}})
+		sdk.migrationTodoistAuth.mockResolvedValue({data: {url: 'https://todoist.com/oauth/authorize?state=' + next}})
+		sdk.migrationTodoistMigrate.mockRejectedValue(new Error('uncertain connection'))
+		wrapper = mount(MigrationHandler, {
+			props: {service: 'todoist', code: 'authorized-code'},
+			global: {plugins: [i18n, [VueQueryPlugin, {queryClient}]], stubs: {XButton: true}},
+		})
+		await flushPromises()
+		await wrapper.find('input[type="checkbox"]').setValue(true)
+		await wrapper.find('x-button-stub').trigger('click')
+		await flushPromises()
+		expect(sdk.migrationTodoistMigrate).toHaveBeenCalledTimes(1)
+		expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+		expect(wrapper.find('x-button-stub').attributes('href')).toContain('state=' + next)
+		// The failed callback cannot be replayed by another click.
+		await wrapper.find('x-button-stub').trigger('click')
+		await flushPromises()
+		expect(sdk.migrationTodoistMigrate).toHaveBeenCalledTimes(1)
+	})
+
+	it('processes a Todoist OAuth callback after the route code changes in-place', async () => {
+		const nonce = '0123456789abcdef0123456789abcdef'
+		sdk.migrationTodoistStatus.mockResolvedValue({data: {}})
+		sdk.migrationTodoistAuth.mockResolvedValue({data: {url: 'https://todoist.com/oauth/authorize?state=' + nonce}})
+		wrapper = mount(MigrationHandler, {
+			props: {service: 'todoist'},
+			global: {plugins: [i18n, [VueQueryPlugin, {queryClient}]], stubs: {XButton: true}},
+		})
+		await flushPromises()
+		window.history.replaceState({}, '', '/migrate/todoist?code=new-code&state=' + nonce)
+		await wrapper.setProps({code: 'new-code'})
+		await flushPromises()
+		expect(wrapper.text()).toContain('Todoist authorization received')
+		expect(wrapper.find('input[type="checkbox"]').exists()).toBe(true)
+		expect(window.location.search).not.toContain('code=')
+		expect(sdk.migrationTodoistMigrate).not.toHaveBeenCalled()
+	})
+
 })

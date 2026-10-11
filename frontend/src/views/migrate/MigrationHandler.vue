@@ -55,7 +55,7 @@
 					>
 						{{ migrationError }}
 					</Message>
-					<template v-if="migrator.id === 'todoist' && migratorAuthCode">
+					<template v-if="migrator.id === 'todoist' && migratorAuthCode && !todoistImportAttempted">
 						<p>{{ $t('migrate.todoistAuthorizationReceived') }}</p>
 						<label class="checkbox todoist-import-consent">
 							<input
@@ -215,6 +215,9 @@ const isMigrating = computed(() => startMigration.isPending.value)
 const confirmedAgain = ref(false)
 const startedHere = ref(false)
 const todoistImportConfirmed = ref(false)
+// A migration response can be ambiguous after a network error. One authorization
+// and consent grant may start at most one import request.
+const todoistImportAttempted = ref(false)
 
 const migratorAuthCode = ref('')
 const migratorAuthState = ref('')
@@ -314,9 +317,10 @@ async function initMigration() {
 		if (!isRequestContextAbort(cause)) migrationError.value = getErrorText(cause)
 	}
 }
-watch(() => props.service, () => {
+watch(() => [props.service, props.code], () => {
 	confirmedAgain.value = false
 	todoistImportConfirmed.value = false
+	todoistImportAttempted.value = false
 	migratorAuthCode.value = ''
 	migratorAuthState.value = ''
 	startedHere.value = false
@@ -339,7 +343,7 @@ watch(migrationRunning, async (running) => {
 
 async function migrate(credentialsConfig?: PlankaCredentials) {
 	const provider = migrator.value.id
-	if (!canStartTodoistImport(provider, migratorAuthCode.value, todoistImportConfirmed.value)) return
+	if (!canStartTodoistImport(provider, migratorAuthCode.value, todoistImportConfirmed.value, todoistImportAttempted.value)) return
 	confirmedAgain.value = true
 	migrationError.value = ''
 	try {
@@ -352,6 +356,12 @@ async function migrate(credentialsConfig?: PlankaCredentials) {
 			await startMigration.mutateAsync({kind: 'credentials', provider, body: credentialsConfig})
 		} else if (isMigratorOfKind(provider, 'oauth')) {
 			if (!migratorAuthCode.value) return
+			if (provider === 'todoist') {
+				// Mark before awaiting: a second click or uncertain response cannot
+				// dispatch the same import code again.
+				todoistImportAttempted.value = true
+				todoistImportConfirmed.value = false
+			}
 			const payload = {code: migratorAuthCode.value, ...(provider === 'todoist' ? {state: migratorAuthState.value} : {})}
 			await startMigration.mutateAsync({kind: 'oauth', provider, body: payload})
 		} else return
@@ -359,6 +369,26 @@ async function migrate(credentialsConfig?: PlankaCredentials) {
 		if (provider === migrator.value.id) startedHere.value = true
 	} catch (cause) {
 		if (!isRequestContextAbort(cause)) migrationError.value = getErrorText(cause)
+		if (provider === 'todoist' && todoistImportAttempted.value) {
+			// The server may have accepted the first request despite a timeout.
+			// Require a fresh authorization instead of offering a repeat-write.
+			migratorAuthCode.value = ''
+			migratorAuthState.value = ''
+			todoistImportConfirmed.value = false
+			clearTodoistOAuthState(todoistOAuthStorage())
+			authUrl.value = ''
+			try {
+				const next = await auth.mutateAsync(provider)
+				const nextUrl = next?.url ?? ''
+				if (provider === migrator.value.id && rememberTodoistOAuthState(nextUrl, todoistOAuthStorage())) {
+					authUrl.value = nextUrl
+				} else {
+					migrationError.value = t('migrate.todoistOAuthUnavailable')
+				}
+			} catch {
+				migrationError.value = t('migrate.todoistOAuthUnavailable')
+			}
+		}
 	}
 }
 function confirmMigrateAgain() {
@@ -366,6 +396,7 @@ function confirmMigrateAgain() {
 	if (migrator.value.id === 'todoist') {
 		clearTodoistOAuthState(todoistOAuthStorage())
 		todoistImportConfirmed.value = false
+		todoistImportAttempted.value = false
 		migratorAuthCode.value = '' // Require a fresh authorization and consent.
 		migratorAuthState.value = ''
 		return
