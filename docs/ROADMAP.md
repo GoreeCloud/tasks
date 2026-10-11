@@ -16,7 +16,7 @@ The [authoritative project specification](https://docs.google.com/document/d/1_z
 
 Feature delivery now takes priority over Todoist import. Focus first on everyday task management, the Glaze user experience, accessibility, reliability and data safety. The Todoist transition remains deferred until the core application is qualified.
 
-The draft source includes Today quick capture, cross-project sorting, list pagination, recoverable fetch errors, and duplicate-title-safe multiline Quick Add relationships. Uncertain bulk writes no longer repopulate the entire submission for an accidental duplicate replay. Implementation and existing frontend checks pass; task-list and relation-specific Vitest execution, full data-recovery acceptance, Glaze usability and representative runtime verification remain open.
+The draft source includes Today quick capture with default Today deadlines, cross-project sorting, list pagination, recoverable fetch errors, and duplicate-title-safe multiline Quick Add relationships. Quick Add now rejects overlapping submissions, reports incomplete post-creation metadata writes, and preserves user-specified dates. Uncertain bulk writes do not automatically repopulate the entire submission. Five feature regression files passed 48 tests in an isolated current-source checkout; CI workflow inclusion, comprehensive data recovery, Glaze accessibility and representative runtime acceptance remain open.
 
 ## Core product rebuild — pending
 - [ ] Redesign navigation, inbox/today/upcoming, projects, labels, filters and task editor as coherent Glaze experiences.
