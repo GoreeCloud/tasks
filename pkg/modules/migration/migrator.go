@@ -40,6 +40,14 @@ type Migrator interface {
 	AuthURL() string
 }
 
+// UserBoundOAuth is opt-in for migration providers whose OAuth state must be
+// signed for the current user and verified before any migration is queued.
+// Other migration providers keep their existing contract.
+type UserBoundOAuth interface {
+	AuthURLForUser(*user.User) (string, error)
+	ValidateOAuthState(*user.User) error
+}
+
 // CredentialsChecker is implemented by migrators that authenticate with credentials passed in the
 // migrate request (instead of an OAuth code). The handlers call it before queueing the migration
 // so bad credentials fail the request instead of a background job.
