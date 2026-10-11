@@ -81,7 +81,7 @@
 				{{ $t('task.show.overdue') }}
 			</FancyCheckbox>
 		</p>
-		<template v-if="!loading && !taskQuery.isError.value && !hasTasks && showNothingToDo">
+		<template v-if="!loading && !loadError && !hasTasks && showNothingToDo">
 			<div class="tasks-empty-state" role="status">
 				<h3>{{ $t('task.show.noTasks') }}</h3>
 				<LlamaCool class="llama-cool" aria-hidden="true" />
@@ -115,6 +115,12 @@
 				</li>
 			</ul>
 		</Card>
+		<PaginationEmit
+			v-if="totalPages > 1"
+			:total-pages="totalPages"
+			:current-page="currentPage"
+			@pageChanged="setPage"
+		/>
 		<div
 			v-else-if="loading"
 			:class="{ 'is-loading': showLoading}"
@@ -137,6 +143,7 @@ import Message from '@/components/misc/Message.vue'
 import FancyCheckbox from '@/components/input/FancyCheckbox.vue'
 import SingleTaskInProject from '@/components/tasks/partials/SingleTaskInProject.vue'
 import DatepickerWithRange from '@/components/date/DatepickerWithRange.vue'
+import PaginationEmit from '@/components/misc/PaginationEmit.vue'
 import XLabel from '@/components/tasks/partials/Label.vue'
 import {DATE_RANGES} from '@/components/date/dateRanges'
 import LlamaCool from '@/assets/llama-cool.svg?component'
@@ -179,11 +186,14 @@ const router = useRouter()
 const {t} = useI18n({useScope: 'global'})
 
 const taskScope = ref<TaskScope | null>(null)
+const currentPage = ref(1)
 const taskQuery = useTasks(
 	() => taskScope.value ?? {},
-	{enabled: () => authStore.authenticated && taskScope.value !== null},
+	{enabled: () => authStore.authenticated && taskScope.value !== null, page: () => currentPage.value},
 )
 const tasks = taskQuery.tasks
+const totalPages = taskQuery.totalPages
+const loadError = taskQuery.isError
 const showNothingToDo = ref<boolean>(false)
 
 
@@ -331,6 +341,16 @@ watch(taskQuery.data, data => { if (data) emit('tasksLoaded', true) })
 
 function updateTasks() { return taskQuery.refetch() }
 
+function setPage(page: number) {
+	if (Number.isSafeInteger(page) && page >= 1 && page <= totalPages.value) {
+		currentPage.value = page
+	}
+}
+
+watch(totalPages, pages => {
+	if (pages > 0 && currentPage.value > pages) currentPage.value = pages
+})
+
 // Keep sidebar setting changes from reloading tasks.
 watch(
 	[
@@ -342,7 +362,10 @@ watch(
 		() => props.labelIds,
 		() => props.sort,
 	],
-	([from, to, filterId]) => loadPendingTasks(from, to, filterId),
+	([from, to, filterId]) => {
+		currentPage.value = 1
+		void loadPendingTasks(from, to, filterId)
+	},
 	{immediate: true},
 )
 watchEffect(() => setTitle(pageTitle.value))
