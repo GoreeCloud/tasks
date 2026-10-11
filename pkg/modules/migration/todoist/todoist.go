@@ -17,6 +17,7 @@
 package todoist
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -172,6 +173,9 @@ type sync struct {
 	ProjectNotes []*projectNote `json:"project_notes"`
 	Reminders    []*reminder    `json:"reminders"`
 	Sections     []*section     `json:"sections"`
+	// Preserve unsupported resource presence rather than silently omitting it.
+	LocationReminders []json.RawMessage `json:"reminders_location"`
+	Locations         []json.RawMessage `json:"locations"`
 }
 
 var todoistColors = map[string]string{}
