@@ -107,6 +107,12 @@ task two`, PrefixMode.Default)
 		expect(tasks).to.have.length(1)
 		expect(tasks[0].parent).toBeNull()
 	})
+	it('detects tab-indented subtasks and preserves the nested parent positions', () => {
+		const tasks = parseSubtasksViaIndention('Parent\n\tChild\n\t\tGrandchild', PrefixMode.Default)
+		expect(tasks.map(task => task.title)).toEqual(['Parent', 'Child', 'Grandchild'])
+		expect(tasks.map(task => task.parentIndex)).toEqual([null, 0, 1])
+	})
+
 	it('Preserves distinct parent positions for tasks with the same title', () => {
 		const tasks = parseSubtasksViaIndention('Parent\n  Child\nParent\n  Child', PrefixMode.Default)
 		expect(tasks.map(task => task.parentIndex)).toEqual([null, 0, null, 2])
