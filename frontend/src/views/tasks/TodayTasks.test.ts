@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {shallowMount} from '@vue/test-utils'
+import {enableAutoUnmount, shallowMount} from '@vue/test-utils'
 import {nextTick, reactive} from 'vue'
 
 const projectList = reactive({hasProjects: true, isLoading: false})
@@ -8,6 +8,8 @@ vi.mock('@/composables/useProjects', () => ({
 }))
 
 import TodayTasks from './TodayTasks.vue'
+
+enableAutoUnmount(afterEach)
 
 describe('Today task list state', () => {
 	beforeEach(() => {
@@ -18,6 +20,7 @@ describe('Today task list state', () => {
 	it('keeps the same list instance after Quick Add emits a task', async () => {
 		const wrapper = shallowMount(TodayTasks, {
 			props: {showOverdue: false, showNulls: false},
+			global: {mocks: {$t: (key: string) => key}},
 		})
 		const list = wrapper.findComponent({name: 'ShowTasks'})
 		const add = wrapper.findComponent({name: 'AddTask'})
