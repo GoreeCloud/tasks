@@ -18,6 +18,13 @@ func makeTodoistAuthorizationURL(generateState func(int64) (string, error)) (str
 	if err != nil || strings.TrimSpace(state) == "" {
 		return "", fmt.Errorf("todoist migration: cannot generate OAuth state")
 	}
+	return makeTodoistAuthorizationURLWithState(state)
+}
+
+func makeTodoistAuthorizationURLWithState(state string) (string, error) {
+	if strings.TrimSpace(state) == "" {
+		return "", fmt.Errorf("todoist migration: OAuth state is missing")
+	}
 	u := url.URL{Scheme: "https", Host: "todoist.com", Path: "/oauth/authorize"}
 	u.RawQuery = url.Values{
 		"client_id": {config.MigrationTodoistClientID.GetString()},
