@@ -193,6 +193,7 @@ async function addTask() {
 			await runWrites(relations, createRelation, configStore.concurrent_writes)
 		} catch (e) {
 			// Created tasks already exist; retrying the entire batch could duplicate them.
+			errorMessage.value = t('task.bulkCreateRelationsIncomplete')
 			error(e)
 		}
 
