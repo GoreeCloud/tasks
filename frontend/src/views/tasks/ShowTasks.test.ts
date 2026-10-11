@@ -67,10 +67,20 @@ function lastQuery(): Record<string, unknown> {
 
 describe('Upcoming filters', () => {
 	beforeEach(() => {
+		auth.authenticated = true
 		sdk.tasksList.mockReset()
 		sdk.tasksList.mockImplementation(async () => ({data: {items: [], total_pages: 1}}))
 	})
 
+	it('loads tasks when a previously unauthenticated session becomes ready', async () => {
+		auth.authenticated = false
+		await mountUpcoming()
+		await flushPromises()
+		expect(sdk.tasksList).not.toHaveBeenCalled()
+		auth.authenticated = true
+		await flushPromises()
+		expect(sdk.tasksList).toHaveBeenCalledTimes(1)
+	})
 	it('reloads tasks when overdue tasks are enabled and disabled', async () => {
 		const wrapper = await mountUpcoming()
 		await flushPromises()
