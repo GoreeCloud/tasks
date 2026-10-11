@@ -3,10 +3,13 @@
 package todoist
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"code.vikunja.io/api/pkg/config"
+	"code.vikunja.io/api/pkg/user"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,4 +51,24 @@ func TestTodoistSignedOAuthStateRefusesWeakInputs(t *testing.T) {
 func TestTodoistOAuthHasNoUnsignedAuthorizationFallback(t *testing.T) {
 	var migration Migration
 	require.Empty(t, migration.AuthURL())
+}
+
+func TestTodoistAuthURLForUserIsVerifiableByServer(t *testing.T) {
+	previous := config.ServiceSecret.GetString()
+	config.ServiceSecret.Set("fixture-only-user-bound-oauth-secret")
+	t.Cleanup(func() { config.ServiceSecret.Set(previous) })
+
+	m := &Migration{Code: "test-oauth-code"}
+	authURL, err := m.AuthURLForUser(&user.User{ID: 42})
+	require.NoError(t, err)
+	parsed, err := url.Parse(authURL)
+	require.NoError(t, err)
+	require.Equal(t, "https://todoist.com/oauth/authorize", parsed.Scheme+"://"+parsed.Host+parsed.Path)
+	m.State = parsed.Query().Get("state")
+	require.NotEmpty(t, m.State)
+	require.NoError(t, m.ValidateOAuthState(&user.User{ID: 42}))
+	require.Error(t, m.ValidateOAuthState(&user.User{ID: 99}))
+	m.State = ""
+	require.Error(t, m.ValidateOAuthState(&user.User{ID: 42}))
+	require.Error(t, m.ValidateOAuthState(nil))
 }
