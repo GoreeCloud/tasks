@@ -65,7 +65,10 @@ function lastQuery(): Record<string, unknown> {
 }
 
 describe('Upcoming filters', () => {
-	beforeEach(() => sdk.tasksList.mockClear())
+	beforeEach(() => {
+		sdk.tasksList.mockReset()
+		sdk.tasksList.mockImplementation(async () => ({data: {items: [], total_pages: 1}}))
+	})
 
 	it('reloads tasks when overdue tasks are enabled and disabled', async () => {
 		const wrapper = await mountUpcoming()
@@ -121,6 +124,20 @@ describe('Upcoming filters', () => {
 		await flushPromises()
 		expect(lastQuery().sort_by).toEqual(['due_date', 'id'])
 		expect(lastQuery().order_by).toEqual(['asc', 'desc'])
+	})
+
+	it('pages through all matching tasks and resets pagination on filter changes', async () => {
+		sdk.tasksList.mockImplementation(async () => ({data: {items: [], total_pages: 3}}))
+		const wrapper = await mountUpcoming()
+		await flushPromises()
+		const pages = wrapper.findComponent({name: 'PaginationEmit'})
+		expect(pages.exists()).toBe(true)
+		pages.vm.$emit('pageChanged', 2)
+		await flushPromises()
+		expect(lastQuery().page).toBe(2)
+		await wrapper.setProps({showOverdue: true})
+		await flushPromises()
+		expect(lastQuery().page).toBe(1)
 	})
 
 	it('does not reload tasks when sidebar settings change', async () => {
