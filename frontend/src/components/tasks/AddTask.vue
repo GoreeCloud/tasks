@@ -77,7 +77,7 @@ import QuickAddMagic from '@/components/tasks/partials/QuickAddMagic.vue'
 import {parseSubtasksViaIndention} from '@/helpers/parseSubtasksViaIndention'
 import {indexCreatableTasks, resolveBulkTaskRelations} from '@/helpers/bulkTaskRelations'
 import {getLabelsFromPrefix} from '@/modules/quickAddMagic'
-import {runWrites} from '@/helpers/runWrites'
+import {runWritesSettled} from '@/helpers/runWrites'
 import {error} from '@/message'
 
 import {useAuthStore} from '@/stores/auth'
@@ -212,12 +212,10 @@ async function submitTask() {
 			})
 		}
 
-		try {
-			await runWrites(relations, createRelation, configStore.concurrent_writes)
-		} catch (e) {
-			// Created tasks already exist; retrying the entire batch could duplicate them.
+		const {failed: failedRelations} = await runWritesSettled(relations, createRelation, configStore.concurrent_writes)
+		if (failedRelations > 0) {
+			// The tasks already exist; do not re-submit the batch if some links failed.
 			errorMessage.value = t('task.bulkCreateRelationsIncomplete')
-			error(e)
 		}
 
 		if (bulk.incompleteDetails > 0 && !errorMessage.value) {
