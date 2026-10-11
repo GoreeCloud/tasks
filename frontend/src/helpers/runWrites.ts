@@ -13,3 +13,30 @@ export async function runWrites<T>(
 		await write(item)
 	}
 }
+
+/**
+ * Wait for every independent write to settle before reporting partial failures.
+ * Serial mode continues after a failed write to preserve independent details.
+ */
+export async function runWritesSettled<T>(
+	items: readonly T[],
+	write: (item: T) => Promise<unknown>,
+	concurrent: boolean,
+): Promise<{succeeded: number, failed: number}> {
+	let succeeded = 0
+	let failed = 0
+	const attempt = async (item: T) => {
+		try {
+			await write(item)
+			succeeded++
+		} catch {
+			failed++
+		}
+	}
+	if (concurrent) {
+		await Promise.all(items.map(attempt))
+	} else {
+		for (const item of items) await attempt(item)
+	}
+	return {succeeded, failed}
+}
