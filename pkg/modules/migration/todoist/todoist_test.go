@@ -314,7 +314,7 @@ func TestConvertTodoistToVikunja(t *testing.T) {
 				ID:     "103001",
 				ItemID: "400000000",
 				Due: &dueDate{
-					Date:        "2020-06-16T07:00:00",
+					Date:        "2020-06-16T07:00:00Z",
 					IsRecurring: false,
 				},
 			},
@@ -330,7 +330,7 @@ func TestConvertTodoistToVikunja(t *testing.T) {
 				ID:     "103003",
 				ItemID: "400000003",
 				Due: &dueDate{
-					Date:        "2020-06-15T07:00:00",
+					Date:        "2020-06-15T07:00:00Z",
 					IsRecurring: false,
 				},
 			},
@@ -338,7 +338,7 @@ func TestConvertTodoistToVikunja(t *testing.T) {
 				ID:     "103004",
 				ItemID: "400000005",
 				Due: &dueDate{
-					Date:        "2020-06-15T07:00:00",
+					Date:        "2020-06-15T07:00:00Z",
 					IsRecurring: false,
 				},
 			},
@@ -346,7 +346,7 @@ func TestConvertTodoistToVikunja(t *testing.T) {
 				ID:     "103006",
 				ItemID: "400000009",
 				Due: &dueDate{
-					Date:        "2020-06-15T07:00:00",
+					Date:        "2020-06-15T07:00:00Z",
 					IsRecurring: false,
 				},
 			},
