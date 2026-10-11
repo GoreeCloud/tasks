@@ -87,6 +87,8 @@ import {reportSkippedLabels, useQuickAddTask} from '@/composables/useQuickAddTas
 import {useAutoHeightTextarea} from '@/composables/useAutoHeightTextarea'
 import {useDelayedLoading} from '@/composables/useDelayedLoading'
 
+const props = withDefaults(defineProps<{defaultDueToday?: boolean}>(), {defaultDueToday: false})
+
 const emit = defineEmits<{
 	tasksAdded: [tasks: ITask[]],
 }>()
@@ -173,12 +175,14 @@ async function submitTask() {
 	try {
 		newTaskTitle.value = ''
 
+		const defaultDueDate = props.defaultDueToday ? new Date().toISOString() : undefined
 		const entries = await Promise.all(indexedTasks
 			.map(async ({title, project}) => ({
 				title,
 				project_id: (project !== null
 					? await findProjectId({project, projectId: 0})
 					: currentProjectId) || authStore.settings.default_project_id || 0,
+				due_date: defaultDueDate,
 			})))
 
 		// Input like a lone bullet passes the empty check but parses to nothing.
