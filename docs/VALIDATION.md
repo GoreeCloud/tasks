@@ -219,6 +219,18 @@ The hierarchy parser records the source `parentIndex`. Quick Add now uses `index
 - **GitHub Todoist Import Integrity: PASS:** https://github.com/GoreeCloud/tasks/actions/runs/38106192715
 - Remaining: representative browser/Glaze interaction and accessibility checks, backend/database post-write readback, full regression/security test suites, disaster recovery, deployment and Stable/authority qualification.
 
+## October 10, 2026 — Quick Add recovery regression and first-project onboarding
+
+**Validated executable candidate:** `2e1856d6301d2cdfded59b781ec59297550073fb` (draft development branch only).
+
+- Quick Add tests cover label and assignee writes with one failed attachment and one successful attachment in the same batch, verifying the later write runs, only saved metadata appears in returned tasks, and incomplete details are reported. No uncertain batch creation replay.
+- Today now links to `project.create` when project loading is complete and the account has no projects. New regression tests verify navigation and no loading-state flash, and maintain search/list identity after Quick Add.
+- Exact-head [Frontend Quality](https://github.com/GoreeCloud/tasks/actions/runs/38107861211): **PASS**, includes Vue TypeScript checking, focused feature and identity regressions, and production frontend bundle.
+- Exact-head [Source Safety Baseline](https://github.com/GoreeCloud/tasks/actions/runs/38107861209): **PASS**.
+- Exact-head [Todoist Import Integrity Go guard](https://github.com/GoreeCloud/tasks/actions/runs/38107861157): **PASS**. Passing guard does not indicate a Todoist cutover.
+- Isolated authorized-laptop Vitest: **11/11 passed** across `useQuickAddTask.test.ts` and `TodayTasks.test.ts`. Focused `pkg/models` Go tests for bulk creation, task relation create/delete and label create/delete: **PASS**. No production database or live user tasks were modified.
+- Still pending: backend API persisted readback/recovery for partial metadata writes, browser/Glaze design and accessibility acceptance, full regression and threat-model coverage, rollback evidence and production/Stable authority gates.
+
 ## Open acceptance gates
 
 | Check | Required evidence | Status |
