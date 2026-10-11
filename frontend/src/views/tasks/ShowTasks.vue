@@ -43,8 +43,11 @@
 			<label class="task-search-control">
 				<span class="is-sr-only">{{ $t('task.show.searchTasks') }}</span>
 				<input
+					ref="taskSearchInput"
 					v-model="searchText"
 					type="search"
+					aria-keyshortcuts="/"
+					:title="$t('task.show.searchShortcutHint')"
 					:placeholder="$t('task.show.searchTasks')"
 					autocomplete="off"
 					@keydown.esc="searchText = ''"
@@ -161,7 +164,7 @@
 
 <script setup lang="ts">
 import {computed, ref, watch, watchEffect} from 'vue'
-import {refDebounced} from '@vueuse/core'
+import {refDebounced, useEventListener} from '@vueuse/core'
 import {useRoute, useRouter} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 
@@ -220,7 +223,20 @@ const {t} = useI18n({useScope: 'global'})
 const taskScope = ref<TaskScope | null>(null)
 const currentPage = ref(1)
 const searchText = ref('')
+const taskSearchInput = ref<HTMLInputElement | null>(null)
 const searchTerm = refDebounced(searchText, 250)
+
+useEventListener(document, 'keydown', event => {
+	if (event.defaultPrevented || event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+	if (!authStore.authenticated) return
+	const target = event.target
+	if (target instanceof Element && target.closest('input, textarea, select, [contenteditable], [role="textbox"]')) return
+	if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return
+	const input = taskSearchInput.value
+	if (!input || input.disabled) return
+	event.preventDefault()
+	input.focus()
+})
 const taskQuery = useTasks(
 	() => taskScope.value ?? {},
 	{enabled: () => authStore.authenticated && taskScope.value !== null, page: () => currentPage.value},
