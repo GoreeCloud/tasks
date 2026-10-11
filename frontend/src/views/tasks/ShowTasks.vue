@@ -41,17 +41,25 @@
 		<div class="task-list-toolbar">
 			<label class="task-search-control">
 				<span class="is-sr-only">{{ $t('task.show.searchTasks') }}</span>
-				<input v-model="searchText" type="search" :placeholder="$t('task.show.searchTasks')" autocomplete="off" />
+				<input
+					v-model="searchText"
+					type="search"
+					:placeholder="$t('task.show.searchTasks')"
+					autocomplete="off"
+				>
 			</label>
 			<div class="task-sort-control">
-			<label>
-				<span>{{ $t('project.list.sort') }}</span>
-				<select :value="selectedSort" @change="setSortFromEvent">
-					<option value="due">{{ $t('task.attributes.dueDate') }}</option>
-					<option value="priority">{{ $t('task.attributes.priority') }}</option>
-					<option value="newest">{{ $t('task.attributes.created') }}</option>
-				</select>
-			</label>
+				<label>
+					<span>{{ $t('project.list.sort') }}</span>
+					<select
+						:value="selectedSort"
+						@change="setSortFromEvent"
+					>
+						<option value="due">{{ $t('task.attributes.dueDate') }}</option>
+						<option value="priority">{{ $t('task.attributes.priority') }}</option>
+						<option value="newest">{{ $t('task.attributes.created') }}</option>
+					</select>
+				</label>
 			</div>
 		</div>
 		<p
