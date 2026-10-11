@@ -1,6 +1,6 @@
 <template>
 	<div class="content is-max-width-desktop">
-		<AddTask v-if="projectList.hasProjects" @tasksAdded="taskListVersion++" />
+		<AddTask v-if="projectList.hasProjects" :default-due-today="true" @tasksAdded="taskListVersion++" />
 		<ShowTasks
 			:key="taskListVersion"
 			:date-from="DATE_RANGES.today[0]"
