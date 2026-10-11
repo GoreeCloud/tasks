@@ -66,7 +66,7 @@
 			<XButton
 				class="task-refresh-button"
 				:shadow="false"
-				:disabled="loading"
+				:disabled="loading || !userAuthenticated"
 				:loading="loading"
 				@click="updateTasks"
 			>
@@ -373,7 +373,7 @@ async function loadPendingTasks(from: Date|string|undefined, to: Date|string|und
 
 watch(taskQuery.data, data => { if (data) emit('tasksLoaded', true) })
 
-function updateTasks() { return taskQuery.refetch() }
+function updateTasks() { if (!userAuthenticated.value) return; return taskQuery.refetch() }
 
 function setPage(page: number) {
 	if (Number.isSafeInteger(page) && page >= 1 && page <= totalPages.value) {
