@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1.0">
+	<title>GoreeCloud Tasks</title>
+	<meta name="description" content="GoreeCloud Tasks — a private, adaptable task manager.">
+	<meta name="theme-color" content="#366cf6"/>
+
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+	<link rel="apple-touch-icon" href="/images/icons/apple-touch-icon-180x180.png"/>
+	<!--__vite-plugin-inject-preload__-->
+</head>
+<body>
+<noscript>
+	<strong>GoreeCloud Tasks requires JavaScript. Enable it to use the application.</strong>
+</noscript>
+<div id="app"></div>
+<script type="module" src="/src/main.ts"></script>
+<script>
+	//
+	// This variable points the frontend to the api.
+	// Leave it empty when the api is served from the same origin as the frontend. Otherwise set it to the
+	// url the api is reachable at, including the port and any sub path but without the /api/v2 part.
+	window.API_URL = ''
+</script>
+</body>
+</html>
