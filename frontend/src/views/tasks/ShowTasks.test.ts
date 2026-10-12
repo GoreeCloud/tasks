@@ -1,8 +1,8 @@
 import {createPinia} from 'pinia'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {QueryClient, VueQueryPlugin} from '@tanstack/vue-query'
-import {reactive} from 'vue'
-import {enableAutoUnmount, flushPromises, mount, shallowMount} from '@vue/test-utils'
+import {type Component, reactive} from 'vue'
+import {enableAutoUnmount, flushPromises, mount, type VueWrapper} from '@vue/test-utils'
 import {createMemoryHistory, createRouter} from 'vue-router'
 
 const sdk = vi.hoisted(() => ({
@@ -32,13 +32,29 @@ import XButton from '@/components/input/Button.vue'
 
 enableAutoUnmount(afterEach)
 
+// Vue Test Utils' generic mount overload cannot be evaluated for this large SFC
+// by the current vue-tsc version (TS2590). Keep the fixture shape checked,
+// while the existing component tests exercise the real mount behavior.
+type UpcomingMountOptions = {
+  shallow: boolean
+  props: {dateFrom: string, dateTo: string}
+  global: {
+    plugins: unknown[]
+    mocks: Record<string, unknown>
+    stubs: Record<string, unknown>
+    directives: Record<string, unknown>
+  }
+}
+const mountUpcomingFixture = mount as unknown as (component: Component, options: UpcomingMountOptions) => VueWrapper
+
 async function mountUpcoming(realButtons = false) {
 	const router = createRouter({
 		history: createMemoryHistory(),
 		routes: [{path: '/', component: {render: () => null}}],
 	})
 	await router.push('/')
-	return (realButtons ? mount : shallowMount)(ShowTasks, {
+	return mountUpcomingFixture(ShowTasks, {
+		shallow: !realButtons,
 		props: {
 			dateFrom: 'now/d',
 			dateTo: 'now/d+1d',
