@@ -2,7 +2,7 @@ import {createPinia} from 'pinia'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {QueryClient, VueQueryPlugin} from '@tanstack/vue-query'
 import {reactive} from 'vue'
-import {enableAutoUnmount, flushPromises, mount, shallowMount} from '@vue/test-utils'
+import {enableAutoUnmount, flushPromises, mount} from '@vue/test-utils'
 import {createMemoryHistory, createRouter} from 'vue-router'
 
 const sdk = vi.hoisted(() => ({
@@ -38,7 +38,8 @@ async function mountUpcoming(realButtons = false) {
 		routes: [{path: '/', component: {render: () => null}}],
 	})
 	await router.push('/')
-	return (realButtons ? mount : shallowMount)(ShowTasks, {
+	return mount(ShowTasks, {
+		shallow: !realButtons,
 		props: {
 			dateFrom: 'now/d',
 			dateTo: 'now/d+1d',
