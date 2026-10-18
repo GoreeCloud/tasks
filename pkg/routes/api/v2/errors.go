@@ -30,6 +30,7 @@ import (
 	"code.vikunja.io/api/pkg/web/handler"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/labstack/echo/v5"
 )
 
 // authFromCtx retrieves the authed user from a Huma handler context,
@@ -73,6 +74,12 @@ func translateDomainError(err error) error {
 			vm.I18nParams = details.I18nParams
 		}
 		return se
+	}
+	// Existing migration and API handlers use Echo HTTP errors. Preserve their
+	// explicit safe status/message instead of returning an opaque 500 to Huma.
+	var echoErr *echo.HTTPError
+	if errors.As(err, &echoErr) {
+		return huma.NewError(echoErr.Code, echoErr.Message)
 	}
 	// v2 maps validation failures to 422 (not v1's 412) so a govalidator failure
 	// looks identical to Huma's own schema validation. ValidationHTTPError isn't an

@@ -26,6 +26,7 @@ import (
 	microsofttodo "code.vikunja.io/api/pkg/modules/migration/microsoft-todo"
 	"code.vikunja.io/api/pkg/modules/migration/todoist"
 	"code.vikunja.io/api/pkg/modules/migration/trello"
+	"code.vikunja.io/api/pkg/user"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -39,7 +40,8 @@ type migrationAuthURLBody struct {
 // to the server. It is applied onto the concrete migrator (whose field carries
 // json:"code") so it works across migrators regardless of their field name.
 type migrationMigrateBody struct {
-	Code string `json:"code" doc:"The OAuth code obtained after authorizing against the auth url."`
+	Code  string `json:"code" doc:"The OAuth code obtained after authorizing against the auth url."`
+	State string `json:"state,omitempty" doc:"User-bound OAuth state returned by the provider. Required for Todoist migration."`
 }
 
 // RegisterMigrationOAuthRoutes wires the OAuth-based migrators (Todoist, Trello,
@@ -73,8 +75,24 @@ func registerOAuthMigrator(api huma.API, enabled bool, factory func() migration.
 		Method:      http.MethodGet,
 		Path:        "/migration/" + name + "/auth",
 		Tags:        tags,
-	}, func(_ context.Context, _ *struct{}) (*migrationAuthURLBody, error) {
-		return &migrationAuthURLBody{Body: migrationHandler.AuthURL{URL: factory().AuthURL()}}, nil
+	}, func(ctx context.Context, _ *struct{}) (*migrationAuthURLBody, error) {
+		ms := factory()
+		if bound, ok := ms.(migration.UserBoundOAuth); ok {
+			a, err := authFromCtx(ctx)
+			if err != nil {
+				return nil, err
+			}
+			u, err := user.GetFromAuth(a)
+			if err != nil {
+				return nil, translateDomainError(err)
+			}
+			authURL, err := bound.AuthURLForUser(u)
+			if err != nil {
+				return nil, huma.Error503ServiceUnavailable("Could not create a secure migration authorization")
+			}
+			return &migrationAuthURLBody{Body: migrationHandler.AuthURL{URL: authURL}}, nil
+		}
+		return &migrationAuthURLBody{Body: migrationHandler.AuthURL{URL: ms.AuthURL()}}, nil
 	})
 
 	registerMigrationStatus(api, name, tags, factory)

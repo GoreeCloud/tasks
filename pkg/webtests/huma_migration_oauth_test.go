@@ -17,7 +17,10 @@
 package webtests
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -46,6 +49,9 @@ func setupMigrationTestEnv(t *testing.T) *echo.Echo {
 	require.NoError(t, s.Commit())
 	require.NoError(t, s.Close())
 
+	previousSecret := config.ServiceSecret.GetString()
+	config.ServiceSecret.Set("goreecloud-huma-test-only-secret")
+	t.Cleanup(func() { config.ServiceSecret.Set(previousSecret) })
 	config.MigrationTodoistEnable.Set(true)
 	config.MigrationTrelloEnable.Set(true)
 	config.MigrationMicrosoftTodoEnable.Set(true)
@@ -58,6 +64,26 @@ func setupMigrationTestEnv(t *testing.T) *echo.Echo {
 	e := routes.NewEcho()
 	routes.RegisterRoutes(e)
 	return e
+}
+
+func signedTodoistMigrationState(t *testing.T, e *echo.Echo, token string) string {
+	t.Helper()
+	rec := humaRequest(t, e, http.MethodGet, "/api/v2/migration/todoist/auth", "", token, "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	var response struct {
+		URL string `json:"url"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	parsed, err := url.Parse(response.URL)
+	require.NoError(t, err)
+	require.Equal(t, "todoist.com", parsed.Host)
+	state := parsed.Query().Get("state")
+	require.NotEmpty(t, state)
+	return state
+}
+
+func signedTodoistMigrationBody(code, state string) string {
+	return fmt.Sprintf(`{"code":%q,"state":%q}`, code, state)
 }
 
 func TestHumaMigrationOAuth(t *testing.T) {
@@ -80,7 +106,8 @@ func TestHumaMigrationOAuth(t *testing.T) {
 
 	t.Run("migrate kicks off the migration", func(t *testing.T) {
 		events.ClearDispatchedEvents()
-		rec := humaRequest(t, e, http.MethodPost, "/api/v2/migration/todoist/migrate", `{"code":"test-code"}`, token, "")
+		state := signedTodoistMigrationState(t, e, token)
+		rec := humaRequest(t, e, http.MethodPost, "/api/v2/migration/todoist/migrate", signedTodoistMigrationBody("test-code", state), token, "")
 		// 200, not the wrapper's POST default 201: this queues a job, it does
 		// not create a REST resource.
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
@@ -103,8 +130,34 @@ func TestHumaMigrationOAuth_AlreadyRunning(t *testing.T) {
 	require.NoError(t, s.Commit())
 	_ = s.Close()
 
-	rec := humaRequest(t, e, http.MethodPost, "/api/v2/migration/todoist/migrate", `{"code":"test-code"}`, token, "")
+	state := signedTodoistMigrationState(t, e, token)
+	rec := humaRequest(t, e, http.MethodPost, "/api/v2/migration/todoist/migrate", signedTodoistMigrationBody("test-code", state), token, "")
 	assert.Equal(t, http.StatusPreconditionFailed, rec.Code, "body: %s", rec.Body.String())
+}
+
+func TestHumaMigrationOAuth_RejectsMissingAndTamperedState(t *testing.T) {
+	e := setupMigrationTestEnv(t)
+	token := humaTokenFor(t, &testuser1)
+	state := signedTodoistMigrationState(t, e, token)
+	otherUserToken := humaTokenFor(t, &testuser2)
+
+	for _, tc := range []struct {
+		name  string
+		state string
+		token string
+	}{
+		{"missing", "", token},
+		{"tampered", state + "x", token},
+		{"other-user", state, otherUserToken},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			events.ClearDispatchedEvents()
+			rec := humaRequest(t, e, http.MethodPost, "/api/v2/migration/todoist/migrate",
+				signedTodoistMigrationBody("test-code", tc.state), tc.token, "")
+			require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
+			require.NotContains(t, rec.Body.String(), "internal server error")
+		})
+	}
 }
 
 func TestHumaMigrationOAuth_Unauthenticated(t *testing.T) {
