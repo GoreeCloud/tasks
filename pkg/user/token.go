@@ -129,7 +129,8 @@ func removeTokenByID(s *xorm.Session, u *User, kind TokenKind, id int64) (err er
 // CleanupOldTokens removes all password reset, account deletion and email change tokens older than 24 hours.
 // Email confirm tokens are only swept for users with a pending email change, registration confirm links never expire.
 func CleanupOldTokens(s *xorm.Session) (deleted int64, err error) {
-	cutoff := time.Now().Add(time.Hour * 24 * -1)
+	// Token timestamps are persisted in UTC; local-time cutoffs can retain expired tokens on non-UTC hosts.
+	cutoff := time.Now().UTC().Add(-24 * time.Hour)
 	deleted, err = s.
 		Where(builder.And(
 			builder.Lt{"created": cutoff},
