@@ -1,0 +1,35 @@
+export const STORAGE_KEY = 'goreecloud.tasks.local.v1';
+export const EMPTY = () => ({ schema: 1, projects: [], tasks: [] });
+export function hydrate(raw) {
+  try {
+    const data = JSON.parse(raw);
+    if (!data || data.schema !== 1 || !Array.isArray(data.projects) || !Array.isArray(data.tasks)) return EMPTY();
+    return { schema: 1, projects: data.projects.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string'), tasks: data.tasks.filter(t => t && typeof t.id === 'string' && typeof t.title === 'string') };
+  } catch { return EMPTY(); }
+}
+export function newTask(title, projectId = null, due = '', priority = 4) {
+  const name = title.trim();
+  if (!name || name.length > 240) throw new Error('Task title must be 1–240 characters.');
+  const p = Number(priority);
+  if (!Number.isInteger(p) || p < 1 || p > 4) throw new Error('Priority must be P1 through P4.');
+  if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new Error('Due date must be YYYY-MM-DD.');
+  return { id: crypto.randomUUID(), title: name, projectId: projectId || null, due, priority: p, completed: false, createdAt: new Date().toISOString(), completedAt: null };
+}
+export function selectTasks(tasks, view, today, query = '') {
+  const term = query.trim().toLocaleLowerCase();
+  return tasks.filter(t => {
+    if (term && !t.title.toLocaleLowerCase().includes(term)) return false;
+    if (view === 'completed') return !!t.completed;
+    if (t.completed) return false;
+    if (view === 'inbox') return !t.projectId;
+    if (view === 'today') return t.due === today || (!!t.due && t.due < today);
+    if (view === 'upcoming') return !!t.due && t.due > today;
+    if (view === 'priority') return t.priority <= 2;
+    if (view.startsWith('project:')) return t.projectId === view.slice(8);
+    return true;
+  }).sort((a, b) => a.priority - b.priority || (a.due || '9999').localeCompare(b.due || '9999') || b.createdAt.localeCompare(a.createdAt));
+}
+export function localDate(now = new Date()) {
+  const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+d;
+}

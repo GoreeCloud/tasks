@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" data-mode="light" data-accent="iris">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#5145d9">
+  <title>GoreeCloud Tasks</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" aria-label="Workspace navigation">
+    <a class="identity" href="./index.html" aria-label="GoreeCloud Tasks home"><span class="logo">✦</span><span><strong>GoreeCloud</strong><small>TASKS</small></span></a>
+    <div class="workspace-label">MY WORKSPACE</div>
+    <nav id="primary-nav" aria-label="Task views">
+      <button class="nav-item selected" data-view="inbox"><span>▣</span> Inbox <em id="inbox-count"></em></button>
+      <button class="nav-item" data-view="today"><span>◷</span> Today</button>
+      <button class="nav-item" data-view="upcoming"><span>▦</span> Upcoming</button>
+      <button class="nav-item" data-view="priority"><span>⚑</span> Priority</button>
+      <button class="nav-item" data-view="all"><span>☷</span> All tasks</button>
+      <button class="nav-item" data-view="completed"><span>✓</span> Completed</button>
+    </nav>
+    <div class="projects-label"><span>PROJECTS</span><button id="new-project" title="Create project" aria-label="Create project">+</button></div>
+    <nav id="project-nav" aria-label="Projects"></nav>
+    <div class="sidebar-bottom">
+      <p><strong>Privacy-first foundation</strong><span>Saved on this browser only. Sync and shared accounts are not available yet.</span></p>
+      <button id="export-data" class="sidebar-action">↓ Export data</button>
+      <button id="theme-toggle" class="sidebar-action">◐ Change theme</button>
+    </div>
+  </aside>
+  <main class="workspace">
+    <header class="topbar"><div class="breadcrumb">PERSONAL WORKSPACE <span> / </span> <b id="crumb">Inbox</b></div><span class="local-status">● Browser-local</span></header>
+    <div class="content">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-content"><span class="eyebrow">YOUR DAY, ORGANIZED</span><h1 id="page-title">Inbox</h1><p id="page-description">A calm place to capture what matters and make progress.</p></div>
+        <div class="hero-art" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><div class="hero-check">✓</div></div>
+      </section>
+      <div class="overview" aria-label="Task overview">
+        <div class="metric"><span>Open tasks</span><strong id="stat-open">0</strong><small>In your workspace</small></div>
+        <div class="metric"><span>Due today</span><strong id="stat-today">0</strong><small>Ready for focus</small></div>
+        <div class="metric"><span>Completed</span><strong id="stat-done">0</strong><small>Progress made</small></div>
+      </div>
+      <section class="task-panel" aria-labelledby="tasks-heading">
+        <div class="section-heading"><div><span class="overline">FOCUS SPACE</span><h2 id="tasks-heading">Your tasks <span id="result-count"></span></h2></div><label class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Find tasks" aria-label="Search tasks"></label></div>
+        <form id="task-form" class="quick-add" autocomplete="off">
+          <span class="add-glyph">+</span><label for="task-title" class="visually-hidden">New task title</label><input id="task-title" maxlength="240" placeholder="Add a task to clear your mind..." required>
+          <label for="task-project" class="visually-hidden">Project</label><select id="task-project" title="Project"><option value="">Inbox</option></select>
+          <label for="task-date" class="visually-hidden">Due date</label><input id="task-date" type="date" title="Due date">
+          <label for="task-priority" class="visually-hidden">Priority</label><select id="task-priority" title="Priority"><option value="4">P4</option><option value="3">P3</option><option value="2">P2</option><option value="1">P1</option></select>
+          <button type="submit" class="primary-button">Add task</button>
+        </form>
+        <div id="status" role="status" aria-live="polite"></div>
+        <ul id="task-list" class="task-list" aria-label="Tasks"></ul>
+        <div id="empty" class="empty" hidden><span class="empty-icon">✦</span><h3>All clear here</h3><p>Start with a small next step. Your future self will thank you.</p></div>
+      </section>
+      <footer class="footer">GoreeCloud Tasks · Early foundation · Powered by the GC UI design language</footer>
+    </div>
+  </main>
+</div>
+<dialog id="project-dialog"><form method="dialog" id="project-form"><h2>Create project</h2><p>Group your tasks around a meaningful goal.</p><label for="project-title">Project name</label><input id="project-title" required maxlength="100" placeholder="e.g. Launch checklist"><div class="dialog-actions"><button type="button" id="project-cancel">Cancel</button><button class="primary-button" type="submit">Create</button></div></form></dialog>
+</body>
+</html>
