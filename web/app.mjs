@@ -21,9 +21,11 @@ function render() {
   $('result-count').textContent='('+filtered.length+')';
   document.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===view; b.classList.toggle('selected',active); if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   const projectNav=$('project-nav');projectNav.replaceChildren();
+  const mobileProjects=$('mobile-project-select'); mobileProjects.replaceChildren(new Option('Projects',''));
   const projectSelect=$('task-project'); const prev=projectSelect.value;
   projectSelect.replaceChildren(new Option('Inbox',''));
-  state.projects.forEach(p=>{const nav=makeButton('◈  '+p.name,'nav-item project-nav',()=>{view='project:'+p.id;projectSelect.value=p.id;render();});nav.dataset.view='project:'+p.id; if(view===nav.dataset.view)nav.classList.add('selected');projectNav.append(nav);projectSelect.add(new Option(p.name,p.id));});
+  state.projects.forEach(p=>{const nav=makeButton('◈  '+p.name,'nav-item project-nav',()=>{view='project:'+p.id;projectSelect.value=p.id;render();});nav.dataset.view='project:'+p.id; if(view===nav.dataset.view)nav.classList.add('selected');projectNav.append(nav);projectSelect.add(new Option(p.name,p.id));mobileProjects.add(new Option(p.name,p.id));});
+  mobileProjects.value=view.startsWith('project:')?view.slice(8):'';
   projectSelect.value=view.startsWith('project:')?view.slice(8):prev;
   const list=$('task-list');list.replaceChildren();$('empty').hidden=filtered.length!==0;
   filtered.forEach(task=>{
@@ -53,6 +55,8 @@ document.querySelectorAll('#primary-nav [data-view]').forEach(b=>b.addEventListe
 $('search').addEventListener('input',e=>{search=e.target.value;render();});
 const dialog=$('project-dialog');$('new-project').addEventListener('click',()=>dialog.showModal());
 $('project-cancel').addEventListener('click',()=>dialog.close());
+$('mobile-new-project').addEventListener('click',()=> $('new-project').click());
+$('mobile-project-select').addEventListener('change',e=>{ if(e.target.value){view='project:'+e.target.value;render();} });
 $('project-form').addEventListener('submit',e=>{
   e.preventDefault();const name=$('project-title').value.trim();if(!name)return;
   const project={id:crypto.randomUUID(),name};state.projects.push(project);
@@ -61,4 +65,6 @@ $('project-form').addEventListener('submit',e=>{
 $('theme-toggle').addEventListener('click',()=>{const root=document.documentElement;const next=root.dataset.mode==='dark'?'light':'dark';root.dataset.mode=next;try{localStorage.setItem('goreecloud.tasks.theme',next);}catch{}});
 const savedTheme=localStorage.getItem('goreecloud.tasks.theme');if(savedTheme==='dark'||savedTheme==='light')document.documentElement.dataset.mode=savedTheme;
 $('export-data').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=el('a');a.href=url;a.download='goreecloud-tasks-'+localDate()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);});
+$('mobile-export').addEventListener('click',()=> $('export-data').click());
+$('mobile-theme').addEventListener('click',()=> $('theme-toggle').click());
 render();

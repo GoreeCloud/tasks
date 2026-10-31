@@ -5,6 +5,7 @@
   <meta name="theme-color" content="#5145d9">
   <title>GoreeCloud Tasks</title>
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./mobile.css">
   <script type="module" src="./app.mjs"></script>
 </head>
 <body>
@@ -22,6 +23,12 @@
     </nav>
     <div class="projects-label"><span>PROJECTS</span><button id="new-project" title="Create project" aria-label="Create project">+</button></div>
     <nav id="project-nav" aria-label="Projects"></nav>
+    <div class="mobile-toolbar" aria-label="Mobile project and settings tools">
+      <label for="mobile-project-select" class="visually-hidden">Browse projects</label>
+      <select id="mobile-project-select" aria-label="Browse projects"><option value="">Projects</option></select>
+      <button type="button" id="mobile-new-project">+ Project</button>
+      <details class="mobile-options"><summary aria-label="More settings">•••</summary><div class="mobile-options-content"><button id="mobile-export" type="button">↓ Export data</button><button id="mobile-theme" type="button">◐ Change theme</button></div></details>
+    </div>
     <div class="sidebar-bottom">
       <p><strong>Privacy-first foundation</strong><span>Saved on this browser only. Sync and shared accounts are not available yet.</span></p>
       <button id="export-data" class="sidebar-action">↓ Export data</button>
