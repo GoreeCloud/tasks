@@ -14,4 +14,5 @@ test('inbox, project, today, completed and priority filtering', () => {
   assert.deepEqual(selectTasks([a,b,c],'completed','2026-10-31').map(x=>x.id),['c']);
   assert.deepEqual(selectTasks([a,b,c],'priority','2026-10-31').map(x=>x.id),['a']);
 });
+test('invalid calendar dates are rejected', () => { assert.throws(() => newTask('Bad date', null, '2026-02-30')); assert.throws(() => newTask('Bad date', null, '2026-13-01')); assert.equal(newTask('Leap day', null, '2028-02-29').due, '2028-02-29'); });
 test('date is local not UTC', () => { assert.equal(localDate(new Date(2026, 9, 31, 23, 50)), '2026-10-31'); });

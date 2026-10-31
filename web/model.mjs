@@ -12,7 +12,7 @@ export function newTask(title, projectId = null, due = '', priority = 4) {
   if (!name || name.length > 240) throw new Error('Task title must be 1–240 characters.');
   const p = Number(priority);
   if (!Number.isInteger(p) || p < 1 || p > 4) throw new Error('Priority must be P1 through P4.');
-  if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new Error('Due date must be YYYY-MM-DD.');
+  if (due && (!/^\d{4}-\d{2}-\d{2}$/.test(due) || Number.isNaN(Date.parse(due + 'T00:00:00Z')) || new Date(due + 'T00:00:00Z').toISOString().slice(0, 10) !== due)) throw new Error('Due date must be a valid YYYY-MM-DD date.');
   return { id: crypto.randomUUID(), title: name, projectId: projectId || null, due, priority: p, completed: false, createdAt: new Date().toISOString(), completedAt: null };
 }
 export function selectTasks(tasks, view, today, query = '') {

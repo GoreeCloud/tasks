@@ -71,6 +71,7 @@ GitHub Actions builds the Android debug variant separately. A build result does 
 - `linux/` — first-party GTK4/libadwaita desktop UI and SQLite store.
 - `android/` — first-party Android Kotlin/Compose UI and SQLite store.
 - `docs/ARCHITECTURE.md` — data, security, and synchronization decisions.
+- `docs/PRODUCT_REQUIREMENTS.md` — owner feature catalog mapped to staged acceptance.
 - `docs/ROADMAP.md` — staged path to the requested capability catalog.
 - `.github/workflows/verify.yml` — model tests, Python checks, Android build.
 
