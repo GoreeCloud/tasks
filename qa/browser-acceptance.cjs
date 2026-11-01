@@ -1,0 +1,134 @@
+/* GoreeCloud Tasks browser acceptance: NODE_PATH=<playwright-and-axe-node_modules> node qa/browser-acceptance.cjs */
+const {createServer}=require('node:http');
+const {readFileSync,mkdirSync}=require('node:fs');
+const {join,resolve,extname}=require('node:path');
+const assert=require('node:assert/strict');
+const {chromium,firefox}=require('playwright');
+const axe=require.resolve('axe-core');
+const root=resolve(__dirname,'../web');
+const dest=process.env.GC_TASKS_QA_DIR||'/tmp/goreecloud-tasks-browser-qa';
+const types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css'};
+const server=createServer((req,res)=>{
+  const name=decodeURIComponent((req.url||'/').split('?')[0]);
+  if(!/^\/[a-zA-Z0-9._/-]*$/.test(name)||name.includes('..')){res.writeHead(400);return res.end();}
+  try{let path=join(root,name==='/'?'index.html':name.slice(1));res.setHeader('Content-Type',types[extname(path)]||'application/octet-stream');res.end(readFileSync(path));}
+  catch{res.writeHead(404);res.end();}
+});
+let count=0;
+function note(name,data){count++;console.log(JSON.stringify({name,...data}));}
+async function geometry(page){return page.evaluate(()=>({width:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth,offenders:[...document.querySelectorAll('body *')].filter(e=>{let r=e.getBoundingClientRect();return r.width>0&&r.right>innerWidth+1&&getComputedStyle(e).position!=='absolute'}).slice(0,8).map(e=>e.tagName.toLowerCase()+'#'+e.id+'.'+String(e.className).slice(0,40))}));}
+async function axeAudit(page,label){
+  await page.addScriptTag({path:axe});
+  const result=await page.evaluate(()=>window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']}}));
+  const violations=result.violations.map(v=>({id:v.id,impact:v.impact,targets:v.nodes.map(n=>n.target).slice(0,5)}));
+  note(label+' axe',{violations,passes:result.passes.length,incomplete:result.incomplete.length});
+  assert.equal(violations.length,0,label+' axe violations');
+}
+async function run(engine,port){
+  const browser=await engine.launch({headless:true,args:engine.name()==='chromium'?['--no-sandbox']:[]});
+  const url='http://127.0.0.1:'+port+'/';
+  try{
+    const context=await browser.newContext({viewport:{width:1366,height:900},colorScheme:'dark',reducedMotion:'reduce'});
+    const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(url,{waitUntil:'networkidle'});
+    assert.equal(await page.locator('html').getAttribute('data-mode'),'light');
+    assert.equal(await page.locator('html').getAttribute('data-gc-accent'),'neutral');
+    await page.locator('#task-title').fill('Synthetic acceptance task');
+    await page.locator('#task-form button[type=submit]').click();
+    assert.equal(await page.locator('.task-row').count(),1);
+    await page.getByRole('button',{name:'Edit Synthetic acceptance task'}).click();
+    await page.locator('#edit-task-title').fill('Edited acceptance task');
+    await page.locator('#edit-task-form button[type=submit]').click();
+    assert.equal(await page.locator('.task-name').innerText(),'Edited acceptance task');
+    await page.locator('#select-visible').check();
+    await page.locator('#bulk-complete').click();
+    assert.equal(await page.locator('#stat-rate').innerText(),'100%');
+    await page.locator('[data-view=completed]').first().click();
+    await page.locator('#select-visible').check();
+    await page.locator('#bulk-reopen').click();
+    await page.locator('[data-view=all]').first().click();
+    await page.locator('#select-visible').check();
+    page.once('dialog',x=>x.accept());
+    await page.locator('#bulk-trash').click();
+    await page.locator('[data-view=trash]').first().click();
+    await page.getByRole('button',{name:'Restore Edited acceptance task'}).click();
+    await page.locator('[data-view=all]').first().click();
+    assert.equal(await page.locator('.task-row').count(),1);
+    await page.locator('#theme-toggle').click();
+    await page.locator('#appearance-mode').selectOption('dark');
+    await page.locator('#appearance-accent').selectOption('lagoon');
+    await page.locator('#appearance-form button[type=submit]').click();
+    await page.reload({waitUntil:'networkidle'});
+    assert.equal(await page.locator('html').getAttribute('data-mode'),'dark');
+    assert.equal(await page.locator('html').getAttribute('data-gc-accent'),'lagoon');
+    const colors=await page.evaluate(()=>({button:getComputedStyle(document.querySelector('.primary-button')).backgroundColor,canvas:getComputedStyle(document.body).backgroundColor}));
+    const geo=await geometry(page);
+    note(engine.name()+' desktop',{colors,geo,errors});
+    assert.ok(geo.scrollWidth<=geo.width+1,'desktop overflow');
+    assert.deepEqual(errors,[]);
+    await axeAudit(page,engine.name()+' desktop');
+    await page.screenshot({path:join(dest,engine.name()+'-desktop.png'),fullPage:true});
+    await page.locator('#search').focus();await page.locator('#search').blur();await page.keyboard.press('/');
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'search');
+    await page.locator('#search').blur();await page.keyboard.press('n');
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'task-title');
+    // Portable schema-one backup must restore into an independent empty profile.
+    const [download]=await Promise.all([
+      page.waitForEvent('download'), page.locator('#export-data').click()
+    ]);
+    const chunks=[];for await(const chunk of await download.createReadStream())chunks.push(chunk);
+    const backup=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    assert.equal(backup.schema,1);
+    assert.equal(backup.tasks.length,1);
+    const restoreContext=await browser.newContext();
+    const restorePage=await restoreContext.newPage();
+    await restorePage.goto(url,{waitUntil:'networkidle'});
+    restorePage.once('dialog',dialog=>dialog.accept());
+    await restorePage.locator('#import-file').setInputFiles({
+      name:'synthetic-tasks.json',mimeType:'application/json',
+      buffer:Buffer.from(JSON.stringify(backup))
+    });
+    await restorePage.getByText('Edited acceptance task').waitFor();
+    assert.equal(await restorePage.locator('.task-row').count(),1);
+    note(engine.name()+' backup roundtrip',{schema:backup.schema,taskCount:backup.tasks.length});
+    await restoreContext.close();
+    await context.close();
+    const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1,colorScheme:'dark'});
+    const small=await mobile.newPage();const mobileErrors=[];small.on('pageerror',e=>mobileErrors.push(e.message));
+    await small.goto(url,{waitUntil:'networkidle'});
+    await small.locator('#task-title').fill('Mobile acceptance task');
+    await small.locator('#task-form button[type=submit]').click();
+    await small.locator('.mobile-options summary').click();
+    await small.locator('#mobile-theme').click();
+    await small.locator('#appearance-mode').selectOption('dark');
+    await small.locator('#appearance-accent').selectOption('moss');
+    await small.locator('#appearance-form button[type=submit]').click();
+    const mobileGeo=await geometry(small);
+    note(engine.name()+' mobile',{geo:mobileGeo,errors:mobileErrors});
+    assert.ok(mobileGeo.scrollWidth<=mobileGeo.width+1,'mobile overflow');
+    assert.deepEqual(mobileErrors,[]);
+    await axeAudit(small,engine.name()+' mobile');
+    await small.screenshot({path:join(dest,engine.name()+'-mobile.png'),fullPage:true});
+    await small.evaluate(()=>{document.documentElement.style.zoom='200%';});
+    const zoom=await geometry(small);
+    const widths=await small.evaluate(()=>Object.fromEntries(['html','body','.shell','.sidebar','.workspace','.content','.hero','.overview','.task-panel','.task-row','.mobile-toolbar','#primary-nav'].map(s=>{let e=document.querySelector(s);return [s,{client:e.clientWidth,scroll:e.scrollWidth,rect:e.getBoundingClientRect().width,scale:getComputedStyle(e).zoom}]})));
+    const media=await small.evaluate(()=>({innerWidth,media720:matchMedia('(max-width:720px)').matches,media480:matchMedia('(max-width:480px)').matches,workspaceContainer:getComputedStyle(document.querySelector('.workspace')).containerType,sidebarContainer:getComputedStyle(document.querySelector('.sidebar')).containerType,grid:getComputedStyle(document.querySelector('.list-controls')).gridTemplateColumns}));
+    note(engine.name()+' zoom 200%',{geo:zoom,widths,media});
+    await small.screenshot({path:join(dest,engine.name()+'-zoom.png'),fullPage:true});
+    assert.ok(zoom.scrollWidth<=zoom.width+1,'zoom overflow');
+    if(engine.name()==='chromium'){
+      await small.emulateMedia({forcedColors:'active'});
+      note('chromium forced colors',{active:await small.evaluate(()=>matchMedia('(forced-colors: active)').matches)});
+    }
+    await mobile.close();
+  }finally{await browser.close();}
+}
+(async()=>{
+  mkdirSync(dest,{recursive:true});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    await run(chromium,server.address().port);
+    await run(firefox,server.address().port);
+    note('complete',{screenshots:dest,checks:count});
+  }finally{await new Promise(resolve=>server.close(resolve));}
+})().catch(e=>{console.error(e.stack);process.exitCode=1;});

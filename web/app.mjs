@@ -30,10 +30,13 @@ const views = {
   completed: ['Completed', 'A record of the progress you have made.'],
   trash: ['Trash', 'Restore deleted tasks locally. Trash is not included in JSON exports.']
 };
-function report(message) { $('status').textContent = message; }
+function report(message, level = 'info') {
+  $('status').textContent = message;
+  $('status').dataset.level = level;
+}
 function locked(message) {
   writeLocked = true;
-  report(message);
+  report(message, 'error');
   ['task-form', 'project-form', 'edit-task-form'].forEach(id => {
     $(id).querySelectorAll('input, select, button[type="submit"]').forEach(control => { control.disabled = true; });
   });
@@ -72,7 +75,7 @@ function mutate(change) {
     report('');
     return true;
   } catch (error) {
-    report(error instanceof Error ? 'Save failed: ' + error.message : 'Could not save the task.');
+    report(error instanceof Error ? 'Save failed: ' + error.message : 'Could not save the task.', 'error');
     return false;
   }
 }
@@ -248,7 +251,11 @@ function render() {
       }
       render();
     });
-    item.append(selector, checkbox, body, edit, remove);
+    const selectLabel = el('label', 'task-check-wrap');
+    selectLabel.append(selector, el('span', 'task-check-label', 'Select'));
+    const completeLabel = el('label', 'task-check-wrap');
+    completeLabel.append(checkbox, el('span', 'task-check-label', 'Done'));
+    item.append(selectLabel, completeLabel, body, edit, remove);
     list.append(item);
   });
   updateSelectionControls(visible);
@@ -275,7 +282,7 @@ $('task-form').addEventListener('submit', event => {
       $('task-title').focus();
     }
     render();
-  } catch (error) { report(error.message); }
+  } catch (error) { report(error.message, 'error'); }
 });
 document.querySelectorAll('#primary-nav [data-view]').forEach(button => button.addEventListener('click', () => {
   view = button.dataset.view;
@@ -336,7 +343,7 @@ $('mobile-project-select').addEventListener('change', event => {
 $('project-form').addEventListener('submit', event => {
   event.preventDefault();
   const name = $('project-title').value.trim();
-  if (!name || name.length > 100) { report('Project name must be 1–100 characters.'); return; }
+  if (!name || name.length > 100) { report('Project name must be 1–100 characters.', 'error'); return; }
   const project = { id: crypto.randomUUID(), name };
   if (mutate(draft => { draft.projects.push(project); })) {
     view = 'project:' + project.id;
@@ -385,11 +392,11 @@ $('appearance-form').addEventListener('submit', event => {
   event.preventDefault();
   const persisted = window.GoreeTasksTheme.save($('appearance-mode').value, $('appearance-accent').value);
   appearanceDialog.close();
-  report(persisted ? 'Appearance saved on this browser.' : 'Appearance applied for this session; saving the preference was blocked.');
+  report(persisted ? 'Appearance saved on this browser.' : 'Appearance applied for this session; saving the preference was blocked.', persisted ? 'success' : 'error');
 });
 $('export-data').addEventListener('click', () => {
-  if (unreadableStore) { report('Cannot export unreadable task data. Restore a valid backup first.'); return; }
-  if (writeLocked) { report('This browser tab has stale task data. Reload before exporting a backup.'); return; }
+  if (unreadableStore) { report('Cannot export unreadable task data. Restore a valid backup first.', 'error'); return; }
+  if (writeLocked) { report('This browser tab has stale task data. Reload before exporting a backup.', 'error'); return; }
   try {
     // Fail closed if another tab saved a newer snapshot before the storage
     // event was delivered. Otherwise export could misleadingly look current.
@@ -406,17 +413,17 @@ $('export-data').addEventListener('click', () => {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
     report('Backup exported (active tasks only; local Trash excluded). Verify the downloaded file.');
-  } catch (error) { report('Export failed: ' + error.message); }
+  } catch (error) { report('Export failed: ' + error.message, 'error'); }
 });
 $('import-data').addEventListener('click', () => $('import-file').click());
 $('import-file').addEventListener('change', async event => {
   const file = event.target.files?.[0];
   event.target.value = '';
   if (!file) return;
-  if (file.size > MAX_BACKUP_BYTES) { report('Backup exceeds the 2 MiB limit.'); return; }
+  if (file.size > MAX_BACKUP_BYTES) { report('Backup exceeds the 2 MiB limit.', 'error'); return; }
   let candidate;
   try { candidate = validateBackupText(await file.text()); }
-  catch (error) { report('Import rejected: ' + error.message); return; }
+  catch (error) { report('Import rejected: ' + error.message, 'error'); return; }
   const summary = candidate.tasks.length + ' task(s), ' + candidate.projects.length + ' project(s).';
   if (!confirm('Replace active browser tasks and projects with this backup (' + summary + ')? Existing local Trash will be preserved; colliding IDs are rejected. Export current active data first.')) return;
   try {
@@ -441,11 +448,14 @@ $('import-file').addEventListener('change', async event => {
     $('edit-task-form').querySelectorAll('input, select, button[type="submit"]').forEach(control => { control.disabled = false; });
     report('Backup restored locally (' + summary + '). Existing local Trash was preserved.');
     render();
-  } catch (error) { report('Import not saved: ' + error.message + ' Existing data was not changed.'); }
+  } catch (error) { report('Import not saved: ' + error.message + ' Existing data was not changed.', 'error'); }
 });
 $('mobile-export').addEventListener('click', () => $('export-data').click());
 $('mobile-import').addEventListener('click', () => $('import-data').click());
-$('mobile-theme').addEventListener('click', () => $('theme-toggle').click());
+$('mobile-theme').addEventListener('click', () => {
+  $('mobile-theme').closest('details').open = false;
+  $('theme-toggle').click();
+});
 document.addEventListener('keydown', event => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey ||
       event.target?.closest?.('input, textarea, select, button, [contenteditable]') ||

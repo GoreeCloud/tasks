@@ -34,6 +34,8 @@
 
 - [x] GC UI appearance integration: browser semantic snapshot pinned to GC UI, Light/Neutral first launch, explicit Light/Dark and accent choices stored separately from tasks across browser, Linux GTK4 and Android Compose. Browser/Linux unit and GTK smoke checks added; Android CI and real UI/device accessibility acceptance are separate gates. See [GC UI appearance migration](GC_UI_APPEARANCE_MIGRATION.md).
 
+- [x] Browser real-runtime acceptance runner using pinned test-only Playwright and axe-core: Chromium and Firefox synthetic task create/edit/bulk/Trash/backup restore; mobile and effective 200% CSS zoom reflow, semantic feedback and accessible checkbox labels; screenshot evidence produced by QA, with automatic CI execution. Real browser toolbar zoom, human screen-reader, full contrast/RTL/device matrices and full Stable release acceptance remain open. See [browser runtime acceptance](BROWSER_RUNTIME_ACCEPTANCE.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

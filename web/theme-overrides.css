@@ -40,3 +40,8 @@
   .hero,.logo,.nav-item.selected,.task-row.is-selected { border:1px solid CanvasText; background:Canvas; color:CanvasText; box-shadow:none; }
   .hero h1,.hero p,.hero .eyebrow { color:CanvasText; }
 }
+
+/* Success is not an error: status feedback uses paired semantic roles. */
+#status{color:var(--gc-text-soft)}
+#status[data-level="error"]{color:var(--gc-negative)}
+#status[data-level="success"]{color:var(--gc-positive)}

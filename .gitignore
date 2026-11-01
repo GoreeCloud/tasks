@@ -20,3 +20,6 @@ build/
 .vscode/
 coverage/
 test-results/
+
+# Synthetic browser acceptance evidence and dev-only test dependencies.
+qa/evidence/
