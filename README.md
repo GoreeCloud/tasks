@@ -53,7 +53,7 @@ Requirements: Android SDK Platform 35, JDK 17, and Gradle 8.10.2. The Gradle pro
 gradle -p android :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The package ID is `com.goreecloud.tasks`; the project uses Kotlin and Jetpack Compose. The Android app stores tasks in private app-local SQLite with non-destructive v1 → v2 schema migration for project and due-date fields. It does **not** request Internet permission or claim shared synchronization. The Android unit suite tests pure view/filtering rules; the native debug build compiles the actual UI.
+The Android application has an original first-party GC UI Iris native adaptive app icon for Android API 26+. The package ID is `com.goreecloud.tasks`; the project uses Kotlin and Jetpack Compose. The Android app stores tasks in private app-local SQLite with non-destructive v1 → v2 schema migration for project and due-date fields. It does **not** request Internet permission or claim shared synchronization. The Android unit suite tests pure view/filtering rules; the native debug build compiles the actual UI.
 
 An Android APK is **not considered delivered** by its appearance in local build output or GitHub Actions artifacts. Any actual APK delivered to the owner must be inspected, extracted as a standalone `.apk`, and uploaded to the existing Google Drive `GoreeCloud/Artifacts` folder, with provenance and readback, as required by GoreeCloud governance.
 
