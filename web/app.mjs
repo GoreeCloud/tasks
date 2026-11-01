@@ -1,4 +1,4 @@
-import { EMPTY, deleteTask, editTask, localDate, newTask, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
+import { batchEditTasks, EMPTY, deleteTask, editTask, localDate, newTask, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
 import { exportBackup, MAX_BACKUP_BYTES, validateBackupText } from './backup.mjs';
 import { moveToTrash, readLocalSnapshot, restoreFromTrash, serializeLocalSnapshot } from './local-store.mjs';
 
@@ -9,6 +9,9 @@ let writeLocked = false;
 let unreadableStore = false;
 let view = 'inbox';
 let search = '';
+const selected = new Set();
+let priorityFilter = 'all';
+let sortOrder = 'smart';
 // Recoverable Trash is stored with active tasks in the same local snapshot.
 const deletedTasks = [];
 function showUndo() {
@@ -19,6 +22,8 @@ function showUndo() {
 const views = {
   inbox: ['Inbox', 'A calm place to capture what matters and make progress.'],
   today: ['Today', 'Make room for your most important next steps.'],
+  soon: ['Next 7 days', 'Your upcoming week, without the noise.'],
+  overdue: ['Overdue', 'Give these tasks a new plan or finish them today.'],
   upcoming: ['Upcoming', 'See what is coming, one day at a time.'],
   priority: ['Priority', 'Keep high-impact work in sight.'],
   all: ['All tasks', 'Everything on your plate, in one thoughtful view.'],
@@ -34,6 +39,8 @@ function locked(message) {
   });
   $('new-project').disabled = true;
   $('mobile-new-project').disabled = true;
+  $('bulk-toolbar').querySelectorAll('button, select').forEach(control => { control.disabled = true; });
+  $('select-visible').disabled = true;
   showUndo();
 }
 try {
@@ -98,11 +105,31 @@ function openTaskEditor(task) {
   taskEditor.showModal();
   $('edit-task-title').focus();
 }
+function updateSelectionControls(visible) {
+  const ids = new Set(visible.map(task => task.id));
+  for (const id of selected) if (!ids.has(id)) selected.delete(id);
+  const count = selected.size;
+  $('selection-control').hidden = view === 'trash' || ids.size === 0;
+  $('select-visible').checked = ids.size > 0 && count === ids.size;
+  $('select-visible').indeterminate = count > 0 && count < ids.size;
+  $('select-visible').disabled = writeLocked || view === 'trash';
+  $('bulk-toolbar').hidden = view === 'trash' || count === 0;
+  $('selected-count').textContent = count + ' selected';
+  $('bulk-toolbar').querySelectorAll('button, select').forEach(control => { control.disabled = writeLocked; });
+  for (const row of $('task-list').querySelectorAll('.task-row')) {
+    const selector = row.querySelector('.task-selector');
+    if (selector) { selector.checked = selected.has(selector.value); row.classList.toggle('is-selected', selector.checked); }
+  }
+}
 function render() {
   const today = localDate();
   const filtered = view === 'trash'
     ? deletedTasks.filter(entry => !search.trim() || entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
-    : selectTasks(state.tasks, view, today, search);
+    : selectTasks(state.tasks, view, today, search, { priority: priorityFilter, sort: sortOrder });
+  if (view === 'trash') selected.clear();
+  const visible = view === 'trash' ? [] : filtered;
+  const visibleIds = new Set(visible.map(task => task.id));
+  for (const id of selected) if (!visibleIds.has(id)) selected.delete(id);
   const meta = views[view] || (view.startsWith('project:') ?
     [state.projects.find(project => project.id === view.slice(8))?.name || 'Project', 'Your project tasks, all in one place.'] : views.inbox);
   $('page-title').textContent = meta[0];
@@ -110,10 +137,14 @@ function render() {
   $('page-description').textContent = meta[1];
   $('tasks-heading').firstChild.textContent = view === 'trash' ? 'Deleted tasks ' : 'Your tasks ';
   $('task-form').hidden = view === 'trash';
+  $('filter-priority').disabled = view === 'trash';
+  $('sort-tasks').disabled = view === 'trash';
   $('task-list').setAttribute('aria-label', view === 'trash' ? 'Deleted tasks' : 'Tasks');
   $('stat-open').textContent = String(state.tasks.filter(task => !task.completed).length);
   $('stat-today').textContent = String(state.tasks.filter(task => !task.completed && task.due && task.due <= today).length);
-  $('stat-done').textContent = String(state.tasks.filter(task => task.completed).length);
+  const completedCount = state.tasks.filter(task => task.completed).length;
+  $('stat-done').textContent = String(completedCount);
+  $('stat-rate').textContent = state.tasks.length ? Math.round(100 * completedCount / state.tasks.length) + '%' : '0%';
   $('inbox-count').textContent = String(state.tasks.filter(task => !task.completed && !task.projectId).length);
   $('trash-count').textContent = String(deletedTasks.length);
   $('result-count').textContent = '(' + filtered.length + ')';
@@ -127,17 +158,22 @@ function render() {
   const mobileProjects = $('mobile-project-select');
   mobileProjects.replaceChildren(new Option('Projects', ''));
   const projectSelect = $('task-project');
+  const bulkProject = $('bulk-project');
+  bulkProject.replaceChildren(new Option('Move to project…', ''), new Option('Inbox', '__inbox__'));
   const previousSelection = projectSelect.value;
   projectSelect.replaceChildren(new Option('Inbox', ''));
   for (const project of state.projects) {
     const nav = makeButton('◈  ' + project.name, 'nav-item project-nav', () => {
       view = 'project:' + project.id;
+      selected.clear();
       render();
     });
     nav.disabled = false;
     nav.dataset.view = 'project:' + project.id;
     if (view === nav.dataset.view) nav.classList.add('selected');
+    if (view === nav.dataset.view) nav.setAttribute('aria-current', 'page');
     projectNav.append(nav);
+    bulkProject.add(new Option(project.name, project.id));
     projectSelect.add(new Option(project.name, project.id));
     mobileProjects.add(new Option(project.name, project.id));
   }
@@ -146,10 +182,13 @@ function render() {
   const list = $('task-list');
   list.replaceChildren();
   $('empty').hidden = filtered.length !== 0;
-  $('empty').querySelector('h3').textContent = view === 'trash' ? 'Trash is empty' : 'All clear here';
+  const narrowed = !!search.trim() || priorityFilter !== 'all';
+  $('empty').querySelector('h3').textContent = view === 'trash'
+    ? (deletedTasks.length ? 'No matching deleted tasks' : 'Trash is empty')
+    : narrowed ? 'No matching tasks' : 'All clear here';
   $('empty').querySelector('p').textContent = view === 'trash'
-    ? 'Deleted tasks stay on this browser until restored.'
-    : 'Start with a small next step. Your future self will thank you.';
+    ? (deletedTasks.length ? 'Try another search.' : 'Deleted tasks stay on this browser until restored.')
+    : narrowed ? 'Adjust your search or priority filter.' : 'Start with a small next step. Your future self will thank you.';
   filtered.forEach(record => {
     const task = view === 'trash' ? record.task : record;
     const item = el('li', 'task-row' + (task.completed ? ' is-completed' : ''));
@@ -167,6 +206,16 @@ function render() {
       list.append(item);
       return;
     }
+    const selector = el('input', 'task-selector');
+    selector.type = 'checkbox';
+    selector.value = task.id;
+    selector.checked = selected.has(task.id);
+    selector.disabled = writeLocked;
+    selector.setAttribute('aria-label', 'Select ' + task.title);
+    selector.addEventListener('change', () => {
+      if (selector.checked) selected.add(task.id); else selected.delete(task.id);
+      updateSelectionControls(visible);
+    });
     const checkbox = el('input', 'task-checkbox');
     checkbox.type = 'checkbox';
     checkbox.checked = task.completed;
@@ -199,9 +248,10 @@ function render() {
       }
       render();
     });
-    item.append(checkbox, body, edit, remove);
+    item.append(selector, checkbox, body, edit, remove);
     list.append(item);
   });
+  updateSelectionControls(visible);
   showUndo();
 }
 function restoreTrashedTask(id) {
@@ -229,15 +279,59 @@ $('task-form').addEventListener('submit', event => {
 });
 document.querySelectorAll('#primary-nav [data-view]').forEach(button => button.addEventListener('click', () => {
   view = button.dataset.view;
+  selected.clear();
   render();
 }));
-$('search').addEventListener('input', event => { search = event.target.value; render(); });
+$('search').addEventListener('input', event => { search = event.target.value; selected.clear(); render(); });
+$('filter-priority').addEventListener('change', event => { priorityFilter = event.target.value; selected.clear(); render(); });
+$('sort-tasks').addEventListener('change', event => { sortOrder = event.target.value; render(); });
+$('select-visible').addEventListener('change', event => {
+  if (writeLocked || view === 'trash') return;
+  const visible = selectTasks(state.tasks, view, localDate(), search, { priority: priorityFilter, sort: sortOrder });
+  if (event.target.checked) visible.forEach(task => selected.add(task.id));
+  else selected.clear();
+  updateSelectionControls(visible);
+});
+function runBulk(changes, label) {
+  if (writeLocked || selected.size === 0) return;
+  const ids = [...selected];
+  if (mutate(draft => batchEditTasks(draft, ids, changes))) {
+    selected.clear();
+    render();
+    report(label + ' (' + ids.length + ' tasks).');
+  } else render();
+}
+$('bulk-complete').addEventListener('click', () => runBulk({ completed: true }, 'Completed'));
+$('bulk-reopen').addEventListener('click', () => runBulk({ completed: false }, 'Reopened'));
+$('bulk-priority').addEventListener('change', event => {
+  const value = event.target.value;
+  if (value) runBulk({ priority: Number(value) }, 'Priority updated');
+  event.target.value = '';
+});
+$('bulk-project').addEventListener('change', event => {
+  const value = event.target.value;
+  if (value) runBulk({ projectId: value === '__inbox__' ? null : value }, 'Tasks moved');
+  event.target.value = '';
+});
+$('bulk-clear').addEventListener('click', () => { selected.clear(); render(); });
+$('bulk-trash').addEventListener('click', () => {
+  if (writeLocked || !selected.size) return;
+  const ids = [...selected];
+  if (!confirm('Move ' + ids.length + ' selected tasks to local Trash? You can restore them individually.')) return;
+  if (mutate((draft, trash) => {
+    for (const id of ids) moveToTrash(draft, trash, deleteTask, id, new Date().toISOString());
+  })) {
+    selected.clear();
+    render();
+    report(ids.length + ' tasks moved to local Trash.');
+  } else render();
+});
 const dialog = $('project-dialog');
 $('new-project').addEventListener('click', () => dialog.showModal());
 $('project-cancel').addEventListener('click', () => dialog.close());
 $('mobile-new-project').addEventListener('click', () => $('new-project').click());
 $('mobile-project-select').addEventListener('change', event => {
-  if (event.target.value) { view = 'project:' + event.target.value; render(); }
+  if (event.target.value) { view = 'project:' + event.target.value; selected.clear(); render(); }
 });
 $('project-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -246,6 +340,7 @@ $('project-form').addEventListener('submit', event => {
   const project = { id: crypto.randomUUID(), name };
   if (mutate(draft => { draft.projects.push(project); })) {
     view = 'project:' + project.id;
+    selected.clear();
     dialog.close();
     $('project-form').reset();
   }
@@ -348,6 +443,15 @@ $('import-file').addEventListener('change', async event => {
 $('mobile-export').addEventListener('click', () => $('export-data').click());
 $('mobile-import').addEventListener('click', () => $('import-data').click());
 $('mobile-theme').addEventListener('click', () => $('theme-toggle').click());
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey ||
+      event.target?.closest?.('input, textarea, select, button, [contenteditable]') ||
+      document.querySelector('dialog[open]')) return;
+  if (event.key === '/') { event.preventDefault(); $('search').focus(); }
+  if (event.key.toLowerCase() === 'n' && !writeLocked && view !== 'trash') {
+    event.preventDefault(); $('task-title').focus();
+  }
+});
 window.addEventListener('storage', event => {
   if (event.key === STORAGE_KEY && event.newValue !== lastSavedRaw) {
     locked('This workspace changed in another tab. Reload before editing to avoid lost updates.');

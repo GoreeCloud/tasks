@@ -63,19 +63,83 @@ export function undoTaskDelete(draft, task) {
   // The enclosing exportBackup() also validates the complete portable schema.
   draft.tasks.push(structuredClone(task));
 }
-export function selectTasks(tasks, view, today, query = '') {
+/** Filter and sort without modifying stored task order or task records. */
+export function selectTasks(tasks, view, today, query = '', options = {}) {
   const term = query.trim().toLocaleLowerCase();
-  return tasks.filter(t => {
+  const priority = options.priority || 'all';
+  const sort = options.sort || 'smart';
+  // Calendar arithmetic in UTC avoids shortening the range on DST changes.
+  const end = new Date(today + 'T12:00:00Z');
+  // Seven calendar dates including today (today through day six).
+  end.setUTCDate(end.getUTCDate() + 6);
+  const nextSevenDays = end.toISOString().slice(0, 10);
+  const filtered = tasks.filter(t => {
     if (term && !t.title.toLocaleLowerCase().includes(term)) return false;
+    if (priority !== 'all' && t.priority !== Number(priority)) return false;
     if (view === 'completed') return !!t.completed;
     if (t.completed) return false;
     if (view === 'inbox') return !t.projectId;
-    if (view === 'today') return t.due === today || (!!t.due && t.due < today);
+    if (view === 'today') return !!t.due && t.due <= today;
+    if (view === 'overdue') return !!t.due && t.due < today;
+    if (view === 'soon') return !!t.due && t.due >= today && t.due <= nextSevenDays;
     if (view === 'upcoming') return !!t.due && t.due > today;
     if (view === 'priority') return t.priority <= 2;
     if (view.startsWith('project:')) return t.projectId === view.slice(8);
     return true;
-  }).sort((a, b) => a.priority - b.priority || (a.due || '9999').localeCompare(b.due || '9999') || b.createdAt.localeCompare(a.createdAt));
+  });
+  const byDue = (a, b) => (a.due || '9999-12-31').localeCompare(b.due || '9999-12-31');
+  const byRecent = (a, b) => b.createdAt.localeCompare(a.createdAt);
+  return filtered.sort((a, b) => {
+    if (sort === 'due') return byDue(a, b) || a.priority - b.priority || byRecent(a, b);
+    if (sort === 'newest') return byRecent(a, b);
+    if (sort === 'title') return a.title.localeCompare(b.title) || byRecent(a, b);
+    return a.priority - b.priority || byDue(a, b) || byRecent(a, b);
+  });
+}
+
+/** All-or-nothing edits: validate every selected ID and field before writing. */
+export function batchEditTasks(workspace, ids, changes, now = new Date().toISOString()) {
+  if (!workspace || !Array.isArray(workspace.tasks) || !Array.isArray(workspace.projects) ||
+      !Array.isArray(ids) || !ids.length || !changes || typeof changes !== 'object' ||
+      Array.isArray(changes)) throw new Error('Invalid bulk edit.');
+  const keys = Object.keys(changes);
+  if (!keys.length || keys.some(key => !['completed', 'priority', 'projectId'].includes(key))) {
+    throw new Error('Unsupported bulk edit.');
+  }
+  if ('completed' in changes && typeof changes.completed !== 'boolean') throw new Error('Invalid completion state.');
+  if ('priority' in changes && (!Number.isInteger(changes.priority) || changes.priority < 1 || changes.priority > 4)) {
+    throw new Error('Priority must be P1 through P4.');
+  }
+  if ('projectId' in changes &&
+      (changes.projectId !== null && !workspace.projects.some(project => project.id === changes.projectId))) {
+    throw new Error('The chosen project no longer exists.');
+  }
+  if ('completed' in changes && changes.completed && (!Number.isFinite(Date.parse(now)) || !now.endsWith('Z'))) {
+    throw new Error('Invalid completion timestamp.');
+  }
+  const unique = new Set(ids);
+  if (unique.size !== ids.length || ids.some(id => typeof id !== 'string')) throw new Error('Duplicate or invalid task selection.');
+  const existing = new Map(workspace.tasks.map(task => [task.id, task]));
+  for (const id of ids) if (!existing.has(id)) throw new Error('A selected task no longer exists.');
+  const replacements = new Map();
+  for (const id of ids) {
+    const task = existing.get(id);
+    let updated = { ...task };
+    if ('priority' in changes || 'projectId' in changes) {
+      updated = editTask(task, {
+        title: task.title, due: task.due,
+        priority: changes.priority ?? task.priority,
+        projectId: 'projectId' in changes ? changes.projectId : task.projectId
+      }, workspace.projects);
+    }
+    if ('completed' in changes && task.completed !== changes.completed) {
+      updated.completed = changes.completed;
+      updated.completedAt = changes.completed ? now : null;
+    }
+    replacements.set(id, updated);
+  }
+  workspace.tasks = workspace.tasks.map(task => replacements.get(task.id) || task);
+  return replacements.size;
 }
 export function localDate(now = new Date()) {
   const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');

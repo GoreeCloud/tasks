@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY, deleteTask, editTask, hydrate, localDate, newTask, selectTasks, undoTaskDelete } from './model.mjs';
+import { batchEditTasks, EMPTY, deleteTask, editTask, hydrate, localDate, newTask, selectTasks, undoTaskDelete } from './model.mjs';
+import { exportBackup, validateBackupText } from './backup.mjs';
 test('bad persistence recovers safely', () => { assert.deepEqual(hydrate('{'), EMPTY()); assert.deepEqual(hydrate('{"schema":2}'), EMPTY()); });
 test('title and priority validation', () => { assert.throws(() => newTask('  ')); assert.throws(() => newTask('ok', null, '', 0)); assert.equal(newTask('  Plan  ').title, 'Plan'); });
 test('inbox, project, today, completed and priority filtering', () => {
@@ -109,4 +110,66 @@ test('undo rejects duplicate IDs, missing projects and invalid workspace state',
   assert.equal(draft.tasks.length, 1);
   assert.throws(() => undoTaskDelete(null, deleted));
   assert.throws(() => undoTaskDelete(draft, null));
+});
+
+test('overdue and next-seven-day views respect local calendar boundaries and priority', () => {
+  const sample = [
+    { ...newTask('Overdue', '', '2026-10-31', 1), id:'overdue' },
+    { ...newTask('Today', '', '2026-11-01', 2), id:'today' },
+    { ...newTask('End of week', '', '2026-11-07', 4), id:'end' },
+    { ...newTask('Beyond week', '', '2026-11-08', 3), id:'beyond' },
+    { ...newTask('Later', '', '2026-11-09', 1), id:'later' },
+    { ...newTask('Undated', '', '', 1), id:'none' },
+    { ...newTask('Finished', '', '2026-11-01', 1), id:'done', completed: true, completedAt:'2026-11-01T18:00:00Z' }
+  ];
+  assert.deepEqual(selectTasks(sample,'overdue','2026-11-01').map(t=>t.id), ['overdue']);
+  assert.deepEqual(selectTasks(sample,'soon','2026-11-01').map(t=>t.id), ['today','end']);
+  assert.deepEqual(selectTasks(sample,'soon','2026-11-01','', {priority:'2'}).map(t=>t.id), ['today']);
+  assert.deepEqual(selectTasks(sample,'upcoming','2026-11-01','', {sort:'due'}).map(t=>t.id), ['end','beyond','later']);
+  assert.deepEqual(selectTasks(sample,'all','2026-11-01','', {sort:'title'}).map(t=>t.id),
+    ['beyond','end','later','overdue','today','none']);
+  assert.deepEqual(selectTasks(sample,'all','2026-11-01','today').map(t=>t.id), ['today']);
+  assert.equal(sample[0].id, 'overdue'); // filters/sorts are nonmutating
+});
+
+test('bulk edits preserve task identity, history, and schema-one backup portability', () => {
+  const project = {id:'roadmap',name:'Roadmap'};
+  const before = newTask('First', null, '2026-11-01', 4);
+  const second = newTask('Second', null, '', 3);
+  const workspace = {schema:1,projects:[project],tasks:[before,second]};
+  const timestamp = '2026-11-01T19:00:00.000Z';
+  assert.equal(batchEditTasks(workspace,[before.id,second.id],{completed:true,priority:1,projectId:'roadmap'},timestamp),2);
+  assert.ok(workspace.tasks.every(t=>t.completed && t.completedAt===timestamp && t.priority===1 && t.projectId==='roadmap'));
+  assert.deepEqual(workspace.tasks.map(t=>t.id),[before.id,second.id]);
+  assert.equal(workspace.tasks[0].createdAt,before.createdAt);
+  assert.deepEqual(validateBackupText(exportBackup(workspace)),workspace);
+  batchEditTasks(workspace,[before.id],{completed:true},'2026-11-02T00:00:00Z');
+  assert.equal(workspace.tasks[0].completedAt,timestamp); // repeat complete does not reset history
+  batchEditTasks(workspace,[before.id],{completed:false,projectId:null});
+  assert.equal(workspace.tasks[0].completedAt,null);
+  assert.equal(workspace.tasks[0].projectId,null);
+  assert.equal(workspace.tasks[1].completedAt,timestamp);
+});
+
+test('bulk edits reject stale IDs and invalid patches without partial mutation', () => {
+  const one = newTask('One');
+  const two = newTask('Two');
+  const workspace = {schema:1,projects:[{id:'p',name:'Project'}],tasks:[one,two]};
+  const original = structuredClone(workspace);
+  const bad = [
+    [[one.id,'missing'],{completed:true}],
+    [[one.id,one.id],{priority:1}],
+    [[one.id,two.id],{priority:0}],
+    [[one.id,two.id],{projectId:'missing'}],
+    [[one.id,two.id],{completed:'yes'}],
+    [[one.id],{title:'unsupported'}],
+    [[],{completed:true}],
+    [[one.id],{}]
+  ];
+  for (const [ids,patch] of bad) {
+    assert.throws(()=>batchEditTasks(workspace,ids,patch));
+    assert.deepEqual(workspace,original);
+  }
+  assert.throws(()=>batchEditTasks(workspace,[one.id],{completed:true},'not-a-time'));
+  assert.deepEqual(workspace,original);
 });

@@ -15,3 +15,29 @@ dialog{color:var(--gc-text);background:var(--gc-surface-raised);border:1px solid
 @media(max-width:1050px){.shell{grid-template-columns:210px minmax(0,1fr)}.sidebar{padding:20px 12px}.quick-add{flex-wrap:wrap}.quick-add #task-title{flex-basis:75%}.quick-add select{flex:1}.hero-art{opacity:.65;right:0}}
 @media(max-width:720px){.shell{display:block}.sidebar{position:static;height:auto;gap:8px;padding:13px 14px;overflow:visible}.identity{margin:0 0 10px}.workspace-label,.projects-label,#project-nav,.sidebar-bottom{display:none}#primary-nav{display:flex;flex-direction:row;overflow-x:auto;gap:4px}.nav-item{white-space:nowrap;width:auto;font-size:12px;padding:11px}.nav-item span{display:none}.topbar{height:55px;padding:0 20px}.local-status{font-size:10px;padding:6px}.content{padding:19px 14px}.hero{min-height:170px;padding:28px;border-radius:24px}.hero-art{display:none}.overview{gap:8px;margin:12px 0 20px}.metric{padding:14px 12px;border-radius:16px}.metric strong{font-size:27px}.metric span{font-size:11px}.metric small{font-size:10px}.task-panel{padding:17px;border-radius:20px}.section-heading{align-items:flex-start;flex-wrap:wrap}.search-wrap{width:100%}.search-wrap input{width:100%}.quick-add select,.quick-add input[type=date]{min-width:0;max-width:none;flex:1}.quick-add .primary-button{flex:1}.task-row{gap:9px;padding:15px 2px}.row-button{padding:7px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+/* Productivity controls — semantic GC UI surfaces, accessible touch targets. */
+.skip-link{position:fixed;left:16px;top:12px;z-index:100;padding:12px 18px;background:var(--gc-brand);color:var(--gc-on-brand);border-radius:var(--gc-radius-sm);transform:translateY(-160%)}.skip-link:focus{transform:none}
+.overview{grid-template-columns:repeat(4,minmax(0,1fr))}
+.list-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-2px 0 18px}
+.control-select{display:flex;align-items:center;gap:9px;color:var(--gc-text-soft);font-size:12px;font-weight:700}
+.control-select select,.bulk-toolbar select{background:var(--gc-surface);color:var(--gc-text);border:1px solid var(--gc-outline);border-radius:var(--gc-radius-sm);padding:9px 11px;min-height:44px;max-width:190px}
+.keyboard-hint{margin-left:auto;font-size:11px;color:var(--gc-text-soft)}
+.selection-control{padding:9px 10px;border-block:1px solid var(--gc-outline);font-size:12px;color:var(--gc-text-soft)}
+.selection-control label{display:inline-flex;align-items:center;gap:11px;cursor:pointer;min-height:34px}
+.selection-control input,.task-selector{width:19px;height:19px;flex-shrink:0;accent-color:var(--gc-brand);cursor:pointer}
+.task-selector:disabled{cursor:not-allowed}
+.bulk-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:12px;margin:12px 0;background:var(--gc-brand-container);border-radius:var(--gc-radius-md);color:var(--gc-brand)}
+.bulk-toolbar[hidden],.selection-control[hidden]{display:none}
+.bulk-toolbar strong{font-size:12px;margin-right:4px}
+.bulk-toolbar button{border:1px solid var(--gc-outline);border-radius:var(--gc-radius-sm);background:var(--gc-surface-raised);color:var(--gc-text);font-weight:650;font-size:12px;padding:10px 12px;min-height:44px}
+.bulk-toolbar .danger{color:var(--gc-negative)}
+.bulk-toolbar button:hover:not(:disabled){border-color:var(--gc-brand)}
+.bulk-toolbar button:disabled,.bulk-toolbar select:disabled{opacity:.5;cursor:not-allowed}
+.task-row{transition:background 120ms ease;border-radius:var(--gc-radius-sm)}
+.task-row:hover{background:var(--gc-surface)}.task-row.is-selected{background:var(--gc-brand-container)}
+.task-row .row-button{min-height:44px}
+.task-list{scroll-margin-top:16px}
+@media(max-width:1050px){.overview{grid-template-columns:repeat(2,minmax(0,1fr))}.keyboard-hint{display:none}}
+@media(max-width:720px){.list-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.control-select{display:flex;flex-direction:column;align-items:stretch;gap:4px}.control-select select{width:100%;max-width:none}.bulk-toolbar select{max-width:100%;width:100%}.bulk-toolbar label{flex:1 1 140px}.bulk-toolbar button{flex:1 0 auto}.task-selector,.task-checkbox{width:20px;height:20px}.overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:410px){.task-row{gap:6px;flex-wrap:wrap}.task-body{flex-basis:calc(100% - 64px)}.task-row .row-button{margin-left:auto}.task-row .row-button+.row-button{margin-left:0}}
+@media(forced-colors:active){.task-row.is-selected{outline:2px solid Highlight}.bulk-toolbar,.selection-control{border:1px solid CanvasText}}

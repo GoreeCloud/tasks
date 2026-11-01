@@ -13,8 +13,10 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Create, complete, reopen, delete tasks | Yes | Yes | Yes |
 | Device-local persistence | Browser localStorage | SQLite | SQLite |
 | Four priorities | Yes | Yes | Yes |
-| Views and task filters | Inbox, Today, Upcoming, Priority, All, Completed | Open, Today, Upcoming, Priority, Completed, Project | Open, Today, Upcoming, Priority, Completed, Project |
+| Views and task filters | Inbox, Today, Next 7 days, Overdue, Upcoming, Priority, All, Completed; priority filters and sorting | Open, Today, Upcoming, Priority, Completed, Project | Open, Today, Upcoming, Priority, Completed, Project |
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
+| Bulk actions | Visible-task selection, complete/reopen, priority, project moves, local Trash | Not implemented | Not implemented |
+| Keyboard workflow | / search, N quick add, skip-to-content link | Not part of this change | Not part of this change |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
 | Search / task editing | Search and dialog for title, priority, due date and project | Native search and task edit dialog | Native search and task editing (device acceptance pending) |
 | JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI + GTK file dialogs, empty-store import (no overwrite) | Native document-picker export, guarded empty-store import |
@@ -32,6 +34,8 @@ python3 -m http.server 4173 --directory web --bind 127.0.0.1
 ```
 
 Open http://127.0.0.1:4173 in a modern browser. Data is saved in that browser's local storage. The **Edit** action opens an accessible browser dialog for a task's title, P1–P4 priority, due date and project; changes preserve identity and completion history and pass through the existing stale-tab write check. Deletions now move tasks into **durable browser-local Trash**, visible in the navigation, with Restore actions and a shortcut to restore the latest deletion. A validated local storage envelope keeps active tasks and up to 1,000 deleted task records in a single localStorage write (3 MiB total limit), preserving task identities, project references and historical timestamps across page reloads. Existing schema-1 browser data remains readable and migrates only on a successful edit. The local Trash is **not included in portable JSON exports**, and it is not synchronized or a replacement for an independent backup. A colliding task ID blocks importing a backup without overwriting current data or Trash. See [browser Trash recovery and limitations](docs/BROWSER_TRASH_RECOVERY.md). Use **Export data** to retain a separate copy. **Restore backup** validates the file against schema 1 and requires explicit confirmation before replacing active tasks and projects, while retaining recoverable local Trash. This is early-development backup tooling, not yet a proven disaster-recovery solution. If stored data is unreadable, the web client disables edits and refuses to generate a misleading empty export. Another browser tab modifying data will disable editing and refuse a misleading stale backup export until reload. Keeping active tasks and Trash in one key prevents half-saved deletes, but does **not** prevent simultaneous independent writes from two tabs. IndexedDB-based transactional storage remains planned.
+
+The browser dashboard now includes a **completion-rate metric**, **Overdue** and **Next 7 days** views, priority filters, sorting and bulk task operations on selected visible tasks. Bulk edits use the existing browser-local stale-tab guard and preserve the schema-1 portable JSON contract. Use **/** to focus search or **N** to focus Quick Add when no other control is active. The design follows GC UI semantic roles and responsive layouts; real browser visual/accessibility acceptance is still pending. See [the browser productivity upgrade](docs/WEB_PRODUCTIVITY_UPGRADE.md) for safety boundaries and test coverage.
 
 ## Run the Linux app
 
@@ -112,6 +116,7 @@ GitHub Actions builds the Android debug variant separately. A build result does 
 - `docs/ARCHITECTURE.md` — data, security, and synchronization decisions.
 - `docs/PRODUCT_REQUIREMENTS.md` — owner feature catalog mapped to staged acceptance.
 - `docs/ROADMAP.md` — staged path to the requested capability catalog.
+- `docs/WEB_PRODUCTIVITY_UPGRADE.md` — browser-only productivity controls and acceptance gaps.
 - `.github/workflows/verify.yml` — model tests, Python checks, Android build.
 
 ## Design, governance, and ownership

@@ -9,6 +9,7 @@
   <script type="module" src="./app.mjs"></script>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to tasks</a>
 <div class="shell">
   <aside class="sidebar" aria-label="Workspace navigation">
     <a class="identity" href="./index.html" aria-label="GoreeCloud Tasks home"><span class="logo">✦</span><span><strong>GoreeCloud</strong><small>TASKS</small></span></a>
@@ -16,6 +17,8 @@
     <nav id="primary-nav" aria-label="Task views">
       <button class="nav-item selected" data-view="inbox"><span>▣</span> Inbox <em id="inbox-count"></em></button>
       <button class="nav-item" data-view="today"><span>◷</span> Today</button>
+      <button class="nav-item" data-view="soon"><span>▦</span> Next 7 days</button>
+      <button class="nav-item" data-view="overdue"><span>!</span> Overdue</button>
       <button class="nav-item" data-view="upcoming"><span>▦</span> Upcoming</button>
       <button class="nav-item" data-view="priority"><span>⚑</span> Priority</button>
       <button class="nav-item" data-view="all"><span>☷</span> All tasks</button>
@@ -38,7 +41,7 @@
       <button id="theme-toggle" class="sidebar-action">◐ Change theme</button>
     </div>
   </aside>
-  <main class="workspace">
+  <main class="workspace" id="main-content" tabindex="-1">
     <header class="topbar"><div class="breadcrumb">PERSONAL WORKSPACE <span> / </span> <b id="crumb">Inbox</b></div><span class="local-status">● Browser-local</span></header>
     <div class="content">
       <section class="hero" aria-labelledby="page-title">
@@ -47,11 +50,17 @@
       </section>
       <div class="overview" aria-label="Task overview">
         <div class="metric"><span>Open tasks</span><strong id="stat-open">0</strong><small>In your workspace</small></div>
-        <div class="metric"><span>Due today</span><strong id="stat-today">0</strong><small>Ready for focus</small></div>
+        <div class="metric"><span>Due or overdue</span><strong id="stat-today">0</strong><small>Ready for focus</small></div>
         <div class="metric"><span>Completed</span><strong id="stat-done">0</strong><small>Progress made</small></div>
+        <div class="metric"><span>Completion rate</span><strong id="stat-rate">0%</strong><small>Across all tasks</small></div>
       </div>
       <section class="task-panel" aria-labelledby="tasks-heading">
-        <div class="section-heading"><div><span class="overline">FOCUS SPACE</span><h2 id="tasks-heading">Your tasks <span id="result-count"></span></h2></div><label class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Find tasks" aria-label="Search tasks"></label></div>
+        <div class="section-heading"><div><span class="overline">FOCUS SPACE</span><h2 id="tasks-heading">Your tasks <span id="result-count"></span></h2></div><label class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Find tasks · /" aria-label="Search tasks"></label></div>
+        <div class="list-controls" role="group" aria-label="Task list controls">
+          <label class="control-select">Priority <select id="filter-priority" aria-label="Filter by priority"><option value="all">All priorities</option><option value="1">P1 · Urgent</option><option value="2">P2 · High</option><option value="3">P3 · Medium</option><option value="4">P4 · Normal</option></select></label>
+          <label class="control-select">Sort <select id="sort-tasks" aria-label="Sort tasks"><option value="smart">Smart</option><option value="due">Due date</option><option value="newest">Newest first</option><option value="title">Title A–Z</option></select></label>
+          <span class="keyboard-hint">/ Search · N New task</span>
+        </div>
         <form id="task-form" class="quick-add" autocomplete="off">
           <span class="add-glyph">+</span><label for="task-title" class="visually-hidden">New task title</label><input id="task-title" maxlength="240" placeholder="Add a task to clear your mind..." required>
           <label for="task-project" class="visually-hidden">Project</label><select id="task-project" title="Project"><option value="">Inbox</option></select>
@@ -61,6 +70,14 @@
         </form>
         <div id="status" role="status" aria-live="polite"></div>
         <button id="undo-task-delete" class="undo-task-delete" type="button" hidden>↶ Restore latest deleted task</button>
+        <div id="selection-control" class="selection-control"><label><input id="select-visible" type="checkbox"> Select all visible tasks</label></div>
+        <div id="bulk-toolbar" class="bulk-toolbar" role="group" aria-label="Bulk task actions" hidden>
+          <strong id="selected-count">0 selected</strong>
+          <button type="button" id="bulk-complete">Complete</button><button type="button" id="bulk-reopen">Reopen</button>
+          <label><span class="visually-hidden">Set priority for selected tasks</span><select id="bulk-priority" aria-label="Set priority for selected tasks"><option value="">Set priority…</option><option value="1">P1 · Urgent</option><option value="2">P2 · High</option><option value="3">P3 · Medium</option><option value="4">P4 · Normal</option></select></label>
+          <label><span class="visually-hidden">Move selected tasks to a project</span><select id="bulk-project" aria-label="Move selected tasks to project"><option value="">Move to project…</option></select></label>
+          <button type="button" id="bulk-trash" class="danger">Move to Trash</button><button type="button" id="bulk-clear">Clear selection</button>
+        </div>
         <ul id="task-list" class="task-list" aria-label="Tasks"></ul>
         <div id="empty" class="empty" hidden><span class="empty-icon">✦</span><h3>All clear here</h3><p>Start with a small next step. Your future self will thank you.</p></div>
       </section>
