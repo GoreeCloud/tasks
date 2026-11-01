@@ -17,6 +17,7 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
 | Priority filter / sorting | All/P1–P4; Smart/Due date/Newest/Title | All/P1–P4; Smart/Due date/Title | All/P1–P4; Smart/Due date/Title |
 | GC UI appearance | Light default, Neutral + 5 accents, local preference | Light default, Neutral + 5 accents, private XDG preference | Light default, Neutral + 5 accents, private preferences |
+| List-first navigation | Desktop project rail + mobile Today/Inbox/Add/Search/Browse | GTK sidebar, compact capture | Compose native bottom tabs, Browse + FAB composer |
 | Bulk actions | Visible-task selection, complete/reopen, priority, project moves, local Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash |
 | Keyboard workflow | / search, N quick add, skip-to-content link | Not part of this change | Not part of this change |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
@@ -24,6 +25,8 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI + GTK file dialogs, empty-store import (no overwrite) | Native document-picker export, guarded empty-store import |
 | Accessibility and GC UI alignment | Initial design only | Initial native design only | Initial native design only |
 | Multi-device synchronization | Not implemented | Not implemented | Not implemented |
+
+The owner-reference-inspired native navigation pass is documented in [native list-first UI](docs/NATIVE_LIST_FIRST_UI.md). The Android implementation requires the latest CI build and new physical-device visual/accessibility acceptance; the GTK native source/smoke test is not full visual acceptance.
 
 Each app is native to its target platform. They are not web wrappers. They use GC UI's design language as the design authority; consumer compliance and visual acceptance are **not** asserted. The appearance settings now offer explicit Light/Dark modes and Neutral, Lagoon, Moss, Ember, Ocean and Iris accents, with first-run **Light/Neutral**. Preferences are retained separately on each device; no theme setting is synchronized or included in task backups. See [GC UI appearance integration](docs/GC_UI_APPEARANCE_MIGRATION.md).
 

@@ -26,6 +26,20 @@ def main():
             raise RuntimeError("Could not register GTK application")
         window = TasksWindow(app)
         try:
+            # Owner-inspired list-first GTK navigation and task capture behavior.
+            assert window.heading.get_text() == "Inbox"
+            assert not window.capture_revealer.get_reveal_child()
+            window.on_toggle_capture(None)
+            assert window.capture_revealer.get_reveal_child()
+            window.on_toggle_capture(None)
+            assert not window.capture_revealer.get_reveal_child()
+            window.on_nav_view(None, "Today")
+            assert window.heading.get_text() == "Today"
+            assert window.view.get_selected() == window.view_names.index("Today")
+            assert window.nav_buttons["Today"].has_css_class("task-nav-selected")
+            window.on_nav_view(None, "Open")
+            assert window.heading.get_text() == "Inbox"
+            assert not window.nav_buttons["Today"].has_css_class("task-nav-selected")
             # Verify theme controls never write task data or source backups.
             from theme import read_preferences
             assert window.theme_preferences == {"appearance": "light", "accent": "neutral"}

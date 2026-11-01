@@ -38,6 +38,8 @@
 
 - [x] Owner-reference-inspired browser list-first visual pass: compact desktop Inbox/Today/Projects hierarchy, clean task rows and due/priority metadata, accessible mobile bottom tabs, Browse dialog and floating Add composer, with GC UI semantic palettes rather than copied third-party branding. Chromium/Firefox runtime and effective-zoom checks required; real mobile/GTK native acceptance remains open. See [UI inspiration direction](UI_INSPIRATION_DIRECTION.md).
 
+- [x] Native list-first navigation source for Android Compose (Today/Inbox/Search/Browse bottom dock, FAB capture, settings and context row actions) and Linux GTK4 (native view rail, compact header and collapsible form); storage and portable JSON schema unchanged. Local GTK smoke and Android JVM UI-route tests added. Android CI and physical-device/Orca/large-text acceptance are separate gates. See [native list-first UI](NATIVE_LIST_FIRST_UI.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

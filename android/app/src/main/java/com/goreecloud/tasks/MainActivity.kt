@@ -17,6 +17,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -69,6 +72,19 @@ private fun TasksScreen(db: TasksDatabase) {
         var newProjectName by remember { mutableStateOf("") }
         var dueDate by remember { mutableStateOf<String?>(null) }
         var view by remember { mutableStateOf("Open") }
+        var showCapture by remember { mutableStateOf(false) }
+        var showTools by remember { mutableStateOf(false) }
+        var showBrowse by remember { mutableStateOf(false) }
+        val searchFocusRequester = remember { FocusRequester() }
+        val keyboardController = LocalSoftwareKeyboardController.current
+        var focusSearchAfterCapture by remember { mutableStateOf(false) }
+        LaunchedEffect(showCapture, focusSearchAfterCapture) {
+            if (!showCapture && focusSearchAfterCapture) {
+                searchFocusRequester.requestFocus()
+                keyboardController?.show()
+                focusSearchAfterCapture = false
+            }
+        }
         var search by remember { mutableStateOf("") }
         var priorityFilter by remember { mutableStateOf<Int?>(null) }
         var priorityFilterMenu by remember { mutableStateOf(false) }
@@ -171,43 +187,68 @@ private fun TasksScreen(db: TasksDatabase) {
                 initial.year, initial.monthValue - 1, initial.dayOfMonth
             ).show()
         }
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 18.dp)) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    NavigationBarItem(selected = TasksNavigation.tabFor(view) == "Today",
+                        onClick = { view = "Today"; showCapture = false },
+                        icon = { Text("◷") }, label = { Text("Today") })
+                    NavigationBarItem(selected = TasksNavigation.tabFor(view) == "Inbox",
+                        onClick = { view = "Open"; showCapture = false },
+                        icon = { Text("▣") }, label = { Text("Inbox") })
+                    NavigationBarItem(selected = false, onClick = {
+                        if (showCapture) {
+                            focusSearchAfterCapture = true
+                            showCapture = false
+                        } else {
+                            searchFocusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                    }, icon = { Text("⌕") }, label = { Text("Search") })
+                    NavigationBarItem(selected = showBrowse || TasksNavigation.tabFor(view) == "Browse",
+                        onClick = { showCapture = false; showBrowse = true },
+                        icon = { Text("☷") }, label = { Text("Browse") })
+                }
+            },
+            floatingActionButton = {
+                if (view != "Trash") {
+                    FloatingActionButton(
+                        onClick = { showCapture = !showCapture },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.semantics {
+                            contentDescription = if (showCapture) "Close task composer" else "Add task"
+                        }
+                    ) { Text(if (showCapture) "×" else "+", fontSize = 28.sp) }
+                }
+            }
+        ) { insets ->
+            Column(modifier = Modifier.fillMaxSize().padding(insets)
+                .padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("✦  GOREECLOUD TASKS", color = MaterialTheme.colorScheme.primary,
                         fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                    TextButton(onClick = { showTools = !showTools }) {
+                        Text(if (showTools) "Close settings" else "Settings")
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(TasksNavigation.title(view, activeProjectName),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold)
+                Text("${tasks.count { !it.completed }} open · ${tasks.count { it.completed }} completed · On this device",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(12.dp))
+                if (showTools) {
                     OutlinedButton(onClick = {
                         draftAppearance = appearance
                         draftAccent = accent
                         showAppearanceSettings = true
-                    }) { Text("Appearance & color") }
-                }
-                Spacer(Modifier.height(18.dp))
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(22.dp)) {
-                        Text("Make space for", style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.SemiBold)
-                        Text("what matters.", style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(7.dp))
-                        Text("Capture ideas. Take action. Stay in your flow.",
-                            style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            "${tasks.count { !it.completed }} open  ·  ${tasks.count { it.completed }} accomplished",
-                            fontWeight = FontWeight.SemiBold, fontSize = 12.sp
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Appearance & color") }
                 OutlinedButton(
                     onClick = {
                         try {
@@ -235,12 +276,17 @@ private fun TasksScreen(db: TasksDatabase) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Import JSON into empty workspace") }
-                if (backupNotice.isNotBlank()) {
-                    Text(backupNotice, style = MaterialTheme.typography.bodySmall,
-                         color = MaterialTheme.colorScheme.primary)
                 }
-                Spacer(Modifier.height(16.dp))
-                Text("Quick capture", style = MaterialTheme.typography.titleLarge,
+                if (backupNotice.isNotBlank()) {
+                    // Backup status stays visible after closing Settings.
+                    Text(backupNotice, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary)
+                }
+                if (showCapture && view != "Trash") {
+                    Column(modifier = Modifier.weight(1f)
+                        .verticalScroll(rememberScrollState())) {
+                Spacer(Modifier.height(12.dp))
+                Text("Add task", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
@@ -296,6 +342,7 @@ private fun TasksScreen(db: TasksDatabase) {
                             title = ""
                             dueDate = null
                             error = ""
+                            showCapture = false
                             reload()
                         } catch (failure: Exception) {
                             error = failure.message ?: "Task could not be saved."
@@ -305,11 +352,16 @@ private fun TasksScreen(db: TasksDatabase) {
                 if (error.isNotBlank()) {
                     Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
+                    }
+                } else {
+                    if (error.isNotBlank()) {
+                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = search, onValueChange = { search = it },
                     singleLine = true, label = { Text("Search tasks") },
-                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)
+                    modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester), shape = RoundedCornerShape(14.dp)
                 )
                 Spacer(Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -430,13 +482,13 @@ private fun TasksScreen(db: TasksDatabase) {
                     }
                 } else {
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         items(visible, key = { it.id }) { task ->
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                shape = RoundedCornerShape(17.dp), modifier = Modifier.fillMaxWidth()
+                                shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
@@ -491,21 +543,72 @@ private fun TasksScreen(db: TasksDatabase) {
                                             }
                                         }) { Text("Restore") }
                                     } else {
-                                        TextButton(onClick = {
-                                            editing = task
-                                            editTitle = task.title
-                                            editPriority = task.priority
-                                            editDueDate = task.dueDate
-                                            editProjectId = task.projectId
-                                        }) { Text("Edit") }
-                                        TextButton(onClick = { deletion = task }) { Text("Delete") }
+                                        var actionsOpen by remember(task.id) { mutableStateOf(false) }
+                                        Box {
+                                            TextButton(onClick = { actionsOpen = true },
+                                                modifier = Modifier.semantics {
+                                                    contentDescription = "Actions for ${task.title}"
+                                                }) { Text("⋯", fontSize = 22.sp) }
+                                            DropdownMenu(expanded = actionsOpen,
+                                                onDismissRequest = { actionsOpen = false }) {
+                                                DropdownMenuItem(text = { Text("Edit task") }, onClick = {
+                                                    actionsOpen = false
+                                                    editing = task
+                                                    editTitle = task.title
+                                                    editPriority = task.priority
+                                                    editDueDate = task.dueDate
+                                                    editProjectId = task.projectId
+                                                })
+                                                DropdownMenuItem(text = { Text("Move to Trash") }, onClick = {
+                                                    actionsOpen = false
+                                                    deletion = task
+                                                })
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                }
             }
+        }
+
+        if (showBrowse) {
+            AlertDialog(
+                onDismissRequest = { showBrowse = false },
+                title = { Text("Browse tasks") },
+                text = {
+                    Column(modifier = Modifier.heightIn(max = 460.dp)
+                        .verticalScroll(rememberScrollState())) {
+                        (TaskViews.names + "Trash").distinct().forEach { destination ->
+                            TextButton(onClick = {
+                                view = destination
+                                showBrowse = false
+                            }, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (destination == "Open") "Inbox" else destination)
+                            }
+                        }
+                        HorizontalDivider()
+                        Text("Projects", style = MaterialTheme.typography.titleSmall)
+                        projects.forEach { project ->
+                            TextButton(onClick = {
+                                selectedProjectId = project.id
+                                view = "Project"
+                                showBrowse = false
+                            }, modifier = Modifier.fillMaxWidth()) { Text(project.name) }
+                        }
+                        TextButton(onClick = {
+                            showBrowse = false
+                            showProjectDialog = true
+                        }) { Text("+ Create project") }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showBrowse = false }) { Text("Close") }
+                }
+            )
         }
 
         if (showAppearanceSettings) {

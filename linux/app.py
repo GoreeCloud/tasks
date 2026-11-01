@@ -48,6 +48,10 @@ class TasksWindow(Adw.ApplicationWindow):
         appearance_button.set_tooltip_text("Choose Light/Dark and a GoreeCloud accent")
         appearance_button.connect("clicked", self.on_appearance)
         header.pack_end(appearance_button)
+        self.add_button = Gtk.Button(label="+ Add task", tooltip_text="Show or hide the task composer")
+        self.add_button.add_css_class("suggested-action")
+        self.add_button.connect("clicked", self.on_toggle_capture)
+        header.pack_start(self.add_button)
         export_button = Gtk.Button(label="Export JSON", tooltip_text="Save a portable task backup")
         export_button.connect("clicked", self.on_export)
         header.pack_start(export_button)
@@ -56,41 +60,73 @@ class TasksWindow(Adw.ApplicationWindow):
         header.pack_start(import_button)
 
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=13)
-        content.set_margin_top(22)
-        content.set_margin_bottom(22)
-        content.set_margin_start(28)
-        content.set_margin_end(28)
-        root.append(content)
-        heading = Gtk.Label(label="Your focus, beautifully organized", xalign=0)
-        heading.add_css_class("title-1")
-        content.append(heading)
-        subtitle = Gtk.Label(label="Create projects, plan your day, and get things done — on this device.", xalign=0)
+        body = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        body.set_vexpand(True)
+        root.append(body)
+        navigation = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        navigation.set_size_request(174, -1)
+        navigation.set_margin_top(16)
+        navigation.set_margin_start(12)
+        navigation.set_margin_end(12)
+        navigation.add_css_class("task-navigation")
+        rail_label = Gtk.Label(label="WORKSPACE", xalign=0)
+        rail_label.add_css_class("caption-heading")
+        navigation.append(rail_label)
+        self.nav_buttons = {}
+        for name in ("Open", "Today", "Next 7 days", "Upcoming", "Priority", "Completed", "Trash"):
+            button = Gtk.Button()
+            button.set_child(Gtk.Label(label="Inbox" if name == "Open" else name, xalign=0))
+            button.set_halign(Gtk.Align.FILL)
+            button.add_css_class("flat")
+            button.add_css_class("task-nav-item")
+            button.connect("clicked", self.on_nav_view, name)
+            navigation.append(button)
+            self.nav_buttons[name] = button
+        body.set_start_child(navigation)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
+        content.set_margin_top(18)
+        content.set_margin_bottom(18)
+        content.set_margin_start(22)
+        content.set_margin_end(18)
+        body.set_end_child(content)
+        self.heading = Gtk.Label(label="Inbox", xalign=0)
+        self.heading.add_css_class("title-1")
+        content.append(self.heading)
+        subtitle = Gtk.Label(label="Your tasks, organized on this device.", xalign=0)
         subtitle.add_css_class("dim-label")
         subtitle.set_wrap(True)
         content.append(subtitle)
 
-        project_row = Gtk.Box(spacing=10)
-        project_row.set_margin_top(18)
+        project_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        project_row.set_margin_top(4)
         content.append(project_row)
+        project_pick_row = Gtk.Box(spacing=10)
+        project_row.append(project_pick_row)
         project_label = Gtk.Label(label="Project")
-        project_row.append(project_label)
+        project_pick_row.append(project_label)
         self.project_picker = Gtk.DropDown.new_from_strings(["Inbox"])
         self.project_picker.set_hexpand(True)
-        project_row.append(self.project_picker)
+        project_pick_row.append(self.project_picker)
         self.project_picker.connect("notify::selected", self.on_project_change)
+        project_create_row = Gtk.Box(spacing=8)
+        project_row.append(project_create_row)
         self.project_name = Gtk.Entry(placeholder_text="New project name")
         self.project_name.set_max_length(100)
         self.project_name.set_hexpand(True)
         self.project_name.connect("activate", self.on_create_project)
-        project_row.append(self.project_name)
+        project_create_row.append(self.project_name)
         create = Gtk.Button(label="+ Project")
         create.add_css_class("pill")
         create.connect("clicked", self.on_create_project)
-        project_row.append(create)
+        project_create_row.append(create)
 
+        self.capture_revealer = Gtk.Revealer()
+        self.capture_revealer.set_reveal_child(False)
+        capture_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.capture_revealer.set_child(capture_box)
+        content.append(self.capture_revealer)
         task_row = Gtk.Box(spacing=10)
-        content.append(task_row)
+        capture_box.append(task_row)
         self.entry = Gtk.Entry(placeholder_text="What needs to get done?")
         self.entry.set_max_length(240)
         self.entry.set_hexpand(True)
@@ -105,14 +141,15 @@ class TasksWindow(Adw.ApplicationWindow):
         add.connect("clicked", self.on_add)
         task_row.append(add)
 
-        schedule_row = Gtk.Box(spacing=10)
-        schedule_row.set_margin_top(3)
-        content.append(schedule_row)
-        schedule_row.append(Gtk.Label(label="Due"))
+        due_row = Gtk.Box(spacing=10)
+        capture_box.append(due_row)
+        due_row.append(Gtk.Label(label="Due"))
         self.due = Gtk.Entry(placeholder_text="YYYY-MM-DD (optional)")
         self.due.set_max_length(10)
         self.due.set_width_chars(22)
-        schedule_row.append(self.due)
+        due_row.append(self.due)
+        schedule_row = Gtk.Box(spacing=10)
+        content.append(schedule_row)
         schedule_row.append(Gtk.Label(label="View"))
         self.view_names = (
             "Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority",
@@ -265,6 +302,18 @@ class TasksWindow(Adw.ApplicationWindow):
             return self.projects[position - 1]["id"]
         return None
 
+    def on_nav_view(self, _button, name):
+        self.view.set_selected(self.view_names.index(name))
+        self.selected_task_ids.clear()
+        self.refresh()
+
+    def on_toggle_capture(self, _button):
+        show = not self.capture_revealer.get_reveal_child()
+        self.capture_revealer.set_reveal_child(show)
+        self.add_button.set_label("Close composer" if show else "+ Add task")
+        if show:
+            self.entry.grab_focus()
+
     def on_create_project(self, _widget):
         try:
             name = self.project_name.get_text()
@@ -332,6 +381,8 @@ class TasksWindow(Adw.ApplicationWindow):
             )
             self.entry.set_text("")
             self.due.set_text("")
+            self.capture_revealer.set_reveal_child(False)
+            self.add_button.set_label("+ Add task")
             self.message.set_text("")
             self.refresh()
         except (ValueError, OSError, sqlite3.Error) as error:
@@ -351,6 +402,16 @@ class TasksWindow(Adw.ApplicationWindow):
             self.list_box.remove(child)
         active = self.view.get_selected()
         view = self.view_names[active]
+        self.heading.set_label("Inbox" if view == "Open" else view)
+        for name, button in self.nav_buttons.items():
+            if name == view:
+                button.add_css_class("task-nav-selected")
+            else:
+                button.remove_css_class("task-nav-selected")
+        self.add_button.set_sensitive(view != "Trash")
+        if view == "Trash":
+            self.capture_revealer.set_reveal_child(False)
+            self.add_button.set_label("+ Add task")
         self.priority_filter.set_sensitive(view != "Trash")
         self.sort_picker.set_sensitive(view != "Trash")
         if view == "Trash":

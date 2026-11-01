@@ -87,6 +87,8 @@ not support browser `@media` rules.
 
 **Appearance:** The native header offers Light/Dark and GC UI semantic accent choices (Neutral, Lagoon, Moss, Ember, Ocean and Iris). A new profile defaults to Light/Neutral, regardless of OS theme. The preference is kept outside the task database in `$XDG_CONFIG_HOME/goreecloud-tasks/appearance.json` (or `~/.config/goreecloud-tasks/appearance.json`), in a private user-local file, and is not part of portable JSON backups. See [GC UI appearance notes](../docs/GC_UI_APPEARANCE_MIGRATION.md).
 
+The GTK interface now offers an Inbox/Today/Upcoming/Completed/Trash sidebar, a compact current-view heading and a header Add Task control that expands/collapses the native composer. Its existing task data and JSON backup behavior are unchanged; see [native list-first UI](../docs/NATIVE_LIST_FIRST_UI.md). Native real-display accessibility and varying scale factors still require acceptance.
+
 ## Known limitations
 
 The source installer has not undergone multi-distribution packaging tests, release signing, accessibility-device acceptance or update/rollback validation. Full Linux support and Stable acceptance remain pending.

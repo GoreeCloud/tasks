@@ -38,6 +38,7 @@ class ThemePreferencesTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(self.path.parent.stat().st_mode), 0o700)
                 css = semantic_css(appearance, accent)
                 self.assertIn("button.suggested-action", css)
+                self.assertIn("button.task-nav-selected", css)
                 self.assertNotIn("undefined", css)
 
     def test_bad_data_cannot_disable_light_default_or_escape_to_tasks(self):

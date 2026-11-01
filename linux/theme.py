@@ -97,4 +97,6 @@ def semantic_css(appearance, accent):
             "button.suggested-action { background-color: " + primary + "; color: " + foreground +
             "; border-radius:12px; min-height:44px; } "
             "window .bulk-selected { background-color: " + container + "; color: " +
-            on_container + "; }")
+            on_container + "; } "
+            "button.task-nav-selected { background-color: " + container + "; color: " +
+            on_container + "; font-weight: 750; }")
