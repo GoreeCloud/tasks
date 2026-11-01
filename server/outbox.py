@@ -106,6 +106,11 @@ class OfflineOutbox:
                     seq INTEGER NOT NULL
                 );
                 INSERT OR IGNORE INTO sync_cursor(singleton,seq) VALUES (1,0);
+                CREATE TABLE IF NOT EXISTS bootstrap_state (
+                    singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+                    applied INTEGER NOT NULL CHECK(applied IN (0,1))
+                );
+                INSERT OR IGNORE INTO bootstrap_state(singleton,applied) VALUES (1,0);
             """)
             db.commit()
 
@@ -212,6 +217,49 @@ class OfflineOutbox:
                 "SELECT snapshot_json FROM remote_tasks WHERE task_id=?", (task_id,)
             ).fetchone()
         return json.loads(row[0]) if row else None
+
+    def seed_bootstrap(self, bootstrap: dict) -> int:
+        """Atomically seed a fresh remote projection and its matching cursor.
+
+        Must be called once on a new outbox with no pending local edits. A
+        missing or incomplete server snapshot is never silently accepted.
+        """
+        if not isinstance(bootstrap, dict) or type(bootstrap.get("schemaVersion")) is not int or bootstrap["schemaVersion"] != 1:
+            raise OutboxError("Unsupported bootstrap schema")
+        cursor = bootstrap.get("cursor")
+        tasks = bootstrap.get("tasks")
+        if type(cursor) is not int or not 0 <= cursor < 2**63:
+            raise OutboxError("Invalid bootstrap cursor")
+        if not isinstance(tasks, list) or len(tasks) > MAX_PAGE_CHANGES:
+            raise OutboxError("Incomplete or oversized bootstrap snapshot")
+        planned, seen = [], set()
+        for task in tasks:
+            raw = safe_json(task)
+            task_id = canonical_uuid(task.get("id"))
+            if task_id in seen:
+                raise OutboxError("Duplicate task in snapshot")
+            seen.add(task_id)
+            revision = task.get("revision")
+            if type(revision) is not int or revision < 1 or task.get("deleted") is not False:
+                raise OutboxError("Invalid live task snapshot")
+            planned.append((task_id, raw, revision, cursor))
+        with closing(self._open()) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT applied FROM bootstrap_state WHERE singleton=1").fetchone()[0]:
+                raise OutboxError("Bootstrap is already applied")
+            if db.execute("SELECT seq FROM sync_cursor WHERE singleton=1").fetchone()[0] != 0:
+                raise OutboxError("Outbox already has a sync checkpoint")
+            if db.execute("SELECT COUNT(*) FROM mutations").fetchone()[0]:
+                raise OutboxError("Refusing bootstrap over local mutations")
+            if db.execute("SELECT COUNT(*) FROM remote_tasks").fetchone()[0]:
+                raise OutboxError("Refusing bootstrap over remote projection")
+            db.executemany(
+                "INSERT INTO remote_tasks(task_id,snapshot_json,revision,seq) VALUES (?,?,?,?)",
+                planned
+            )
+            db.execute("UPDATE sync_cursor SET seq=? WHERE singleton=1", (cursor,))
+            db.execute("UPDATE bootstrap_state SET applied=1 WHERE singleton=1")
+        return cursor
 
     def apply_change_page(self, page: dict, expected_cursor: int) -> int:
         """Apply one validated single-user delta page with atomic checkpoint.

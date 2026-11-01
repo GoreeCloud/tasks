@@ -76,6 +76,29 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(self.request("PATCH", "/v1/tasks/" + task["id"], {"title": "Unsafe"},
                                       headers={"If-Match": "9" * 1000})[0], 428)
 
+    def test_authenticated_bootstrap_snapshot_and_delta_checkpoint(self):
+        self.assertEqual(self.request("GET", "/v1/bootstrap", auth=False)[0], 401)
+        empty = self.request("GET", "/v1/bootstrap")[1]
+        self.assertEqual(empty, {"schemaVersion": 1, "tasks": [], "cursor": 0})
+        self.assertEqual(self.request("GET", "/v1/bootstrap?limit=5")[0], 400)
+        created = self.create("Before checkpoint", key="bootstrap-key-0001")[1]
+        snapshot = self.request("GET", "/v1/bootstrap")[1]
+        self.assertEqual(snapshot["schemaVersion"], 1)
+        self.assertEqual(snapshot["cursor"], 1)
+        self.assertEqual([task["id"] for task in snapshot["tasks"]], [created["id"]])
+        self.create("After checkpoint", key="bootstrap-key-0002")
+        feed = self.request("GET", "/v1/changes?after=" + str(snapshot["cursor"]))[1]
+        self.assertEqual([item["seq"] for item in feed["changes"]], [2])
+        self.assertEqual(feed["cursor"], 2)
+
+    def test_bootstrap_refuses_to_silently_truncate_workspace(self):
+        for index in range(101):
+            status, _, _ = self.create("task", key="bootstrap-limit-%04d" % index)
+            self.assertEqual(status, 201)
+        status, response, _ = self.request("GET", "/v1/bootstrap")
+        self.assertEqual(status, 413)
+        self.assertIn("100 tasks", response["error"].lower())
+
     def test_created_tasks_idempotency_and_conflicting_key(self):
         status, first, _ = self.create("Launch", priority=1, due="2026-11-07")
         self.assertEqual(status, 201)

@@ -11,6 +11,7 @@ The accompanying `server/outbox.py` is an isolated reference component for a fut
 - Explicit conflict state that preserves the unsent mutation and a remote snapshot for future manual reconciliation.
 - A remote server projection that does **not** overwrite local user edits.
 - A change-feed cursor persisted in the same transaction as the applied page, with rejection of gaps, duplicate sequences and stale cursors.
+- One-time initial snapshot seeding, with atomic checkpoint and refusal to overwrite queued local work.
 - Validation for canonical UUIDs, UTF-8 JSON payloads, 64 KiB mutation bounds, task revisions, tombstones, and page lengths.
 - Synthetic tests for persistence, idempotency, malformed mutations, conflict retention, cursor rollback, snapshot isolation, symlink safety, and compatibility with the current persisted single-user API feed.
 
@@ -18,7 +19,7 @@ The accompanying `server/outbox.py` is an isolated reference component for a fut
 
 **Do not use this to synchronize real user data.** There is no identity, account/workspace authorization, encryption at rest, transport, token management, crash-safe coupling to any client task edit, conflict-resolution UI, or server acknowledgement verification. `acknowledge()` represents a local state transition and must not be called before a successful, authenticated server receipt is durably verified. This is not a complete multi-device synchronization solution.
 
-The current experimental single-user server emits contiguous global change sequences. The outbox deliberately rejects sequence gaps. A future multi-tenant or filtered feed may have noncontiguous global sequences and requires an updated cursor contract and reworked tests before use. There is no snapshot/bootstrap endpoint, so initial server-to-client reconciliation is not implemented.
+The current experimental single-user server emits contiguous global change sequences. The outbox deliberately rejects sequence gaps. A future multi-tenant or filtered feed may have noncontiguous global sequences and requires an updated cursor contract and reworked tests before use. An experimental, authenticated `/v1/bootstrap` endpoint now returns a consistent single-user snapshot and cursor for up to 100 tasks. The outbox accepts one such snapshot only when its local queue and remote projection are empty. This is not wired to the native clients; true end-to-end reconciliation and multi-tenant authorization remain unimplemented.
 
 ## Test and review
 

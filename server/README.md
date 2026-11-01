@@ -39,6 +39,7 @@ Responses are JSON. Requests with bodies require `Content-Type: application/json
 | Method | Path | Operation |
 |---|---|---|
 | GET | `/healthz` | Loopback-only health check |
+| GET | `/v1/bootstrap` | Authenticated, transactionally consistent active-task snapshot and cursor (maximum 100 tasks) |
 | GET | `/v1/tasks?limit=100` | Read up to 100 non-deleted tasks |
 | GET | `/v1/tasks/{id}` | Read a task |
 | POST | `/v1/tasks` | Create a task; requires `Idempotency-Key` (8–128 safe characters) |
@@ -53,6 +54,20 @@ POST body example:
 ```
 
 Success returns `id`, `revision`, `title`, `priority`, `due`, `completed`, `createdAt`, `updatedAt`, and `deleted`. PATCH accepts a subset of those mutable fields. Task IDs are server-generated UUID strings. Revision conflicts return HTTP 409; unauthenticated access returns 401; invalid payloads return 4xx.
+
+### Consistent initial snapshot (development only)
+
+`GET /v1/bootstrap` requires the same bearer authorization as other task
+endpoints. It returns `{"schemaVersion":1,"tasks":[...],"cursor":N}` from
+**one SQLite read transaction**, preventing updates from falling between a
+task listing and independently retrieved change cursor. The prototype refuses
+snapshots above 100 active tasks with HTTP 413; it never silently drops tasks.
+Clients must not treat a 413 as an empty or partial workspace. The matching
+experimental `OfflineOutbox.seed_bootstrap()` accepts this payload only once
+on an empty outbox with no pending local edits, then resumes with
+`/v1/changes?after=N`. These components are **not wired to any native
+client, network sync, account, or production deployment**; a future
+multi-workspace design requires a new authorization and cursor contract.
 
 ## Tests
 

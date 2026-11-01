@@ -152,6 +152,22 @@ class TaskDatabase:
             ).fetchall()
         return [snapshot(row) for row in rows]
 
+    def bootstrap(self) -> dict:
+        """Return a complete bounded active-task snapshot and cursor atomically."""
+        with closing(self.connect()) as db:
+            db.execute("BEGIN")
+            rows = db.execute(
+                "SELECT * FROM tasks WHERE deleted=0 ORDER BY id LIMIT 101"
+            ).fetchall()
+            if len(rows) > 100:
+                db.rollback()
+                raise ApiError(413, "Snapshot exceeds 100 tasks; pagination not yet supported")
+            cursor = db.execute("SELECT COALESCE(MAX(seq),0) FROM changes").fetchone()[0]
+            result = {"schemaVersion": 1,
+                      "tasks": [snapshot(row) for row in rows], "cursor": cursor}
+            db.commit()
+        return result
+
     def get_task(self, task_id: str) -> dict:
         with closing(self.connect()) as db:
             row = db.execute("SELECT * FROM tasks WHERE id=? AND deleted=0", (task_id,)).fetchone()
@@ -311,6 +327,11 @@ def make_handler(store: TaskDatabase, secret: str):
                 self.reply(200, {"status": "ok", "mode": "loopback-development"})
                 return
             self.authorize()
+            if route == "/v1/bootstrap" and method == "GET":
+                if parsed.query:
+                    raise ApiError(400, "Bootstrap accepts no query parameters")
+                self.reply(200, store.bootstrap())
+                return
             if route == "/v1/tasks" and method == "GET":
                 limit = self.positive_limit(parsed.query)
                 self.reply(200, {"tasks": store.list_tasks(limit), "limit": limit})

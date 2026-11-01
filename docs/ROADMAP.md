@@ -31,6 +31,7 @@
 - [x] Experimental single-user loopback-only API with authenticated request gate, idempotent creates, revision-checked updates, soft-deletion change feed and integration tests (not connected to clients; not production deployable).
 - [x] Experimental offline SQLite backup CLI with integrity-checked, non-overwriting point-in-time snapshots and restoration only to a new database (plaintext development tooling; full recovery procedures pending).
 - [x] Durable, offline SQLite outbox *reference* with mutation retries, a remote projection, guarded conflict preservation, atomic cursor updates and single-user API contract tests; not wired to native clients or a network.
+- [x] Experimental authenticated single-user bootstrap endpoint with consistent snapshot/cursor and fail-closed 100-task cap, plus guarded outbox initialization and regression tests; not deployed or connected.
 
 - [ ] Secure API and PostgreSQL migrations with per-tenant access controls.
 - [ ] Authentication, device sessions, invitation and role policies.

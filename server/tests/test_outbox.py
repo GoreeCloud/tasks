@@ -123,6 +123,54 @@ class OfflineOutboxTests(unittest.TestCase):
                 self.store.apply_change_page(self.page(event), 0)
         self.assertEqual(self.store.cursor(), 0)
 
+    def test_seed_consistent_bootstrap_and_resume_changes(self):
+        from api import TaskDatabase
+        server = TaskDatabase(Path(self.temp.name) / "source.sqlite3")
+        created = server.create_task(
+            {"title": "Existing before first sync"}, "seed-bootstrap-test-0001"
+        )
+        deleted = server.create_task(
+            {"title": "Already removed"}, "seed-bootstrap-test-0002"
+        )
+        server.delete_task(deleted["id"], 1)
+        initial = server.bootstrap()
+        self.assertEqual(initial["cursor"], 3)
+        self.assertEqual(len(initial["tasks"]), 1)
+        self.assertEqual(self.store.seed_bootstrap(initial), 3)
+        self.assertEqual(self.store.remote_task(created["id"])["title"], "Existing before first sync")
+        self.assertIsNone(self.store.remote_task(deleted["id"]))
+        self.assertEqual(OfflineOutbox(self.path).cursor(), 3)
+        with self.assertRaises(OutboxError):
+            self.store.seed_bootstrap(initial)
+        server.update_task(created["id"], {"title": "Newer title"}, 1)
+        page = server.changes(after=3)
+        self.assertEqual(self.store.apply_change_page(page, 3), 4)
+        self.assertEqual(self.store.remote_task(created["id"])["title"], "Newer title")
+
+    def test_refuse_incomplete_duplicate_or_dirty_bootstrap(self):
+        task = self.change()["task"]
+        original = {"schemaVersion": 1, "cursor": 1, "tasks": [task]}
+        for data in (
+            {"schemaVersion": 1, "cursor": 1},
+            {"schemaVersion": 1, "cursor": -1, "tasks": [task]},
+            {"schemaVersion": 1, "cursor": 1, "tasks": [task, task]},
+            {"schemaVersion": 1, "cursor": 1, "tasks": [{**task, "deleted": True}]},
+            {"schemaVersion": 2, "cursor": 1, "tasks": [task]},
+        ):
+            with self.subTest(data=data), self.assertRaises(OutboxError):
+                self.store.seed_bootstrap(data)
+            self.assertEqual(self.store.cursor(), 0)
+        self.store.queue(self.mutation_id, self.task_id, "create", {"title": "Local draft"})
+        with self.assertRaises(OutboxError):
+            self.store.seed_bootstrap(original)
+        self.assertEqual(len(self.store.pending()), 1)
+
+    def test_empty_bootstrap_can_only_be_applied_once(self):
+        empty = {"schemaVersion": 1, "cursor": 0, "tasks": []}
+        self.assertEqual(self.store.seed_bootstrap(empty), 0)
+        with self.assertRaises(OutboxError):
+            OfflineOutbox(self.path).seed_bootstrap(empty)
+
     def test_existing_loopback_api_change_feed_contract_offline(self):
         # Exercise the existing server's real persisted change shape, with no
         # HTTP access, credentials, external network, or production data.
