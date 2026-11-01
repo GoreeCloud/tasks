@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import org.json.JSONArray
 import java.util.UUID
 
 internal data class TaskRecord(
@@ -13,7 +14,8 @@ internal data class TaskRecord(
     val completed: Boolean,
     val dueDate: String?,
     val projectId: String?,
-    val description: String = ""
+    val description: String = "",
+    val labels: List<String> = emptyList()
 )
 
 internal data class ProjectRecord(val id: String, val name: String)
@@ -22,11 +24,11 @@ internal data class ProjectRecord(val id: String, val name: String)
  * On-device private SQLite database. No Internet permission or server sync.
  *
  * V2 adds projects/dates, V3 completion timestamps, V4 exact imported timestamps,
- * V5 adds durable device-local Trash, V6 task descriptions in both tables.
+ * V5 adds durable device-local Trash, V6 task descriptions, V7 task labels.
  * All upgrades preserve existing task rows.
  */
 internal class TasksDatabase(context: Context) :
-    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 6) {
+    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 7) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
@@ -41,7 +43,7 @@ internal class TasksDatabase(context: Context) :
                 "priority INTEGER NOT NULL DEFAULT 4 CHECK(priority BETWEEN 1 AND 4), " +
                 "completed INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, completed_at INTEGER, created_at_exact TEXT, completed_at_exact TEXT, " +
                 "due_date TEXT, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL, " +
-                "description TEXT NOT NULL DEFAULT '')"
+                "description TEXT NOT NULL DEFAULT '', labels_json TEXT NOT NULL DEFAULT '[]')"
         )
         db.execSQL("CREATE INDEX idx_tasks_priority ON tasks(completed, priority, created_at)")
         db.execSQL("CREATE INDEX idx_tasks_due_date ON tasks(completed, due_date)")
@@ -56,7 +58,7 @@ internal class TasksDatabase(context: Context) :
                 "completed INTEGER NOT NULL, created_at INTEGER NOT NULL, " +
                 "completed_at INTEGER, created_at_exact TEXT, completed_at_exact TEXT, " +
                 "due_date TEXT, project_id TEXT, deleted_at INTEGER NOT NULL, " +
-                "description TEXT NOT NULL DEFAULT '')"
+                "description TEXT NOT NULL DEFAULT '', labels_json TEXT NOT NULL DEFAULT '[]')"
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_deleted_tasks_when " +
             "ON deleted_tasks(deleted_at DESC)")
@@ -94,12 +96,35 @@ internal class TasksDatabase(context: Context) :
                 }
             }
         }
+        if (oldVersion < 7) {
+            for (table in listOf("tasks", "deleted_tasks")) {
+                val existing = mutableSetOf<String>()
+                db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+                    while (cursor.moveToNext()) existing.add(cursor.getString(1))
+                }
+                if ("labels_json" !in existing) {
+                    db.execSQL("ALTER TABLE $table ADD COLUMN labels_json TEXT NOT NULL DEFAULT '[]'")
+                }
+            }
+        }
+    }
+
+    private fun encodeLabels(labels: List<String>): String =
+        JSONArray(TaskRules.labels(labels)).toString()
+
+    private fun decodeLabels(raw: String): List<String> {
+        val data = JSONArray(raw)
+        require(data.length() <= 8) { "Too many stored task labels" }
+        val values = (0 until data.length()).map {
+            data.opt(it) as? String ?: throw IllegalArgumentException("Invalid stored task labels")
+        }
+        return TaskRules.labels(values)
     }
 
     fun listTasks(): List<TaskRecord> {
         val records = mutableListOf<TaskRecord>()
         readableDatabase.rawQuery(
-            "SELECT id,title,priority,completed,due_date,project_id,description FROM tasks " +
+            "SELECT id,title,priority,completed,due_date,project_id,description,labels_json FROM tasks " +
                 "ORDER BY completed,priority,CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,due_date,created_at DESC",
             null
         ).use { cursor ->
@@ -111,7 +136,8 @@ internal class TasksDatabase(context: Context) :
                     cursor.getInt(3) == 1,
                     if (cursor.isNull(4)) null else cursor.getString(4),
                     if (cursor.isNull(5)) null else cursor.getString(5),
-                    cursor.getString(6)
+                    cursor.getString(6),
+                    decodeLabels(cursor.getString(7))
                 )
             }
         }
@@ -121,7 +147,7 @@ internal class TasksDatabase(context: Context) :
     fun listDeletedTasks(): List<TaskRecord> {
         val records = mutableListOf<TaskRecord>()
         readableDatabase.rawQuery(
-            "SELECT id,title,priority,completed,due_date,project_id,description FROM deleted_tasks " +
+            "SELECT id,title,priority,completed,due_date,project_id,description,labels_json FROM deleted_tasks " +
                 "ORDER BY deleted_at DESC,id", null
         ).use { cursor ->
             while (cursor.moveToNext()) records += TaskRecord(
@@ -129,7 +155,8 @@ internal class TasksDatabase(context: Context) :
                 cursor.getInt(3) == 1,
                 if (cursor.isNull(4)) null else cursor.getString(4),
                 if (cursor.isNull(5)) null else cursor.getString(5),
-                cursor.getString(6)
+                cursor.getString(6),
+                decodeLabels(cursor.getString(7))
             )
         }
         return records
@@ -152,7 +179,7 @@ internal class TasksDatabase(context: Context) :
     }
 
     fun add(title: String, priority: Int, dueDate: String?, projectId: String?,
-            description: String = "") {
+            description: String = "", labels: List<String> = emptyList()) {
         val normalized = TaskRules.title(title)
         val validatedPriority = TaskRules.priority(priority)
         val validatedDue = TaskRules.due(dueDate)
@@ -166,6 +193,7 @@ internal class TasksDatabase(context: Context) :
             put("due_date", validatedDue)
             put("project_id", projectId)
             put("description", validatedDescription)
+            put("labels_json", encodeLabels(labels))
         }
         writableDatabase.insertOrThrow("tasks", null, record)
     }
@@ -180,8 +208,8 @@ internal class TasksDatabase(context: Context) :
             db.execSQL(
                 "INSERT INTO tasks " +
                     "(id,title,priority,completed,created_at,completed_at," +
-                    "created_at_exact,completed_at_exact,due_date,project_id,description) " +
-                    "SELECT ?,title,priority,0,?,NULL,NULL,NULL,due_date,project_id,description " +
+                    "created_at_exact,completed_at_exact,due_date,project_id,description,labels_json) " +
+                    "SELECT ?,title,priority,0,?,NULL,NULL,NULL,due_date,project_id,description,labels_json " +
                     "FROM tasks WHERE id=?",
                 arrayOf(duplicateId, System.currentTimeMillis(), id)
             )
@@ -198,7 +226,7 @@ internal class TasksDatabase(context: Context) :
 
     /** Edits are guarded by field validation; no schema replacement or row deletion. */
     fun update(id: String, title: String, priority: Int, dueDate: String?, projectId: String?,
-               description: String? = null) {
+               description: String? = null, labels: List<String>? = null) {
         val normalized = TaskRules.title(title)
         val validatedPriority = TaskRules.priority(priority)
         val validatedDue = TaskRules.due(dueDate)
@@ -208,6 +236,7 @@ internal class TasksDatabase(context: Context) :
             put("due_date", validatedDue)
             put("project_id", projectId)
             if (description != null) put("description", TaskRules.description(description))
+            if (labels != null) put("labels_json", encodeLabels(labels))
         }
         val count = writableDatabase.update("tasks", fields, "id=?", arrayOf(id))
         require(count == 1) { "Task no longer exists" }
@@ -281,9 +310,9 @@ internal class TasksDatabase(context: Context) :
                         db.execSQL(
                             "INSERT INTO deleted_tasks (" +
                                 "id,title,priority,completed,created_at,completed_at," +
-                                "created_at_exact,completed_at_exact,due_date,project_id,description,deleted_at) " +
+                                "created_at_exact,completed_at_exact,due_date,project_id,description,labels_json,deleted_at) " +
                                 "SELECT id,title,priority,completed,created_at,completed_at," +
-                                "created_at_exact,completed_at_exact,due_date,project_id,description,? " +
+                                "created_at_exact,completed_at_exact,due_date,project_id,description,labels_json,? " +
                                 "FROM tasks WHERE id=?",
                             arrayOf(whenMillis, id)
                         )
@@ -333,6 +362,7 @@ internal class TasksDatabase(context: Context) :
                     put("id", task.id)
                     put("title", task.title)
                     put("description", TaskRules.description(task.description))
+                    put("labels_json", encodeLabels(task.labels))
                     put("priority", task.priority)
                     put("completed", if (task.completed) 1 else 0)
                     put("due_date", task.dueDate)
@@ -364,9 +394,9 @@ internal class TasksDatabase(context: Context) :
             db.execSQL(
                 "INSERT INTO deleted_tasks (" +
                     "id,title,priority,completed,created_at,completed_at," +
-                    "created_at_exact,completed_at_exact,due_date,project_id,description,deleted_at) " +
+                    "created_at_exact,completed_at_exact,due_date,project_id,description,labels_json,deleted_at) " +
                     "SELECT id,title,priority,completed,created_at,completed_at," +
-                    "created_at_exact,completed_at_exact,due_date,project_id,description,? " +
+                    "created_at_exact,completed_at_exact,due_date,project_id,description,labels_json,? " +
                     "FROM tasks WHERE id=?",
                 arrayOf(System.currentTimeMillis(), id)
             )
@@ -403,9 +433,9 @@ internal class TasksDatabase(context: Context) :
             db.execSQL(
                 "INSERT INTO tasks (" +
                     "id,title,priority,completed,created_at,completed_at," +
-                    "created_at_exact,completed_at_exact,due_date,project_id,description) " +
+                    "created_at_exact,completed_at_exact,due_date,project_id,description,labels_json) " +
                     "SELECT id,title,priority,completed,created_at,completed_at," +
-                    "created_at_exact,completed_at_exact,due_date,project_id,description " +
+                    "created_at_exact,completed_at_exact,due_date,project_id,description,labels_json " +
                     "FROM deleted_tasks WHERE id=?",
                 arrayOf(id)
             )

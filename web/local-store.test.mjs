@@ -112,7 +112,7 @@ test('malformed local snapshots fail closed rather than return an empty workspac
     JSON.stringify({ ...stored, trash: [{ ...stored.trash[0], deletedAt: '2026-02-30T12:00:00Z' }] }),
     JSON.stringify({ ...stored, trash: [{ ...stored.trash[0], task: { ...stored.trash[0].task, priority: true } }] }),
     JSON.stringify({ ...stored, workspace: { ...stored.workspace, tasks: [{ ...stored.trash[0].task }] } }),
-    JSON.stringify({ ...stored, workspace: { schema: 3, projects: [], tasks: [] } }),
+    JSON.stringify({ ...stored, workspace: { schema: 4, projects: [], tasks: [] } }),
     JSON.stringify({ ...stored, trash: [{ ...stored.trash[0], task: { ...stored.trash[0].task, completedAt: null } }] })
   ];
   for (const raw of corrupt) assert.throws(() => readLocalSnapshot(raw));
@@ -144,4 +144,16 @@ test('schema-2 notes survive local Trash and restart', () => {
   assert.equal(read.trash[0].task.description,original.description);
   restoreFromTrash(read.workspace,read.trash,undoTaskDelete,original.id);
   assert.equal(read.workspace.tasks[0].description,original.description);
+});
+
+test('schema3 label arrays survive local Trash and restoration',()=>{
+ const task=newTask('Tagged',null,'',2,'Notes',['Work','Design 🧭']);
+ const workspace={schema:3,projects:[],tasks:[task]};
+ const trash=[];
+ moveToTrash(workspace,trash,deleteTask,task.id,'2026-11-01T15:00:00Z');
+ const disk=readLocalSnapshot(serializeLocalSnapshot(workspace,trash));
+ assert.deepEqual(disk.trash[0].task.labels,['Work','Design 🧭']);
+ restoreFromTrash(disk.workspace,disk.trash,undoTaskDelete,task.id);
+ assert.deepEqual(disk.workspace.tasks[0].labels,['Work','Design 🧭']);
+ assert.equal(JSON.parse(exportBackup(disk.workspace)).schema,3);
 });

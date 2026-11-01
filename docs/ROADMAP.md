@@ -48,6 +48,8 @@
 
 - [x] Manual task duplication: browser, Linux GTK4 and Android Compose create a fresh open task with copied title/notes/priority/date/project but unique ID and no original completion history. No new SQLite migration, permissions, backup schema or automatic recurrence. See [task duplication](TASK_DUPLICATION.md).
 
+- [x] First-class task labels in browser, Linux GTK4 and Android Compose (up to 8 unique labels per task, 32 UTF-16 units per label) with additive SQLite columns and portable backup schema 3. Legacy schema 1/2 remains readable, schema 3 cannot be silently downgraded; full native CI/physical accessibility and recovery acceptance still required. See [schema-3 contract](PORTABLE_SCHEMA3_LABELS.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

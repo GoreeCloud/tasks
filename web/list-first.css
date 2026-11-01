@@ -326,3 +326,8 @@ body { background:var(--gc-surface-raised); }
 .task-description { display:block;color:var(--gc-text-soft);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:3.9em;overflow:hidden; }
 #edit-task-description { width:100%;min-height:90px;resize:vertical; }
 @media(max-width:720px){.quick-add #task-description {grid-column:1/-1;}}
+
+/* Schema-3 plain-text labels: no third-party CSS, semantic GC UI roles. */
+.quick-add #task-labels{grid-column:1/-1;min-height:42px;width:100%;max-width:100%;}
+.task-labels{display:block;font-size:12px;font-weight:600;color:var(--gc-brand);white-space:pre-wrap;overflow-wrap:anywhere;}
+#edit-task-labels{width:100%;}

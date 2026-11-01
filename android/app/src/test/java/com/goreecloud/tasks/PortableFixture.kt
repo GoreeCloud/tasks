@@ -5,7 +5,7 @@ import java.io.File
 /** One synthetic fixture shared by native Android, Linux and browser tests. */
 internal object PortableFixture {
     fun read(name: String = "schema1-synthetic.json"): ByteArray {
-        require(name in setOf("schema1-synthetic.json", "schema2-synthetic.json", "timestamp-contract.json"))
+        require(name in setOf("schema1-synthetic.json", "schema2-synthetic.json", "schema3-synthetic.json", "timestamp-contract.json"))
         val candidates = listOf(
             "fixtures/portable/$name",
             "../fixtures/portable/$name",

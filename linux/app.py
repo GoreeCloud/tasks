@@ -198,6 +198,10 @@ class TasksWindow(Adw.ApplicationWindow):
         ])
         capture_box.append(Gtk.Label(label="Notes (optional)", xalign=0))
         capture_box.append(self.description_entry)
+        self.labels_entry = Gtk.Entry(placeholder_text="Labels, comma separated (optional)")
+        self.labels_entry.set_max_length(272)
+        self.labels_entry.update_property([Gtk.AccessibleProperty.LABEL], ["Task labels, comma separated"])
+        capture_box.append(self.labels_entry)
         schedule_row = Gtk.Box(spacing=10)
         content.append(schedule_row)
         view_label = Gtk.Label(label="View")
@@ -559,8 +563,10 @@ class TasksWindow(Adw.ApplicationWindow):
                 project_id=self.selected_project_id(),
                 description=self.description_entry.get_buffer().get_text(
                     self.description_entry.get_buffer().get_start_iter(),
-                    self.description_entry.get_buffer().get_end_iter(), False)
+                    self.description_entry.get_buffer().get_end_iter(), False),
+                labels=self.store.parse_labels(self.labels_entry.get_text())
             )
+            self.labels_entry.set_text("")
             self.description_entry.get_buffer().set_text("")
             self.entry.set_text("")
             self.due.set_text("")
@@ -637,6 +643,10 @@ class TasksWindow(Adw.ApplicationWindow):
                 info.append(project)
             if task.get("description"):
                 info.append("Notes: " + task["description"].replace("\n", " ")[:65])
+            import json
+            label_values = self.store.checked_labels(json.loads(task["labels_json"]))
+            if label_values:
+                info.append(" ".join("#" + label for label in label_values))
             row = Adw.ActionRow(title=task["title"], subtitle="  ·  ".join(info))
             if view == "Trash":
                 restore = Gtk.Button(label="Restore", tooltip_text="Restore " + task["title"])
@@ -798,6 +808,12 @@ class TasksWindow(Adw.ApplicationWindow):
         description.update_property([Gtk.AccessibleProperty.LABEL], ["Edit task description and notes"])
         description.get_buffer().set_text(task.get("description") or "")
         form.append(description)
+        import json
+        form.append(Gtk.Label(label="Labels (comma separated)", xalign=0))
+        labels_entry = Gtk.Entry()
+        labels_entry.set_max_length(272)
+        labels_entry.set_text(", ".join(json.loads(task["labels_json"])))
+        form.append(labels_entry)
 
         form.append(Gtk.Label(label="Priority", xalign=0))
         priority = Gtk.DropDown.new_from_strings(
@@ -828,12 +844,12 @@ class TasksWindow(Adw.ApplicationWindow):
         dialog.set_close_response("cancel")
         dialog.connect(
             "response", self.on_edit_response, task["id"], title, priority,
-            due, project, project_ids, description
+            due, project, project_ids, description, labels_entry
         )
         dialog.present(self)
 
     def on_edit_response(self, _dialog, response, task_id, title, priority,
-                         due, project, project_ids, description=None):
+                         due, project, project_ids, description=None, labels_entry=None):
         if response != "save":
             return
         try:
@@ -846,7 +862,9 @@ class TasksWindow(Adw.ApplicationWindow):
                 **({"description": description.get_buffer().get_text(
                     description.get_buffer().get_start_iter(),
                     description.get_buffer().get_end_iter(), False)}
-                   if description is not None else {})
+                   if description is not None else {}),
+                **({"labels": self.store.parse_labels(labels_entry.get_text())}
+                   if labels_entry is not None else {})
             )
             if not found:
                 self.message.set_text("Task was deleted; nothing was changed.")

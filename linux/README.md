@@ -100,3 +100,5 @@ The source installer has not undergone multi-distribution packaging tests, relea
 **Search:** The native search field matches task titles or notes in the selected view and local Trash; SQL wildcard characters are treated literally. Search is device-local and cannot discover another client’s data without an explicit restore.
 
 **Duplicate Task:** Use the Copy icon beside an active or completed task to create a new open task with a new UUID/timestamp and the same title, notes, due date, priority and project. This is a manual copy, not a recurring schedule; it leaves the original unchanged. See [task duplication](../docs/TASK_DUPLICATION.md).
+
+**Labels:** Native capture/edit accepts up to eight comma-separated plain-text labels per task. Labels stay with task duplication and recoverable Trash; schema-3 backup is required if any task has labels. Older schema-1/2 clients cannot import schema 3. See [portable label contract](../docs/PORTABLE_SCHEMA3_LABELS.md).

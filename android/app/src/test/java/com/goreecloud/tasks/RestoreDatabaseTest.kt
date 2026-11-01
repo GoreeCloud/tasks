@@ -93,6 +93,31 @@ class RestoreDatabaseTest {
         assertEquals(source.description,db.listTasks().single { it.id == copiedId }.description)
     }
 
+    @Test fun schemaThreeLabelsSurviveImportDuplicateTrashRestoreAndExport() {
+        db.restorePortableBackup(PortableRestore.parse(PortableFixture.read("schema3-synthetic.json")))
+        val original = db.listTasks().single { it.id == "task-notes" }
+        assertEquals(listOf("Work", "Design 🧭"),original.labels)
+        val copiedId = db.duplicateTask(original.id)
+        assertEquals(original.labels,db.listTasks().single { it.id == copiedId }.labels)
+        val exported = JSONObject(String(db.exportPortableBackup(),Charsets.UTF_8))
+        assertEquals(3,exported.getInt("schema"))
+        assertEquals(original.labels,PortableRestore.parse(db.exportPortableBackup()).tasks
+            .single { it.id == original.id }.labels)
+        assertTrue(db.delete("task-notes"))
+        db.close();db = TasksDatabase(context)
+        assertEquals(original.labels,db.listDeletedTasks().single().labels)
+        assertTrue(db.restoreDeletedTask("task-notes"))
+        db.update(copiedId,original.title,original.priority,original.dueDate,original.projectId,
+            original.description,listOf("Archive"))
+        assertEquals(listOf("Archive"),db.listTasks().single { it.id == copiedId }.labels)
+        try {
+            db.update(copiedId,original.title,original.priority,original.dueDate,original.projectId,
+                original.description,listOf("X","X"))
+            throw AssertionError("Duplicate labels accepted")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(listOf("Archive"),db.listTasks().single { it.id == copiedId }.labels)
+    }
+
     @Test fun schemaTwoDescriptionSurvivesImportUpdateBulkTrashAndExport() {
         val source = PortableRestore.parse(PortableFixture.read("schema2-synthetic.json"))
         db.restorePortableBackup(source)
@@ -331,6 +356,28 @@ class RestoreDatabaseTest {
         } catch (_: IllegalArgumentException) { }
         assertEquals(listOf("task-1"), db.listDeletedTasks().map { it.id })
         assertEquals(listOf("task-2"), db.listTasks().map { it.id })
+    }
+
+    @Test fun versionSixUpgradeAddsLabelsWithoutChangingExistingNotes() {
+        db.close()
+        context.deleteDatabase("goreecloud-tasks.db")
+        val old = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath("goreecloud-tasks.db"), null)
+        old.execSQL("CREATE TABLE projects (id TEXT PRIMARY KEY,name TEXT NOT NULL)")
+        old.execSQL("CREATE TABLE tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT,description TEXT NOT NULL DEFAULT '')")
+        old.execSQL("CREATE TABLE deleted_tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT,deleted_at INTEGER,description TEXT NOT NULL DEFAULT '')")
+        old.execSQL("INSERT INTO tasks (id,title,priority,completed,created_at,description) " +
+            "VALUES ('old','Preserved',4,0,1761904800123,'Keep notes')")
+        old.version = 6
+        old.close()
+        db = TasksDatabase(context)
+        assertEquals("Keep notes",db.listTasks().single().description)
+        assertEquals(emptyList<String>(),db.listTasks().single().labels)
+        db.update("old","Preserved",4,null,null,"Keep notes",listOf("Review"))
+        assertEquals(listOf("Review"),db.listTasks().single().labels)
     }
 
     @Test fun versionFiveUpgradeAddsDescriptionsWithoutChangingExistingTasks() {

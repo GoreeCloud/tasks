@@ -5,10 +5,27 @@ export function checkedDescription(value) {
     throw new Error('Description must be valid Unicode text, at most 2000 characters.');
   return value;
 }
+export function checkedLabels(labels) {
+  if (!Array.isArray(labels) || labels.length > 8) throw new Error('Up to 8 labels per task.');
+  const seen = new Set();
+  return labels.map(label => {
+    if (typeof label !== 'string' || !validUnicodeText(label) ||
+        !label.trim() || label.trim().length > 32 || label !== label.trim() ||
+        /[,\u0000-\u001f\u007f]/u.test(label) || seen.has(label)) {
+      throw new Error('Labels must be unique 1–32 character plain text without commas or controls.');
+    }
+    seen.add(label);
+    return label;
+  });
+}
+export function parseLabelInput(raw) {
+  if (typeof raw !== 'string') throw new Error('Invalid labels.');
+  return checkedLabels(raw.trim() ? raw.split(',').map(label => label.trim()) : []);
+}
 export function hydrate(raw) {
   try {
     const data = JSON.parse(raw);
-    if (!data || ![1, 2].includes(data.schema) || !Array.isArray(data.projects) || !Array.isArray(data.tasks)) return EMPTY();
+    if (!data || ![1, 2, 3].includes(data.schema) || !Array.isArray(data.projects) || !Array.isArray(data.tasks)) return EMPTY();
     return { schema: data.schema, projects: data.projects.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string'), tasks: data.tasks.filter(t => t && typeof t.id === 'string' && typeof t.title === 'string') };
   } catch { return EMPTY(); }
 }
@@ -35,14 +52,16 @@ function validatedTaskFields(title, projectId, due, priority) {
   if (due && (!/^\d{4}-\d{2}-\d{2}$/.test(due) || Number.isNaN(Date.parse(due + 'T00:00:00Z')) || new Date(due + 'T00:00:00Z').toISOString().slice(0, 10) !== due)) throw new Error('Due date must be a valid YYYY-MM-DD date.');
   return { title: name, projectId: projectId || null, due, priority: p };
 }
-export function newTask(title, projectId = null, due = '', priority = 4, description = '') {
+export function newTask(title, projectId = null, due = '', priority = 4, description = '', labels = []) {
   const fields = validatedTaskFields(title, projectId, due, priority);
   const result = { id: crypto.randomUUID(), ...fields, completed: false, createdAt: new Date().toISOString(), completedAt: null };
   if (description !== '') result.description = checkedDescription(description);
+  const normalized = checkedLabels(labels);
+  if (normalized.length) result.labels = normalized;
   return result;
 }
 /** Return a new task without changing identity, creation or completion history. */
-export function editTask(task, { title, projectId, due, priority, description }, projects) {
+export function editTask(task, { title, projectId, due, priority, description, labels }, projects) {
   if (!task || typeof task !== 'object' || Array.isArray(task)) throw new Error('Task no longer exists.');
   const fields = validatedTaskFields(title, projectId, due, priority);
   if (!Array.isArray(projects) ||
@@ -54,6 +73,10 @@ export function editTask(task, { title, projectId, due, priority, description },
     const notes = checkedDescription(description);
     if (notes !== '' || Object.hasOwn(task, 'description')) edited.description = notes;
   }
+  if (labels !== undefined) {
+    const normalized = checkedLabels(labels);
+    if (normalized.length || Object.hasOwn(task, 'labels')) edited.labels = normalized;
+  }
   return edited;
 }
 /** Create a fresh open task without importing the source's identity or completion history. */
@@ -61,7 +84,7 @@ export function duplicateTask(task, projects) {
   if (!task || !Array.isArray(projects)) throw new Error('Task no longer exists.');
   if (task.projectId != null && !projects.some(project => project.id === task.projectId))
     throw new Error('The original project no longer exists.');
-  return newTask(task.title, task.projectId, task.due, task.priority, task.description ?? '');
+  return newTask(task.title, task.projectId, task.due, task.priority, task.description ?? '', task.labels ?? []);
 }
 /** Remove exactly one task from a draft; caller persists it only after validation. */
 export function deleteTask(draft, id) {

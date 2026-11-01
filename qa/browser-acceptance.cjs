@@ -143,6 +143,30 @@ async function run(engine,port){
     assert.notEqual(duplicates[0].id,duplicates[1].id);
     assert.ok(duplicates.every(t=>t.description==='Private context 🧭\nSecond line'));
     assert.ok(duplicates.every(t=>!t.completed && t.completedAt===null));
+    // Upgrade a single task to first-class schema-3 labels, without changing its notes.
+    await notesPage.getByRole('button',{name:'Edit Edited acceptance task'}).first().click();
+    await notesPage.locator('#edit-task-labels').fill('Work, Design 🧭');
+    await notesPage.locator('#edit-task-form button[type=submit]').click();
+    assert.equal(await notesPage.locator('.task-labels').count(),1);
+    const [labelsDownload]=await Promise.all([
+      notesPage.waitForEvent('download'),notesPage.locator('#export-data').click()
+    ]);
+    const labelChunks=[];for await(const chunk of await labelsDownload.createReadStream())labelChunks.push(chunk);
+    const schemaThree=JSON.parse(Buffer.concat(labelChunks).toString('utf8'));
+    assert.equal(schemaThree.schema,3);
+    assert.equal(schemaThree.tasks.length,2);
+    assert.equal(schemaThree.tasks.filter(t=>t.labels.length>0).length,1);
+    assert.deepEqual(schemaThree.tasks.find(t=>t.labels.length).labels,['Work','Design 🧭']);
+    assert.ok(schemaThree.tasks.every(t=>t.description==='Private context 🧭\nSecond line'));
+    const labelContext=await browser.newContext();const labelPage=await labelContext.newPage();
+    await labelPage.goto(url,{waitUntil:'networkidle'});
+    labelPage.once('dialog',dialog=>dialog.accept());
+    await labelPage.locator('#import-file').setInputFiles({name:'labels.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(schemaThree))});
+    assert.equal(await labelPage.locator('.task-labels').count(),1);
+    await labelPage.reload({waitUntil:'networkidle'});
+    assert.equal(await labelPage.locator('.task-labels').count(),1);
+    note(engine.name()+' schema3 labels portable roundtrip',{schema:3,labels:2});
+    await labelContext.close();
     note(engine.name()+' duplicate notes',{count:duplicates.length,distinctIds:true});
     note(engine.name()+' notes search and Trash recovery',{matched:true,restored:true});
     note(engine.name()+' notes v2 portable roundtrip',{schema:schemaTwo.schema,notes:schemaTwo.tasks[0].description.length});

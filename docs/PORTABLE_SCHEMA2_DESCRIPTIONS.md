@@ -39,3 +39,7 @@ The headless Chromium and Firefox suite also captures, edits, exports and restor
 ## Manual task duplication and descriptions
 
 A task can be manually duplicated on each native client and browser without changing this portable format: the new, incomplete task retains its plain-text description, priority, project and due date but has a fresh ID/creation time and no completion history. Schema 2 continues to be mandatory when active notes would otherwise be lost. See [manual duplication contract](TASK_DUPLICATION.md).
+
+## Extension: labels in schema 3
+
+First-class labels use a separate, additive [schema-3 portable contract](PORTABLE_SCHEMA3_LABELS.md). Schema 1/2 remains readable, but a schema-3 backup cannot be imported by an older schema-1/2-only client. No description or timestamp data is intentionally discarded by the new contract.

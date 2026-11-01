@@ -64,6 +64,34 @@ class PortableBackupTests(unittest.TestCase):
         finally:
             store.close()
 
+    def test_schema3_labels_import_export_and_atomic_trash(self):
+        fixture = json.loads((Path(__file__).resolve().parents[2] /
+                              "fixtures/portable/schema3-synthetic.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate(fixture),fixture)
+        with self.assertRaises(BackupError):
+            validate(dict(fixture,schema=2))
+        broken = json.loads(json.dumps(fixture))
+        broken["tasks"][0]["labels"] = ["Work","Work"]
+        with self.assertRaises(BackupError):
+            validate(broken)
+        tasks, projects = import_data(self.target,fixture)
+        self.assertEqual((tasks,projects),(2,1))
+        exported = export_data(self.target)
+        self.assertEqual(exported["schema"],3)
+        self.assertEqual({t["id"]:t["labels"] for t in exported["tasks"]},
+                         {t["id"]:t["labels"] for t in fixture["tasks"]})
+        self.assertTrue(self.target.delete_task("task-notes"))
+        self.assertEqual(json.loads(self.target.list_deleted_tasks()[0]["labels_json"]),["Work","Design 🧭"])
+        self.assertTrue(self.target.restore_deleted_task("task-notes"))
+        copied=self.target.duplicate_task("task-notes")
+        row=next(t for t in self.target.list_tasks(include_completed=True) if t["id"]==copied)
+        self.assertEqual(json.loads(row["labels_json"]),["Work","Design 🧭"])
+        self.assertTrue(self.target.update_task(copied,title="Review release",priority=1,labels=["Archive"]))
+        with self.assertRaises(ValueError):
+            self.target.update_task(copied,title="Review release",priority=1,labels=["A","A"])
+        self.assertEqual(json.loads(next(t for t in self.target.list_tasks(include_completed=True)
+                                         if t["id"]==copied)["labels_json"]),["Archive"])
+
     def test_schema2_descriptions_round_trip_across_trash_and_restore(self):
         fixture = json.loads((Path(__file__).resolve().parents[2] /
                               "fixtures/portable/schema2-synthetic.json").read_text(encoding="utf-8"))

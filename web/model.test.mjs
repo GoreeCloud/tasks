@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { batchEditTasks, duplicateTask, EMPTY, deleteTask, editTask, hydrate, localDate, newTask, selectTasks, undoTaskDelete } from './model.mjs';
+import { batchEditTasks, duplicateTask, EMPTY, deleteTask, editTask, hydrate, localDate, newTask, parseLabelInput, selectTasks, undoTaskDelete } from './model.mjs';
 import { exportBackup, validateBackupText } from './backup.mjs';
 test('bad persistence recovers safely', () => { assert.deepEqual(hydrate('{'), EMPTY()); assert.deepEqual(hydrate('{"schema":2}'), EMPTY()); });
 test('title and priority validation', () => { assert.throws(() => newTask('  ')); assert.throws(() => newTask('ok', null, '', 0)); assert.equal(newTask('  Plan  ').title, 'Plan'); });
@@ -219,4 +219,17 @@ test('duplicate completed schema-2 task creates a distinct open copy without his
   assert.equal(exportBackup({schema:2,projects:project,tasks:[completed,duplicated]}).includes('Release checklist'),true);
   assert.throws(()=>duplicateTask(completed,[]),/project/);
   assert.throws(()=>duplicateTask(null,project),/Task/);
+});
+
+test('plain text labels preserve identity in editing and duplication',()=>{
+ const labels=parseLabelInput('Work, Design 🧭');
+ const source=newTask('Tagged',null,'',2,'Context',labels);
+ const duplicate=duplicateTask(source,[]);
+ assert.deepEqual(duplicate.labels,labels);
+ assert.notEqual(duplicate.id,source.id);
+ assert.deepEqual(editTask(source,{title:'Tagged',projectId:null,due:'',priority:2,labels:[]},[]).labels,[]);
+ assert.deepEqual(source.labels,labels);
+ assert.throws(()=>parseLabelInput('Work, Work'),/unique/);
+ assert.throws(()=>parseLabelInput('X'.repeat(33)),/unique/);
+ assert.throws(()=>parseLabelInput('🧭'.repeat(17)),/unique/);
 });

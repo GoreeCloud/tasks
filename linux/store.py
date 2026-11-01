@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -72,6 +73,8 @@ class TaskStore:
             columns = {row[1] for row in self.db.execute(f"PRAGMA table_info({table})")}
             if "description" not in columns:
                 self.db.execute(f"ALTER TABLE {table} ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+            if "labels_json" not in columns:
+                self.db.execute(f"ALTER TABLE {table} ADD COLUMN labels_json TEXT NOT NULL DEFAULT '[]'")
         self.db.commit()
 
     @staticmethod
@@ -81,9 +84,30 @@ class TaskStore:
             raise ValueError("Description must be valid Unicode text, at most 2000 characters")
         return text
 
+    @staticmethod
+    def checked_labels(labels):
+        if type(labels) is not list or len(labels) > 8:
+            raise ValueError("A task supports up to 8 labels")
+        seen = set()
+        for label in labels:
+            if (type(label) is not str or not label or label != label.strip() or
+                    len(label.encode("utf-16-le", "surrogatepass")) // 2 > 32 or
+                    any(ord(ch) < 32 or ord(ch) == 127 or
+                        0xD800 <= ord(ch) <= 0xDFFF or ch == "," for ch in label) or
+                    label in seen):
+                raise ValueError("Labels must be unique 1–32 character text without commas or controls")
+            seen.add(label)
+        return labels[:]
+
+    @classmethod
+    def parse_labels(cls, raw):
+        if type(raw) is not str:
+            raise ValueError("Labels must be text")
+        return cls.checked_labels([part.strip() for part in raw.split(",")] if raw.strip() else [])
+
     def add_task(self, title: str, *, priority: int = 4,
                  due_date: str | None = None, project_id: str | None = None,
-                 description: str = "") -> str:
+                 description: str = "", labels: list[str] | None = None) -> str:
         if not isinstance(title, str):
             raise ValueError("Task title must be text")
         title = title.strip()
@@ -103,12 +127,13 @@ class TaskStore:
             except ValueError as error:
                 raise ValueError("Due date must be a valid YYYY-MM-DD date") from error
         description = self.checked_description(description)
+        labels_json = json.dumps(self.checked_labels(labels if labels is not None else []), ensure_ascii=False)
         task_id = str(uuid4())
         with self.db:
             self.db.execute(
-                "INSERT INTO tasks (id,title,priority,due_date,project_id,created_at,description) VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO tasks (id,title,priority,due_date,project_id,created_at,description,labels_json) VALUES (?,?,?,?,?,?,?,?)",
                 (task_id, title, priority, due_date or None, project_id,
-                 datetime.now(timezone.utc).isoformat(), description))
+                 datetime.now(timezone.utc).isoformat(), description, labels_json))
         return task_id
 
     def duplicate_task(self, task_id: str) -> str:
@@ -119,8 +144,8 @@ class TaskStore:
         with self.db:
             result = self.db.execute(
                 "INSERT INTO tasks "
-                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description) "
-                "SELECT ?,title,priority,due_date,project_id,0,?,NULL,description "
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,labels_json) "
+                "SELECT ?,title,priority,due_date,project_id,0,?,NULL,description,labels_json "
                 "FROM tasks WHERE id=?",
                 (copied_id, datetime.now(timezone.utc).isoformat(), task_id)
             )
@@ -130,7 +155,8 @@ class TaskStore:
 
     def update_task(self, task_id: str, *, title: str, priority: int = 4,
                     due_date: str | None = None, project_id: str | None = None,
-                    description: str | None = None) -> bool:
+                    description: str | None = None,
+                    labels: list[str] | None = None) -> bool:
         """Edit task fields in one transaction without losing completion metadata."""
         if not isinstance(title, str):
             raise ValueError("Task title must be text")
@@ -154,15 +180,24 @@ class TaskStore:
             raise ValueError("Project ID must be text or None")
         if description is not None:
             self.checked_description(description)
+        labels_json = json.dumps(self.checked_labels(labels), ensure_ascii=False) if labels is not None else None
         with self.db:
-            if description is None:
+            if description is None and labels_json is None:
                 result = self.db.execute(
                     "UPDATE tasks SET title=?,priority=?,due_date=?,project_id=? WHERE id=?",
                     (title, priority, due_date or None, project_id, task_id))
             else:
+                fields = ["title=?", "priority=?", "due_date=?", "project_id=?"]
+                params = [title, priority, due_date or None, project_id]
+                if description is not None:
+                    fields.append("description=?")
+                    params.append(description)
+                if labels_json is not None:
+                    fields.append("labels_json=?")
+                    params.append(labels_json)
                 result = self.db.execute(
-                    "UPDATE tasks SET title=?,priority=?,due_date=?,project_id=?,description=? WHERE id=?",
-                    (title, priority, due_date or None, project_id, description, task_id))
+                    "UPDATE tasks SET " + ",".join(fields) + " WHERE id=?",
+                    params + [task_id])
         return result.rowcount == 1
 
     def list_tasks(self, *, include_completed: bool = False, view: str | None = None,
@@ -280,8 +315,8 @@ class TaskStore:
                 else:
                     self.db.execute(
                         "INSERT INTO deleted_tasks "
-                        "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,deleted_at) "
-                        "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,description,? "
+                        "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,labels_json,deleted_at) "
+                        "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,description,labels_json,? "
                         "FROM tasks WHERE id=?",
                         (when, task_id)
                     )
@@ -312,8 +347,8 @@ class TaskStore:
             # reintroduced via an import; a collision rolls back safely.
             self.db.execute(
                 "INSERT INTO deleted_tasks "
-                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,deleted_at) "
-                "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,description,? "
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,labels_json,deleted_at) "
+                "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,description,labels_json,? "
                 "FROM tasks WHERE id=?",
                 (datetime.now(timezone.utc).isoformat(), task_id)
             )
@@ -352,11 +387,11 @@ class TaskStore:
             # An ID collision raises and rolls back, leaving Trash untouched.
             self.db.execute(
                 "INSERT INTO tasks "
-                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,labels_json) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 tuple(row[field] for field in
                       ("id", "title", "priority", "due_date", "project_id",
-                       "completed", "created_at", "completed_at", "description"))
+                       "completed", "created_at", "completed_at", "description", "labels_json"))
             )
             removed = self.db.execute(
                 "DELETE FROM deleted_tasks WHERE id=?", (task_id,))

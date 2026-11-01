@@ -45,6 +45,24 @@ internal object TaskRules {
         return value
     }
 
+    /** Ordered, unique, plain-text labels; compatible with browser and Linux. */
+    fun labels(values: List<String>): List<String> {
+        require(values.size <= 8) { "Up to 8 labels per task" }
+        val seen = mutableSetOf<String>()
+        values.forEach { label ->
+            require(label.isNotEmpty() && label == label.trim() && label.length <= 32 &&
+                hasValidSurrogates(label) && label.none {
+                    it == ',' || it.code < 32 || it.code == 127
+                } && seen.add(label)) {
+                "Labels must be unique 1–32 character text without commas or controls"
+            }
+        }
+        return values.toList()
+    }
+
+    fun parseLabels(raw: String): List<String> =
+        labels(if (raw.isBlank()) emptyList() else raw.split(',').map { it.trim() })
+
     fun priority(value: Int): Int {
         require(value in 1..4) { "Priority must be P1–P4" }
         return value

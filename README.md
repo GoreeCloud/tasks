@@ -30,6 +30,8 @@ The owner-reference-inspired native navigation pass is documented in [native lis
 
 Manual **Duplicate Task** is available in all three clients: a fresh open task keeps title, notes, priority, project and due date without copying completion history. No new backup version or automatic recurring schedule is introduced. See [task duplication contract](docs/TASK_DUPLICATION.md).
 
+First-class task **labels** now have a development-only schema-3 contract across browser, GTK4 Linux and Android Compose. Legacy schema-1/2 backups remain readable; schema-3 backups require upgraded clients. See [schema-3 label compatibility](docs/PORTABLE_SCHEMA3_LABELS.md).
+
 Each app is native to its target platform. They are not web wrappers. They use GC UI's design language as the design authority; consumer compliance and visual acceptance are **not** asserted. The appearance settings now offer explicit Light/Dark modes and Neutral, Lagoon, Moss, Ember, Ocean and Iris accents, with first-run **Light/Neutral**. Preferences are retained separately on each device; no theme setting is synchronized or included in task backups. See [GC UI appearance integration](docs/GC_UI_APPEARANCE_MIGRATION.md).
 
 ## Run the web app

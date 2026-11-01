@@ -101,12 +101,16 @@ def main():
             project_picker.set_selected(1)
             description = Gtk.TextView()
             description.get_buffer().set_text("Synthetic release%_notes")
+            labels = Gtk.Entry()
+            labels.set_text("Work, Design 🧭")
             window.on_edit_response(
                 None, "save", task, title, priority, due,
-                project_picker, [None, project], description
+                project_picker, [None, project], description, labels
             )
             row = window.store.list_tasks()[0]
             assert row["description"] == "Synthetic release%_notes"
+            import json
+            assert json.loads(row["labels_json"]) == ["Work", "Design 🧭"]
             window.search.set_text("release%_")
             window.refresh() # SearchEntry notification is debounced by GTK
             assert window.visible_task_ids == [task]
@@ -125,6 +129,7 @@ def main():
             deleted = window.store.list_deleted_tasks()
             assert len(deleted) == 1 and deleted[0]["id"] == task
             assert deleted[0]["description"] == "Synthetic release%_notes"
+            assert json.loads(deleted[0]["labels_json"]) == ["Work", "Design 🧭"]
             window.on_nav_view(None, "Trash")
             window.search.set_text("release%_")
             assert window.list_box.get_first_child() is not None
@@ -184,13 +189,14 @@ def main():
             assert len(window.store.list_deleted_tasks()) == 2
             # Native Duplicate action must leave a new open task with notes.
             original = window.store.add_task("Reusable task", priority=2,
-                                             description="Review checklist 🧭")
+                                             description="Review checklist 🧭", labels=["Review"])
             window.store.complete_task(original, True)
             window.refresh()
             window.on_duplicate(None, original)
             created = [t for t in window.store.list_tasks() if t["title"] == "Reusable task"]
             assert len(created) == 1 and created[0]["id"] != original
             assert created[0]["description"] == "Review checklist 🧭"
+            assert json.loads(created[0]["labels_json"]) == ["Review"]
             assert created[0]["completed"] == 0 and created[0]["completed_at"] is None
             assert window.store.list_tasks(view="Completed")[0]["id"] == original
             print("GTK4_LIBADWAITA_DUPLICATE_TASK_SMOKE_PASS")
