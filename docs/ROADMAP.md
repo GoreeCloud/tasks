@@ -28,6 +28,7 @@
 ## C. Self-hosted sync, identity and teams
 
 - [x] Experimental single-user loopback-only API with authenticated request gate, idempotent creates, revision-checked updates, soft-deletion change feed and integration tests (not connected to clients; not production deployable).
+- [x] Experimental offline SQLite backup CLI with integrity-checked, non-overwriting point-in-time snapshots and restoration only to a new database (plaintext development tooling; full recovery procedures pending).
 
 - [ ] Secure API and PostgreSQL migrations with per-tenant access controls.
 - [ ] Authentication, device sessions, invitation and role policies.

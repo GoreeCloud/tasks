@@ -63,6 +63,30 @@ python3 -m py_compile server/api.py
 
 Tests start an ephemeral loopback server with a synthetic token and a temporary database. They verify authorization denial, validation, idempotent concurrent creation, revision conflicts, immutable change history, persistence after reopening, and basic recovery from invalid input. Passing tests do not establish penetration testing or release acceptance.
 
+## Local, non-overwriting SQLite snapshots (development)
+
+The new `server/backup.py` CLI uses SQLite's online backup API to produce a
+consistent point-in-time copy, including uncheckpointed WAL transactions, while
+the server may be operating. It validates `PRAGMA integrity_check` and the
+expected API tables before publishing an output. It uses private temporary
+files and exclusive hard-link creation so existing backup or database files are
+not overwritten. Restoration is only to a **new path**, never an existing
+live database. Both commands operate on local files; no HTTP endpoint exists.
+
+```sh
+python3 server/backup.py backup --source /path/to/dev-tasks.sqlite3 --destination /private/backup.sqlite3
+python3 server/backup.py restore --source /private/backup.sqlite3 --destination /private/restored.sqlite3
+python3 -m unittest discover -s server/tests -v
+```
+
+**Security limits:** Snapshots are plaintext SQLite files with mode 0600; they
+are not encrypted, rotated, monitored or uploaded automatically. Never place
+private backups in this public repository. Store them securely outside shared
+folders, independently verify restores, and establish a real retention/recovery
+policy before production use. Creating a snapshot is **not** itself proof of a
+complete disaster-recovery process. See `test_backup.py` for synthetic
+round-trip, history/idempotency, no-overwrite, and corrupt-source checks.
+
 ## Required next engineering gates
 
 1. Versioned schema and database migrations (never destructive updates).

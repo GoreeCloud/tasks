@@ -33,7 +33,7 @@ jobs:
       - name: Experimental loopback API integration tests
         run: python3 -m unittest discover -s server/tests -v
       - name: Python API syntax
-        run: python3 -m py_compile server/api.py
+        run: python3 -m py_compile server/api.py server/backup.py
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 35

@@ -69,6 +69,7 @@ node --test web/*.test.mjs
 python3 -m unittest discover -s linux/tests -v
 python3 -m py_compile linux/app.py linux/store.py linux/backup.py server/api.py
 python3 -m unittest discover -s server/tests -v
+python3 -m py_compile server/backup.py
 sh linux/tests/test_install.sh
 ```
 
