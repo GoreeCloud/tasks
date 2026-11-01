@@ -46,6 +46,21 @@ The native GTK interface also exposes **Export JSON** and **Import JSON** file d
 
 **Import requires an empty task database** and validates the entire JSON snapshot before committing any records. It never replaces live records. Export refuses a missing SQLite database or existing output file, so it cannot silently provide an empty misleading backup. Test backup compatibility and verify real recovery before using it for important work. Android export is now in source; native Android restore/import is still pending. File-dialog interactions require full platform-specific GUI acceptance beyond the initial smoke launch.
 
+## GTK runtime smoke (optional)
+
+On a Linux machine with GTK4, libadwaita, PyGObject and `xvfb-run` installed:
+
+```sh
+xvfb-run -a python3 linux/tests/gui_smoke.py
+```
+
+This exercises the actual native window, task edit dialog and SQLite persistence
+using a **temporary XDG_DATA_HOME**. It never reads or writes the user's normal
+Tasks database. The smoke test does not replace visual, keyboard-navigation,
+accessibility or multi-distribution acceptance. The GC UI stylesheet uses
+libadwaita's adaptive palette variables for light/dark themes; GTK CSS does
+not support browser `@media` rules.
+
 ## Known limitations
 
 The source installer has not undergone multi-distribution packaging tests, release signing, accessibility-device acceptance or update/rollback validation. Full Linux support and Stable acceptance remain pending.

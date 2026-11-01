@@ -1,12 +1,12 @@
-window { background: #ecf0f8; }
-headerbar { background: #f9fafd; }
-.title-1 { color: #29245d; font-weight: 800; }
+/* Adaptive GTK4/libadwaita colors: these variables follow light/dark settings. */
+window { background-color: @window_bg_color; }
+headerbar { background-color: @headerbar_bg_color; }
+.title-1 { color: @accent_color; font-weight: 800; }
 list { border-radius: 18px; }
 row { min-height: 66px; }
-button.suggested-action { background: #5145d9; color: white; border-radius: 12px; }
-entry { border-radius: 12px; min-height: 44px; }
-@media (prefers-color-scheme: dark) {
-  window { background: #171b28; }
-  headerbar { background: #1d2231; }
-  .title-1 { color: #c5bfff; }
+button.suggested-action {
+  background-color: #5145d9;
+  color: white;
+  border-radius: 12px;
 }
+entry { border-radius: 12px; min-height: 44px; }
