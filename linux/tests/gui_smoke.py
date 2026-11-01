@@ -56,9 +56,16 @@ def main():
             assert len(deleted) == 1 and deleted[0]["id"] == task
             window.on_import(None)
             assert "including Trash" in window.message.get_text()
-            window.view.set_selected(6)
+            assert "Next 7 days" in window.view_names
+            assert "Overdue" in window.view_names
+            for name in ("Next 7 days", "Overdue"):
+                window.view.set_selected(window.view_names.index(name))
+                window.refresh()
+                assert window.list_box.get_first_child() is not None
+            trash_index = window.view_names.index("Trash")
+            window.view.set_selected(trash_index)
             window.refresh()
-            assert window.view.get_selected() == 6
+            assert window.view.get_selected() == trash_index
             assert window.list_box.get_first_child() is not None
             window.on_restore(None, task)
             restored = window.store.list_tasks()[0]

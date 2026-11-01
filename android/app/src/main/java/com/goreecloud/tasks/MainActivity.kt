@@ -69,6 +69,10 @@ private fun TasksScreen(db: TasksDatabase) {
         var dueDate by remember { mutableStateOf<String?>(null) }
         var view by remember { mutableStateOf("Open") }
         var search by remember { mutableStateOf("") }
+        var priorityFilter by remember { mutableStateOf<Int?>(null) }
+        var priorityFilterMenu by remember { mutableStateOf(false) }
+        var sortBy by remember { mutableStateOf("Smart") }
+        var sortMenu by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf("") }
         var backupNotice by remember { mutableStateOf("") }
         var preparedBackup by remember { mutableStateOf<ByteArray?>(null) }
@@ -131,7 +135,8 @@ private fun TasksScreen(db: TasksDatabase) {
             deletedTasks.filter {
                 search.isBlank() || it.title.contains(search.trim(), ignoreCase = true)
             }
-        } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search)
+        } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search,
+            priorityFilter, sortBy)
         val activeProjectName = projects.find { it.id == selectedProjectId }?.name ?: "Inbox"
         val chooseDate = {
             val initial = dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
@@ -280,6 +285,38 @@ private fun TasksScreen(db: TasksDatabase) {
                             selected = view == name, onClick = { view = name },
                             label = { Text(name) }
                         )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { priorityFilterMenu = true },
+                            enabled = view != "Trash", modifier = Modifier.fillMaxWidth()) {
+                            Text(priorityFilter?.let { "Filter P$it" } ?: "All priorities", maxLines = 1)
+                        }
+                        DropdownMenu(expanded = priorityFilterMenu,
+                            onDismissRequest = { priorityFilterMenu = false }) {
+                            DropdownMenuItem(text = { Text("All priorities") }, onClick = {
+                                priorityFilter = null; priorityFilterMenu = false
+                            })
+                            (1..4).forEach { level ->
+                                DropdownMenuItem(text = { Text("P$level") }, onClick = {
+                                    priorityFilter = level; priorityFilterMenu = false
+                                })
+                            }
+                        }
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { sortMenu = true }, enabled = view != "Trash",
+                            modifier = Modifier.fillMaxWidth()) { Text("Sort: $sortBy", maxLines = 1) }
+                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                            listOf("Smart", "Due date", "Title").forEach { mode ->
+                                DropdownMenuItem(text = { Text(mode) }, onClick = {
+                                    sortBy = mode; sortMenu = false
+                                })
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))

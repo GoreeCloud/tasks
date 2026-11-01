@@ -29,6 +29,8 @@
 - [ ] Verify all platform builds and runtime operation, fix defects, audit accessibility and GC UI appearance.
 - [ ] Desktop packaging, Android device validation, and standalone APK handoff if requested.
 
+- [x] Additional native Linux and Android UI source for Overdue/Next 7 days views, P1–P4 priority filtering, and Smart/Due date/Title sorting. Existing native data schema and backups unchanged. Linux unit and GTK runtime smoke covered; Android JVM/CI compilation and real-device UI acceptance remain separate gates. See [native view parity](NATIVE_VIEW_PARITY.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

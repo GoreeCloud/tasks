@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
 PRIORITIES = (1, 2, 3, 4)
-VIEWS = ("Open", "Today", "Upcoming", "Priority", "Completed", "Project")
+VIEWS = ("Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority", "Completed", "Project")
 
 
 class TaskStore:
@@ -129,12 +129,25 @@ class TaskStore:
 
     def list_tasks(self, *, include_completed: bool = False, view: str | None = None,
                    query: str = "", project_id: str | None = None,
-                   today: str | None = None) -> list[dict]:
+                   today: str | None = None, priority_filter: int | None = None,
+                   sort_by: str = "Smart") -> list[dict]:
         if view is None:
             view = "Open" if not include_completed else "All"
         if view not in (*VIEWS, "All"):
             raise ValueError("Unknown task view")
+        order_options = {
+            "Smart": "completed, priority, CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, created_at DESC",
+            "Due date": "completed, CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, priority, created_at DESC",
+            "Title": "completed, title COLLATE NOCASE, priority, created_at DESC",
+        }
+        if sort_by not in order_options:
+            raise ValueError("Unknown task sorting mode")
+        if priority_filter is not None and (type(priority_filter) is not int or priority_filter not in PRIORITIES):
+            raise ValueError("Priority filter must be P1–P4 or All")
         clauses, params = [], []
+        if priority_filter is not None:
+            clauses.append("priority=?")
+            params.append(priority_filter)
         if view == "Completed":
             clauses.append("completed=1")
         elif view != "All":
@@ -142,6 +155,15 @@ class TaskStore:
         if view == "Today":
             clauses.append("due_date IS NOT NULL AND due_date<=?")
             params.append(today or date.today().isoformat())
+        elif view == "Overdue":
+            clauses.append("due_date IS NOT NULL AND due_date<?")
+            params.append(today or date.today().isoformat())
+        elif view == "Next 7 days":
+            current = date.fromisoformat(today) if today is not None else date.today()
+            if today is not None and current.isoformat() != today:
+                raise ValueError("Today must be YYYY-MM-DD")
+            clauses.append("due_date IS NOT NULL AND due_date>=? AND due_date<=?")
+            params.extend((current.isoformat(), (current + timedelta(days=6)).isoformat()))
         elif view == "Upcoming":
             clauses.append("due_date>?")
             params.append(today or date.today().isoformat())
@@ -160,9 +182,7 @@ class TaskStore:
             params.append("%" + escaped + "%")
         where = "WHERE " + " AND ".join(clauses) if clauses else ""
         rows = self.db.execute(
-            f"SELECT * FROM tasks {where} ORDER BY completed, priority, "
-            "CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, created_at DESC",
-            params
+            f"SELECT * FROM tasks {where} ORDER BY {order_options[sort_by]}", params
         ).fetchall()
         return [dict(row) for row in rows]
 

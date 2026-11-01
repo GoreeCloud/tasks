@@ -213,6 +213,56 @@ class TaskStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.list_tasks(view="INVALID")
 
+
+    def test_overdue_and_next_seven_days_calendar_boundaries(self):
+        self.store.add_task("Before", priority=1, due_date="2026-10-31")
+        self.store.add_task("Today", priority=2, due_date="2026-11-01")
+        self.store.add_task("Sixth day", priority=3, due_date="2026-11-07")
+        self.store.add_task("Seventh day", priority=4, due_date="2026-11-08")
+        self.store.add_task("Unscheduled")
+        finished = self.store.add_task("Completed week", due_date="2026-11-04")
+        self.store.complete_task(finished, True)
+        def names(view):
+            return {entry["title"] for entry in self.store.list_tasks(view=view, today="2026-11-01")}
+        self.assertEqual(names("Overdue"), {"Before"})
+        self.assertEqual(names("Today"), {"Before", "Today"})
+        self.assertEqual(names("Next 7 days"), {"Today", "Sixth day"})
+        self.assertEqual(names("Upcoming"), {"Sixth day", "Seventh day"})
+        self.assertEqual(
+            [entry["title"] for entry in self.store.list_tasks(
+                view="Next 7 days", today="2026-11-01", query="Sixth"
+            )], ["Sixth day"]
+        )
+        with self.assertRaises(ValueError):
+            self.store.list_tasks(view="Next 7 days", today="2026-11-31")
+
+    def test_priority_filters_and_sort_modes_do_not_modify_stored_tasks(self):
+        a = self.store.add_task("Zulu", priority=2, due_date="2026-11-09")
+        b = self.store.add_task("Alpha", priority=3, due_date="2026-11-02")
+        self.store.add_task("Undated", priority=1)
+        before = self.store.list_tasks(view="All")
+        self.assertEqual([t["title"] for t in self.store.list_tasks(
+            view="Open", priority_filter=3)], ["Alpha"])
+        self.assertEqual([t["title"] for t in self.store.list_tasks(
+            view="Open", sort_by="Due date")], ["Alpha", "Zulu", "Undated"])
+        self.assertEqual([t["title"] for t in self.store.list_tasks(
+            view="Open", sort_by="Title")], ["Alpha", "Undated", "Zulu"])
+        for bad in (0, True, "1", 5, 1.0):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                self.store.list_tasks(priority_filter=bad)
+        with self.assertRaises(ValueError):
+            self.store.list_tasks(sort_by="user-supplied SQL")
+        self.assertEqual(self.store.list_tasks(view="All"), before)
+
+    def test_next_seven_days_crosses_year_boundary_without_utc_time_arithmetic(self):
+        self.store.add_task("December", due_date="2026-12-31")
+        self.store.add_task("January", due_date="2027-01-04")
+        self.store.add_task("Beyond", due_date="2027-01-05")
+        titles = {task["title"] for task in self.store.list_tasks(
+            view="Next 7 days", today="2026-12-29"
+        )}
+        self.assertEqual(titles, {"December", "January"})
+
     def test_private_database_file_and_symlink_guard(self):
         self.assertEqual(self.store.path.stat().st_mode & 0o777, 0o600)
         linked = Path(self.dir.name) / "alias.sqlite3"

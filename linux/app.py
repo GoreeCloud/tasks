@@ -103,15 +103,32 @@ class TasksWindow(Adw.ApplicationWindow):
         self.due.set_width_chars(22)
         schedule_row.append(self.due)
         schedule_row.append(Gtk.Label(label="View"))
-        self.view = Gtk.DropDown.new_from_strings(
-            ["Open", "Today", "Upcoming", "Priority", "Completed", "Project", "Trash"]
+        self.view_names = (
+            "Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority",
+            "Completed", "Project", "Trash"
         )
+        self.view = Gtk.DropDown.new_from_strings(self.view_names)
         self.view.connect("notify::selected", self.on_filter)
         schedule_row.append(self.view)
         self.search = Gtk.SearchEntry(placeholder_text="Search tasks")
         self.search.set_hexpand(True)
         self.search.connect("search-changed", self.on_filter)
         schedule_row.append(self.search)
+
+        filter_row = Gtk.Box(spacing=10)
+        content.append(filter_row)
+        filter_row.append(Gtk.Label(label="Priority filter"))
+        self.priority_filter = Gtk.DropDown.new_from_strings(
+            ["All priorities", "P1 · Urgent", "P2 · High", "P3 · Medium", "P4 · Normal"]
+        )
+        self.priority_filter.set_tooltip_text("Filter visible tasks by priority")
+        self.priority_filter.connect("notify::selected", self.on_filter)
+        filter_row.append(self.priority_filter)
+        filter_row.append(Gtk.Label(label="Sort"))
+        self.sort_picker = Gtk.DropDown.new_from_strings(["Smart", "Due date", "Title"])
+        self.sort_picker.set_tooltip_text("Sort the task list")
+        self.sort_picker.connect("notify::selected", self.on_filter)
+        filter_row.append(self.sort_picker)
 
         self.message = Gtk.Label(xalign=0)
         self.message.add_css_class("dim-label")
@@ -220,20 +237,24 @@ class TasksWindow(Adw.ApplicationWindow):
         self.refresh()
 
     def on_project_change(self, *args):
-        if self.view.get_selected() == 5:
+        if self.view_names[self.view.get_selected()] == "Project":
             self.refresh()
 
     def refresh(self):
         while (child := self.list_box.get_first_child()) is not None:
             self.list_box.remove(child)
         active = self.view.get_selected()
-        view = ("Open", "Today", "Upcoming", "Priority", "Completed", "Project", "Trash")[active]
+        view = self.view_names[active]
+        self.priority_filter.set_sensitive(view != "Trash")
+        self.sort_picker.set_sensitive(view != "Trash")
         if view == "Trash":
             tasks = self.store.list_deleted_tasks(query=self.search.get_text())
         else:
             tasks = self.store.list_tasks(
                 view=view, query=self.search.get_text(),
-                project_id=self.selected_project_id()
+                project_id=self.selected_project_id(),
+                priority_filter=(None, 1, 2, 3, 4)[self.priority_filter.get_selected()],
+                sort_by=("Smart", "Due date", "Title")[self.sort_picker.get_selected()]
             )
         if not tasks:
             empty = Adw.ActionRow(

@@ -13,8 +13,9 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Create, complete, reopen, delete tasks | Yes | Yes | Yes |
 | Device-local persistence | Browser localStorage | SQLite | SQLite |
 | Four priorities | Yes | Yes | Yes |
-| Views and task filters | Inbox, Today, Next 7 days, Overdue, Upcoming, Priority, All, Completed; priority filters and sorting | Open, Today, Upcoming, Priority, Completed, Project | Open, Today, Upcoming, Priority, Completed, Project |
+| Views and task filters | Inbox, Today, Next 7 days, Overdue, Upcoming, Priority, All, Completed | Open, Today, Next 7 days, Overdue, Upcoming, Priority, Completed, Project | Open, Today, Next 7 days, Overdue, Upcoming, Priority, Completed, Project |
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
+| Priority filter / sorting | All/P1–P4; Smart/Due date/Newest/Title | All/P1–P4; Smart/Due date/Title | All/P1–P4; Smart/Due date/Title |
 | Bulk actions | Visible-task selection, complete/reopen, priority, project moves, local Trash | Not implemented | Not implemented |
 | Keyboard workflow | / search, N quick add, skip-to-content link | Not part of this change | Not part of this change |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
@@ -44,6 +45,8 @@ Install Python 3 with PyGObject, GTK4 and libadwaita from the Linux distribution
 ```sh
 python3 linux/app.py
 ```
+
+Linux now supports native Overdue and Next 7 days views, a priority filter and sort options without changing its SQLite schema. These are local-only view changes, not shared-device state. See [native view parity and remaining acceptance](docs/NATIVE_VIEW_PARITY.md).
 
 For user-local desktop integration without sudo, see [Linux install/uninstall](linux/README.md). The source installer preserves device data on uninstall and has an isolated installation smoke test.
 
@@ -79,6 +82,8 @@ this file in a ZIP; this is not a public APK release, signed production build,
 or end-user delivery. Artifact retention is seven days.
 
 An Android APK is **not considered delivered** by its appearance in local build output or GitHub Actions artifacts. Any actual APK delivered to the owner must be inspected, extracted as a standalone `.apk`, and uploaded to the existing Google Drive `GoreeCloud/Artifacts` folder, with provenance and readback, as required by GoreeCloud governance.
+
+The Android Compose client now exposes Overdue, Next 7 days, priority filtering and sorting, using native task filtering without changing stored tasks. These additions require successful Android CI compilation and device acceptance; see [native view parity](docs/NATIVE_VIEW_PARITY.md).
 
 ## Experimental local API
 
@@ -117,6 +122,7 @@ GitHub Actions builds the Android debug variant separately. A build result does 
 - `docs/PRODUCT_REQUIREMENTS.md` — owner feature catalog mapped to staged acceptance.
 - `docs/ROADMAP.md` — staged path to the requested capability catalog.
 - `docs/WEB_PRODUCTIVITY_UPGRADE.md` — browser-only productivity controls and acceptance gaps.
+- `docs/NATIVE_VIEW_PARITY.md` — native due-date views and priority/sort UI with verification boundaries.
 - `.github/workflows/verify.yml` — model tests, Python checks, Android build.
 
 ## Design, governance, and ownership
