@@ -1,0 +1,155 @@
+package com.goreecloud.tasks
+
+import android.content.Context
+import android.database.sqlite.SQLiteConstraintException
+import android.database.sqlite.SQLiteDatabase
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+/**
+ * Real SQLiteOpenHelper and SQLite transaction tests running under Robolectric.
+ * Only a fresh test context is used; no actual device or user data is touched.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
+class RestoreDatabaseTest {
+    private lateinit var context: Context
+    private lateinit var db: TasksDatabase
+
+    @Before fun setUp() {
+        context = RuntimeEnvironment.getApplication()
+        context.deleteDatabase("goreecloud-tasks.db")
+        db = TasksDatabase(context)
+    }
+
+    @After fun tearDown() {
+        db.close()
+        context.deleteDatabase("goreecloud-tasks.db")
+    }
+
+    private fun fixture() = """
+        {
+          "schema":1,
+          "projects":[{"id":"project-1","name":"Delivery 🚀"}],
+          "tasks":[
+            {"id":"task-1","title":"Schedule release","priority":1,
+             "completed":false,"due":"2026-11-09","projectId":"project-1",
+             "createdAt":"2026-10-31T18:00:00.123456+00:00","completedAt":null},
+            {"id":"task-2","title":"Review","priority":3,
+             "completed":true,"due":"","projectId":null,
+             "createdAt":"2026-10-29T09:00:00.000000+00:00",
+             "completedAt":"2026-10-31T12:10:11.654321+00:00"}
+          ]
+        }
+    """.trimIndent()
+
+    private fun snapshot() = PortableRestore.parse(fixture().toByteArray(Charsets.UTF_8))
+
+    private fun counts(): Pair<Long, Long> {
+        val database = db.readableDatabase
+        return android.database.DatabaseUtils.queryNumEntries(database, "tasks") to
+            android.database.DatabaseUtils.queryNumEntries(database, "projects")
+    }
+
+    @Test fun emptyStoreRestoreThenExportRetainsExactPortableFields() {
+        assertTrue(db.isEmptyForRestore())
+        db.restorePortableBackup(snapshot())
+        assertEquals(2L to 1L, counts())
+        assertFalse(db.isEmptyForRestore())
+        val parsed = PortableRestore.parse(db.exportPortableBackup())
+        assertEquals(snapshot(), parsed)
+        assertEquals("2026-10-31T18:00:00.123456+00:00",
+            parsed.tasks[0].createdAtExact)
+        assertEquals("2026-10-31T12:10:11.654321+00:00",
+            parsed.tasks[1].completedAtExact)
+    }
+
+    @Test fun populatedTasksCannotBeOverwritten() {
+        db.add("Device-local task", 4, null, null)
+        val original = db.listTasks().single()
+        assertFalse(db.isEmptyForRestore())
+        try {
+            db.restorePortableBackup(snapshot())
+            throw AssertionError("Existing user task was overwritten")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(1L to 0L, counts())
+        assertEquals(original, db.listTasks().single())
+    }
+
+    @Test fun projectOnlyWorkspaceAlsoBlocksRestore() {
+        val projectId = db.addProject("Local project")
+        try {
+            db.restorePortableBackup(snapshot())
+            throw AssertionError("Existing user project was overwritten")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(0L to 1L, counts())
+        assertEquals(projectId, db.listProjects().single().id)
+    }
+
+    @Test fun constraintFailureRollsBackAllProjectsAndTasks() {
+        val valid = snapshot()
+        // Bypass parser deliberately to exercise a mid-transaction SQL failure.
+        val corrupt = valid.copy(tasks = valid.tasks + valid.tasks[0])
+        try {
+            db.restorePortableBackup(corrupt)
+            throw AssertionError("Duplicate task ID should fail")
+        } catch (_: SQLiteConstraintException) { }
+        assertEquals(0L to 0L, counts())
+        assertTrue(db.isEmptyForRestore())
+        // The same database remains usable after the transaction rollback.
+        db.restorePortableBackup(valid)
+        assertEquals(2L to 1L, counts())
+    }
+
+    @Test fun completionTogglesDiscardStaleImportedCompletionTimestamp() {
+        db.restorePortableBackup(snapshot())
+        db.setCompleted("task-2", false)
+        var parsed = PortableRestore.parse(db.exportPortableBackup())
+        assertFalse(parsed.tasks[1].completed)
+        assertEquals(null, parsed.tasks[1].completedAtExact)
+        db.setCompleted("task-2", true)
+        parsed = PortableRestore.parse(db.exportPortableBackup())
+        assertTrue(parsed.tasks[1].completed)
+        assertTrue(requireNotNull(parsed.tasks[1].completedAt) > 0L)
+        assertEquals(null, parsed.tasks[1].completedAtExact)
+    }
+
+    @Test fun versionThreeUpgradeRetainsExistingTaskAndAddsExactColumns() {
+        db.close()
+        context.deleteDatabase("goreecloud-tasks.db")
+        val legacy = SQLiteDatabase.openOrCreateDatabase(
+            context.getDatabasePath("goreecloud-tasks.db"), null
+        )
+        legacy.execSQL("CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL)")
+        legacy.execSQL(
+            "CREATE TABLE tasks (" +
+            "id TEXT PRIMARY KEY,title TEXT NOT NULL,priority INTEGER NOT NULL," +
+            "completed INTEGER NOT NULL,created_at INTEGER NOT NULL,completed_at INTEGER," +
+            "due_date TEXT,project_id TEXT)"
+        )
+        legacy.execSQL(
+            "INSERT INTO tasks(id,title,priority,completed,created_at,completed_at) " +
+            "VALUES('historical','Preserved',2,1,1761904800123,1761904800456)"
+        )
+        legacy.version = 3
+        legacy.close()
+        db = TasksDatabase(context)
+        assertEquals("Preserved", db.listTasks().single().title)
+        assertEquals(1L to 0L, counts())
+        db.readableDatabase.rawQuery("PRAGMA table_info(tasks)", null).use { columns ->
+            val names = mutableSetOf<String>()
+            while (columns.moveToNext()) names.add(columns.getString(1))
+            assertTrue("created_at_exact" in names)
+            assertTrue("completed_at_exact" in names)
+        }
+        assertEquals(1L to 0L, counts())
+    }
+}

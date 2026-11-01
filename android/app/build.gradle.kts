@@ -21,6 +21,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 dependencies {
@@ -31,5 +32,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Android's org.json classes are stubs in local JVM unit tests.
     testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
