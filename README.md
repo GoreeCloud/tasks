@@ -57,13 +57,19 @@ The package ID is `com.goreecloud.tasks`; the project uses Kotlin and Jetpack Co
 
 An Android APK is **not considered delivered** by its appearance in local build output or GitHub Actions artifacts. Any actual APK delivered to the owner must be inspected, extracted as a standalone `.apk`, and uploaded to the existing Google Drive `GoreeCloud/Artifacts` folder, with provenance and readback, as required by GoreeCloud governance.
 
+## Experimental local API
+
+`server/api.py` is a **single-user, loopback-only, authenticated development API** with SQLite storage, idempotent creates, revision-checked updates, soft deletion, and ordered change snapshots. It is a separate test domain: the web, Linux and Android clients do **not** connect to or sync with it. See [API limitations and local usage](server/README.md). Do not publicly expose this prototype.
+
 ## Verification
 
 ```sh
 node --check web/app.mjs
 node --test web/*.test.mjs
 python3 -m unittest discover -s linux/tests -v
-python3 -m py_compile linux/app.py linux/store.py
+python3 -m py_compile linux/app.py linux/store.py server/api.py
+python3 -m unittest discover -s server/tests -v
+sh linux/tests/test_install.sh
 ```
 
 GitHub Actions builds the Android debug variant separately. A build result does not prove physical-device behavior or release readiness.
@@ -73,6 +79,7 @@ GitHub Actions builds the Android debug variant separately. A build result does 
 - `web/` — browser-native task workspace and pure data/query model.
 - `linux/` — first-party GTK4/libadwaita desktop UI and SQLite store.
 - `android/` — first-party Android Kotlin/Compose UI and SQLite store.
+- `server/` — experimental loopback-only authenticated API and integration tests.
 - `docs/ARCHITECTURE.md` — data, security, and synchronization decisions.
 - `docs/PRODUCT_REQUIREMENTS.md` — owner feature catalog mapped to staged acceptance.
 - `docs/ROADMAP.md` — staged path to the requested capability catalog.

@@ -25,6 +25,8 @@
 
 ## C. Self-hosted sync, identity and teams
 
+- [x] Experimental single-user loopback-only API with authenticated request gate, idempotent creates, revision-checked updates, soft-deletion change feed and integration tests (not connected to clients; not production deployable).
+
 - [ ] Secure API and PostgreSQL migrations with per-tenant access controls.
 - [ ] Authentication, device sessions, invitation and role policies.
 - [ ] Authenticated delta synchronization, conflict reconciliation and tombstones.

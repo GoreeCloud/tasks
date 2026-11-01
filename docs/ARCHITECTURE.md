@@ -17,6 +17,10 @@ The `Task` contract at the product boundary will eventually include a globally u
 
 Do not merge local stores or import actual private task data without migration tooling, recovery validation and explicit acceptance.
 
+## Experimental service source (not deployed)
+
+The repository now includes `server/api.py`, a Python standard-library loopback-only test API with a bearer-token development gate, validated tasks, idempotent create, revision preconditions, soft-delete tombstones and an immutable ordered change log. Its integration suite uses ephemeral loopback ports and synthetic data. It is **single-user**, has no multi-tenant identities, no TLS/remote binding, no rate limits, no secure service packaging and no native client integration. Neither this service nor its data represents a production task registry. See [prototype API](../server/README.md).
+
 ## Planned self-hosted service
 
 A future GoreeCloud Tasks backend should expose versioned HTTPS APIs for authenticated workspace operations; enforce organization/project authorization on **every** data access; use server-generated monotonically ordered change records, tombstones, idempotent mutations, and deterministic conflict resolution. PostgreSQL is a suitable primary shared store. The final backend selection and deployment are pending operational review.

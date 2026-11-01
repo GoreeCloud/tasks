@@ -25,6 +25,15 @@ jobs:
         run: python3 -m py_compile linux/app.py linux/store.py
       - name: Isolated Linux user install/uninstall smoke
         run: sh -n linux/install.sh && sh -n linux/uninstall.sh && sh linux/tests/test_install.sh
+  api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Experimental loopback API integration tests
+        run: python3 -m unittest discover -s server/tests -v
+      - name: Python API syntax
+        run: python3 -m py_compile server/api.py
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
