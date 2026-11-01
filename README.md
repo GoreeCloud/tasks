@@ -41,6 +41,8 @@ Install Python 3 with PyGObject, GTK4 and libadwaita from the Linux distribution
 python3 linux/app.py
 ```
 
+For user-local desktop integration without sudo, see [Linux install/uninstall](linux/README.md). The source installer preserves device data on uninstall and has an isolated installation smoke test.
+
 The app stores its database under `$XDG_DATA_HOME/goreecloud-tasks/tasks.sqlite3` (otherwise `~/.local/share/goreecloud-tasks/tasks.sqlite3`). Do not treat this early client as fully backed up or synchronized.
 
 ## Build Android

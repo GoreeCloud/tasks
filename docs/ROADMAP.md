@@ -9,6 +9,7 @@
 - [x] Web inbox/project creation, date entry, search, completed history, themes, validated JSON export/restore and stale-tab write protection (source; comprehensive recovery validation pending).
 - [x] Linux GTK and Android Compose projects (source).
 - [x] Linux project creation/assignment, task view filters, due date capture and local search (source; GUI and device validation pending).
+- [x] Linux user-local desktop integration scripts and icon, with isolated install/uninstall test preserving local task data; distro acceptance pending.
 - [x] Android native project creation/assignment, due-date picker, Today/Upcoming/Project filters and non-destructive schema v2 migration (source; device verification pending).
 - [ ] Verify all platform builds and runtime operation, fix defects, audit accessibility and GC UI appearance.
 - [ ] Desktop packaging, Android device validation, and standalone APK handoff if requested.
