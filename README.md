@@ -67,7 +67,7 @@ synthetic Android context: round trips, protected existing rows, upgrade and
 mid-transaction rollback. A guarded physical-device smoke on a OnePlus (Android 16) verified native launch, schema-1 document-picker export, populated-workspace import blocking and one synthetic task restore. Full device, accessibility, other-provider and release acceptance remain pending; see [Android physical-device test evidence](docs/ANDROID_DEVICE_ACCEPTANCE.md). These JSON
 files are unencrypted: store them privately and verify restoration elsewhere.
 
-The CI build verifies the debug APK signature and SHA-256 and temporarily stores the
+The CI build checks the compiled APK identity, SDK bounds, signature, Android automatic-backup policy, forbidden network/storage permissions and SHA-256 using `android/tests/verify_debug_apk.sh`, then temporarily stores the
 compiled APK as a GitHub Actions artifact for internal testing. GitHub wraps
 this file in a ZIP; this is not a public APK release, signed production build,
 or end-user delivery. Artifact retention is seven days.

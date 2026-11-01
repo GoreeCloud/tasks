@@ -58,11 +58,8 @@ jobs:
           gradle-version: '8.10.2'
       - name: Compile native Android debug APK
         run: gradle -p android :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
-      - name: Verify debug APK signature and checksum
-        run: |
-          test -s android/app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose android/app/build/outputs/apk/debug/app-debug.apk
-          sha256sum android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Verify debug APK identity permissions backup policy signature and checksum
+        run: sh android/tests/verify_debug_apk.sh android/app/build/outputs/apk/debug/app-debug.apk
       # CI transport only: GitHub wraps this in a ZIP. It is NOT the user's
       # required standalone .apk delivery to GoreeCloud/Artifacts in Drive.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
