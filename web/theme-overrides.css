@@ -1,7 +1,7 @@
 /* GoreeCloud Tasks GC UI semantic adapter.
  * Offline snapshot: gc-app-semantic.css, gc-ui revision ec72b5a...
  * Never use a fixed violet/brand hex for Tasks-specific components. */
-:root {
+:root, :root[data-mode=dark] {
   --gc-brand:var(--gc-v1-color-primary);
   --gc-on-brand:var(--gc-v1-color-on-primary);
   --gc-brand-container:var(--gc-v1-color-primary-container);

@@ -64,5 +64,6 @@ test('GC UI snapshot is pinned, early-loading, and semantic role mapped', () => 
   for (const id of ['appearance-dialog', 'appearance-mode', 'appearance-accent',
     'appearance-form', 'appearance-cancel']) assert.match(html, new RegExp('id="' + id + '"'));
   assert.match(styles, /--gc-brand:var\(--gc-v1-color-primary\)/);
+  assert.match(styles, /:root, :root\[data-mode=dark\]/, 'Dark palette must override legacy dark fallback specificity');
   assert.doesNotMatch(styles, /#5145d9/i);
 });
