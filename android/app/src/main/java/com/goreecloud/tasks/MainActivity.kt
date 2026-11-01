@@ -67,6 +67,13 @@ private fun TasksScreen(db: TasksDatabase) {
         var view by remember { mutableStateOf("Open") }
         var search by remember { mutableStateOf("") }
         var error by remember { mutableStateOf("") }
+        var editing by remember { mutableStateOf<TaskRecord?>(null) }
+        var editTitle by remember { mutableStateOf("") }
+        var editPriority by remember { mutableIntStateOf(4) }
+        var editDueDate by remember { mutableStateOf<String?>(null) }
+        var editProjectId by remember { mutableStateOf<String?>(null) }
+        var editPriorityMenu by remember { mutableStateOf(false) }
+        var editProjectMenu by remember { mutableStateOf(false) }
         var deletion by remember { mutableStateOf<TaskRecord?>(null) }
         fun reload() {
             tasks.clear()
@@ -239,6 +246,13 @@ private fun TasksScreen(db: TasksDatabase) {
                                         Text(detail, color = MaterialTheme.colorScheme.primary,
                                             fontSize = 12.sp)
                                     }
+                                    TextButton(onClick = {
+                                        editing = task
+                                        editTitle = task.title
+                                        editPriority = task.priority
+                                        editDueDate = task.dueDate
+                                        editProjectId = task.projectId
+                                    }) { Text("Edit") }
                                     TextButton(onClick = { deletion = task }) { Text("Delete") }
                                 }
                             }
@@ -276,6 +290,94 @@ private fun TasksScreen(db: TasksDatabase) {
                 },
                 dismissButton = {
                     TextButton(onClick = { showProjectDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+        editing?.let { task ->
+            AlertDialog(
+                onDismissRequest = { editing = null },
+                title = { Text("Edit task") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = editTitle,
+                            onValueChange = { if (it.length <= 240) editTitle = it },
+                            label = { Text("Task title") }, singleLine = true
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box {
+                                OutlinedButton(onClick = { editPriorityMenu = true }) {
+                                    Text("P$editPriority ▾")
+                                }
+                                DropdownMenu(
+                                    expanded = editPriorityMenu,
+                                    onDismissRequest = { editPriorityMenu = false }
+                                ) {
+                                    (1..4).forEach { level ->
+                                        DropdownMenuItem(text = { Text("P$level") }, onClick = {
+                                            editPriority = level
+                                            editPriorityMenu = false
+                                        })
+                                    }
+                                }
+                            }
+                            Box {
+                                OutlinedButton(onClick = { editProjectMenu = true }) {
+                                    val name = projects.find { it.id == editProjectId }?.name ?: "Inbox"
+                                    Text(name, maxLines = 1)
+                                }
+                                DropdownMenu(
+                                    expanded = editProjectMenu,
+                                    onDismissRequest = { editProjectMenu = false }
+                                ) {
+                                    DropdownMenuItem(text = { Text("Inbox") }, onClick = {
+                                        editProjectId = null
+                                        editProjectMenu = false
+                                    })
+                                    projects.forEach { project ->
+                                        DropdownMenuItem(text = { Text(project.name) }, onClick = {
+                                            editProjectId = project.id
+                                            editProjectMenu = false
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = {
+                                val initial = editDueDate?.let {
+                                    runCatching { LocalDate.parse(it) }.getOrNull()
+                                } ?: LocalDate.now()
+                                DatePickerDialog(
+                                    context,
+                                    { _, year, month, day ->
+                                        editDueDate = String.format(
+                                            Locale.ROOT, "%04d-%02d-%02d", year, month + 1, day
+                                        )
+                                    },
+                                    initial.year, initial.monthValue - 1, initial.dayOfMonth
+                                ).show()
+                            }) { Text(editDueDate ?: "Choose due date") }
+                            if (editDueDate != null) TextButton(onClick = {
+                                editDueDate = null
+                            }) { Text("Clear") }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        try {
+                            db.update(task.id, editTitle, editPriority, editDueDate, editProjectId)
+                            reload()
+                            editing = null
+                            error = ""
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Unable to update task"
+                        }
+                    }) { Text("Save") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editing = null }) { Text("Cancel") }
                 }
             )
         }

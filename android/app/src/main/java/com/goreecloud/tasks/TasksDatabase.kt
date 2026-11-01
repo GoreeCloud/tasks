@@ -4,7 +4,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import java.time.LocalDate
 import java.util.UUID
 
 internal data class TaskRecord(
@@ -94,24 +93,34 @@ internal class TasksDatabase(context: Context) :
     }
 
     fun add(title: String, priority: Int, dueDate: String?, projectId: String?) {
-        val normalized = title.trim()
-        require(normalized.isNotEmpty() && normalized.length <= 240) {
-            "Task title must be 1–240 characters"
-        }
-        require(priority in 1..4) { "Invalid task priority" }
-        if (dueDate != null) require(LocalDate.parse(dueDate).toString() == dueDate) {
-            "Due date must be a valid ISO calendar date"
-        }
+        val normalized = TaskRules.title(title)
+        val validatedPriority = TaskRules.priority(priority)
+        val validatedDue = TaskRules.due(dueDate)
         val record = ContentValues().apply {
             put("id", UUID.randomUUID().toString())
             put("title", normalized)
-            put("priority", priority)
+            put("priority", validatedPriority)
             put("completed", 0)
             put("created_at", System.currentTimeMillis())
-            put("due_date", dueDate)
+            put("due_date", validatedDue)
             put("project_id", projectId)
         }
         writableDatabase.insertOrThrow("tasks", null, record)
+    }
+
+    /** Edits are guarded by field validation; no schema replacement or row deletion. */
+    fun update(id: String, title: String, priority: Int, dueDate: String?, projectId: String?) {
+        val normalized = TaskRules.title(title)
+        val validatedPriority = TaskRules.priority(priority)
+        val validatedDue = TaskRules.due(dueDate)
+        val fields = ContentValues().apply {
+            put("title", normalized)
+            put("priority", validatedPriority)
+            put("due_date", validatedDue)
+            put("project_id", projectId)
+        }
+        val count = writableDatabase.update("tasks", fields, "id=?", arrayOf(id))
+        require(count == 1) { "Task no longer exists" }
     }
 
     fun setCompleted(id: String, completed: Boolean) {
