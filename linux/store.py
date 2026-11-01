@@ -82,6 +82,36 @@ class TaskStore:
                  datetime.now(timezone.utc).isoformat()))
         return task_id
 
+    def update_task(self, task_id: str, *, title: str, priority: int = 4,
+                    due_date: str | None = None, project_id: str | None = None) -> bool:
+        """Edit task fields in one transaction without losing completion metadata."""
+        if not isinstance(title, str):
+            raise ValueError("Task title must be text")
+        title = title.strip()
+        if any(0xD800 <= ord(char) <= 0xDFFF for char in title):
+            raise ValueError("Task title contains invalid Unicode")
+        if not 1 <= len(title) <= 240:
+            raise ValueError("Task title must be 1–240 characters")
+        if type(priority) is not int or priority not in PRIORITIES:
+            raise ValueError("Priority must be 1–4")
+        if due_date is not None and not isinstance(due_date, str):
+            raise ValueError("Due date must be text or None")
+        if due_date:
+            try:
+                parsed = datetime.strptime(due_date, "%Y-%m-%d")
+                if parsed.strftime("%Y-%m-%d") != due_date:
+                    raise ValueError()
+            except ValueError as error:
+                raise ValueError("Due date must be a valid YYYY-MM-DD date") from error
+        if project_id is not None and not isinstance(project_id, str):
+            raise ValueError("Project ID must be text or None")
+        with self.db:
+            result = self.db.execute(
+                "UPDATE tasks SET title=?,priority=?,due_date=?,project_id=? WHERE id=?",
+                (title, priority, due_date or None, project_id, task_id)
+            )
+        return result.rowcount == 1
+
     def list_tasks(self, *, include_completed: bool = False, view: str | None = None,
                    query: str = "", project_id: str | None = None,
                    today: str | None = None) -> list[dict]:

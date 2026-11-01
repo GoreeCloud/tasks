@@ -250,6 +250,11 @@ class TasksWindow(Adw.ApplicationWindow):
             ])
             checkbox.connect("toggled", self.on_toggle, task["id"])
             row.add_prefix(checkbox)
+            edit = Gtk.Button(label="Edit", tooltip_text="Edit " + task["title"])
+            edit.set_valign(Gtk.Align.CENTER)
+            edit.add_css_class("flat")
+            edit.connect("clicked", self.on_edit, task)
+            row.add_suffix(edit)
             delete = Gtk.Button(icon_name="user-trash-symbolic", tooltip_text="Delete task")
             delete.set_valign(Gtk.Align.CENTER)
             delete.add_css_class("flat")
@@ -267,6 +272,69 @@ class TasksWindow(Adw.ApplicationWindow):
             self.refresh()
         except sqlite3.Error as error:
             self.message.set_text(str(error))
+
+    def on_edit(self, _button, task):
+        dialog = Adw.AlertDialog.new("Edit task", "Update this task on this device.")
+        form = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
+
+        form.append(Gtk.Label(label="Title", xalign=0))
+        title = Gtk.Entry()
+        title.set_max_length(240)
+        title.set_text(task["title"])
+        form.append(title)
+
+        form.append(Gtk.Label(label="Priority", xalign=0))
+        priority = Gtk.DropDown.new_from_strings(
+            ["P4 · Normal", "P3 · Medium", "P2 · High", "P1 · Urgent"]
+        )
+        priority.set_selected((4, 3, 2, 1).index(task["priority"]))
+        form.append(priority)
+
+        form.append(Gtk.Label(label="Due date (YYYY-MM-DD, optional)", xalign=0))
+        due = Gtk.Entry()
+        due.set_max_length(10)
+        due.set_text(task["due_date"] or "")
+        form.append(due)
+
+        project_ids = [None] + [project["id"] for project in self.projects]
+        names = ["Inbox"] + [project["name"] for project in self.projects]
+        form.append(Gtk.Label(label="Project", xalign=0))
+        project = Gtk.DropDown.new_from_strings(names)
+        project.set_selected(
+            project_ids.index(task["project_id"]) if task["project_id"] in project_ids else 0
+        )
+        form.append(project)
+
+        dialog.set_extra_child(form)
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("save", "Save")
+        dialog.set_default_response("save")
+        dialog.set_close_response("cancel")
+        dialog.connect(
+            "response", self.on_edit_response, task["id"], title, priority,
+            due, project, project_ids
+        )
+        dialog.present(self)
+
+    def on_edit_response(self, _dialog, response, task_id, title, priority,
+                         due, project, project_ids):
+        if response != "save":
+            return
+        try:
+            found = self.store.update_task(
+                task_id,
+                title=title.get_text(),
+                priority=(4, 3, 2, 1)[priority.get_selected()],
+                due_date=due.get_text().strip() or None,
+                project_id=project_ids[project.get_selected()]
+            )
+            if not found:
+                self.message.set_text("Task was deleted; nothing was changed.")
+            else:
+                self.message.set_text("Task updated locally.")
+            self.refresh()
+        except (ValueError, sqlite3.Error, OSError) as error:
+            self.message.set_text(f"Edit failed: {error}")
 
     def on_delete(self, _button, task_id):
         dialog = Adw.AlertDialog.new("Delete this task?", "This action permanently deletes the task on this device.")

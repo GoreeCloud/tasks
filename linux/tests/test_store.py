@@ -31,6 +31,34 @@ class TaskStoreTests(unittest.TestCase):
         self.assertTrue(self.store.delete_task(key))
         self.assertFalse(self.store.delete_task(key))
 
+    def test_edits_priority_date_and_project_atomically(self):
+        project_id = self.store.add_project("Project")
+        task_id = self.store.add_task("Original", priority=4, due_date="2026-11-02")
+        self.store.complete_task(task_id, True)
+        before = self.store.list_tasks(include_completed=True)[0]["completed_at"]
+        self.assertTrue(self.store.update_task(
+            task_id, title="  Better title  ", priority=1,
+            due_date="2026-12-31", project_id=project_id))
+        after = self.store.list_tasks(include_completed=True)[0]
+        self.assertEqual(after["title"], "Better title")
+        self.assertEqual(after["priority"], 1)
+        self.assertEqual(after["due_date"], "2026-12-31")
+        self.assertEqual(after["project_id"], project_id)
+        self.assertEqual(after["completed_at"], before)
+        self.assertEqual(after["completed"], 1)
+        with self.assertRaises(ValueError):
+            self.store.update_task(task_id, title="No", priority=True)
+        with self.assertRaises(ValueError):
+            self.store.update_task(task_id, title="No", due_date="2026-02-30")
+        with self.assertRaises(ValueError):
+            self.store.update_task(task_id, title="No" + chr(0xD800))
+        with self.assertRaises(ValueError):
+            self.store.update_task(task_id, title="No", project_id=4)
+        with self.assertRaises(Exception):
+            self.store.update_task(task_id, title="No", project_id="missing")
+        self.assertEqual(self.store.list_tasks(include_completed=True)[0]["title"], "Better title")
+        self.assertFalse(self.store.update_task("missing-id", title="Valid"))
+
     def test_validation_and_project_relationship(self):
         with self.assertRaises(ValueError):
             self.store.add_task(" ")

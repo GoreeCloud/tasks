@@ -9,6 +9,7 @@
 - [x] Web inbox/project creation, date entry, search, completed history, themes, validated JSON export/restore and stale-tab write protection (source; comprehensive recovery validation pending).
 - [x] Linux GTK and Android Compose projects (source).
 - [x] Linux project creation/assignment, task view filters, due date capture and local search (source; GUI and device validation pending).
+- [x] Native Linux task edit dialog for title, priority, due date and project with atomic store update and negative validation tests; GUI acceptance pending.
 - [x] Linux user-local desktop integration scripts and icon, with isolated install/uninstall test preserving local task data; distro acceptance pending.
 - [x] Browser-compatible schema-1 Linux JSON export and guarded empty-store import via CLI and native GTK file dialogs, with round-trip tests; full native recovery acceptance pending.
 - [x] Android native project creation/assignment, due-date picker, Today/Upcoming/Project filters and non-destructive schema v2 migration (source; device verification pending).
