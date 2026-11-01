@@ -82,8 +82,17 @@ internal class TasksDatabase(context: Context) :
         }
         if (oldVersion < 5) createTrashSchema(db)
         if (oldVersion < 6) {
-            db.execSQL("ALTER TABLE tasks ADD COLUMN description TEXT NOT NULL DEFAULT ''")
-            db.execSQL("ALTER TABLE deleted_tasks ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+            // Upgrades from versions 1–4 create the Trash table above using
+            // the current schema. Avoid a duplicate-column ALTER in that case.
+            for (table in listOf("tasks", "deleted_tasks")) {
+                val existing = mutableSetOf<String>()
+                db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+                    while (cursor.moveToNext()) existing.add(cursor.getString(1))
+                }
+                if ("description" !in existing) {
+                    db.execSQL("ALTER TABLE $table ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+                }
+            }
         }
     }
 
