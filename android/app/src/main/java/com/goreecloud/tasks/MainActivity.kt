@@ -1,6 +1,7 @@
 package com.goreecloud.tasks
 
 import android.app.DatePickerDialog
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -8,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,7 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
@@ -44,22 +45,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val Iris = Color(0xFF5145D9)
-private val Ink = Color(0xFF20243A)
-private val Canvas = Color(0xFFECF0F8)
-
 @Composable
 private fun TasksScreen(db: TasksDatabase) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    val colors = if (dark) darkColorScheme(
-        primary = Color(0xFFC5BFFF), onPrimary = Color(0xFF241B66),
-        background = Color(0xFF10131E), surface = Color(0xFF1D2231)
-    ) else lightColorScheme(
-        primary = Iris, onPrimary = Color.White,
-        background = Canvas, surface = Color(0xFFF9FAFD), onSurface = Ink
-    )
-    MaterialTheme(colorScheme = colors) {
-        val context = LocalContext.current
+    val context = LocalContext.current
+    val prefs = remember(context) {
+        context.getSharedPreferences("goreecloud-tasks-appearance", Context.MODE_PRIVATE)
+    }
+    var appearance by remember { mutableStateOf(TasksTheme.appearance(prefs.getString("appearance", null))) }
+    var accent by remember { mutableStateOf(TasksTheme.accent(prefs.getString("accent", null))) }
+    var showAppearanceSettings by remember { mutableStateOf(false) }
+    var draftAppearance by remember { mutableStateOf("light") }
+    var draftAccent by remember { mutableStateOf("neutral") }
+    MaterialTheme(colorScheme = TasksTheme.scheme(appearance, accent)) {
         val tasks = remember { mutableStateListOf<TaskRecord>().apply { addAll(db.listTasks()) } }
         val projects = remember { mutableStateListOf<ProjectRecord>().apply { addAll(db.listProjects()) } }
         val deletedTasks = remember { mutableStateListOf<TaskRecord>().apply { addAll(db.listDeletedTasks()) } }
@@ -176,13 +173,23 @@ private fun TasksScreen(db: TasksDatabase) {
         }
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 18.dp)) {
-                Text(
-                    "✦  GOREECLOUD TASKS", color = MaterialTheme.colorScheme.primary,
-                    fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp
-                )
+                Row(modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("✦  GOREECLOUD TASKS", color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                    OutlinedButton(onClick = {
+                        draftAppearance = appearance
+                        draftAccent = accent
+                        showAppearanceSettings = true
+                    }) { Text("Appearance & color") }
+                }
                 Spacer(Modifier.height(18.dp))
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
                     shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(Modifier.padding(22.dp)) {
@@ -499,6 +506,59 @@ private fun TasksScreen(db: TasksDatabase) {
                     }
                 }
             }
+        }
+
+        if (showAppearanceSettings) {
+            AlertDialog(
+                onDismissRequest = { showAppearanceSettings = false },
+                title = { Text("Appearance & color") },
+                text = {
+                    Column(
+                        modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text("Appearance", style = MaterialTheme.typography.titleSmall)
+                        TasksTheme.appearances.forEach { choice ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = draftAppearance == choice,
+                                    onClick = { draftAppearance = choice }
+                                )
+                                Text(choice.replaceFirstChar { it.uppercase() })
+                            }
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Text("Accent", style = MaterialTheme.typography.titleSmall)
+                        TasksTheme.accents.forEach { choice ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = draftAccent == choice,
+                                    onClick = { draftAccent = choice }
+                                )
+                                Text(choice.replaceFirstChar { it.uppercase() })
+                            }
+                        }
+                        Text("Stored on this device only. Tasks and backups are unchanged.",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val stored = prefs.edit()
+                            .putString("appearance", draftAppearance)
+                            .putString("accent", draftAccent)
+                            .commit()
+                        appearance = draftAppearance
+                        accent = draftAccent
+                        showAppearanceSettings = false
+                        backupNotice = if (stored) "Appearance saved on this device."
+                            else "Appearance applied, but preference saving failed."
+                    }) { Text("Save appearance") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAppearanceSettings = false }) { Text("Cancel") }
+                }
+            )
         }
 
         pendingBulkTrash?.let { original ->

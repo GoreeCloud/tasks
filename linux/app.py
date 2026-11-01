@@ -11,6 +11,7 @@ from gi.repository import Adw, Gdk, Gio, Gtk, GLib
 
 from backup import BackupError, export_file, import_data, read_backup
 from store import TaskStore
+from theme import ACCENTS, APPEARANCES, read_preferences, semantic_css, write_preferences
 
 Adw.init()
 
@@ -20,15 +21,21 @@ class TasksWindow(Adw.ApplicationWindow):
         super().__init__(application=app, title="GoreeCloud Tasks", default_width=940, default_height=760)
         self.store = TaskStore()
         self.projects = []
+        self.theme_preferences = read_preferences()
         self.set_size_request(600, 480)
         self.connect("close-request", self.on_close)
         css = Gtk.CssProvider()
         css.load_from_path(str(Path(__file__).with_name("style.css")))
         display = Gdk.Display.get_default()
+        self.theme_provider = Gtk.CssProvider()
         if display:
             Gtk.StyleContext.add_provider_for_display(
                 display, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
             )
+            Gtk.StyleContext.add_provider_for_display(
+                display, self.theme_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1
+            )
+        self.apply_appearance(self.theme_preferences['appearance'], self.theme_preferences['accent'])
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.set_content(root)
         header = Adw.HeaderBar()
@@ -37,6 +44,10 @@ class TasksWindow(Adw.ApplicationWindow):
         title = Gtk.Label(label="✦   GoreeCloud Tasks")
         title.add_css_class("title-3")
         header.set_title_widget(title)
+        appearance_button = Gtk.Button(label="Appearance & color")
+        appearance_button.set_tooltip_text("Choose Light/Dark and a GoreeCloud accent")
+        appearance_button.connect("clicked", self.on_appearance)
+        header.pack_end(appearance_button)
         export_button = Gtk.Button(label="Export JSON", tooltip_text="Save a portable task backup")
         export_button.connect("clicked", self.on_export)
         header.pack_start(export_button)
@@ -141,6 +152,7 @@ class TasksWindow(Adw.ApplicationWindow):
         bulk.set_max_children_per_line(6)
         content.append(bulk)
         self.selection_count = Gtk.Label(label="0 selected")
+        self.selection_count.add_css_class("bulk-selected")
         bulk.insert(self.selection_count, -1)
         self.select_visible_button = Gtk.Button(label="Select visible", tooltip_text="Select up to 200 visible tasks")
         self.select_visible_button.connect("clicked", self.on_select_visible)
@@ -191,6 +203,52 @@ class TasksWindow(Adw.ApplicationWindow):
 
         self.update_projects()
         self.refresh()
+
+    def apply_appearance(self, appearance, accent):
+        mode = appearance if appearance in APPEARANCES else "light"
+        palette = accent if accent in ACCENTS else "neutral"
+        style = Adw.StyleManager.get_default()
+        style.set_color_scheme(
+            Adw.ColorScheme.FORCE_DARK if mode == "dark" else Adw.ColorScheme.FORCE_LIGHT
+        )
+        self.theme_provider.load_from_data(semantic_css(mode, palette).encode("utf-8"))
+        self.theme_preferences = {"appearance": mode, "accent": palette}
+
+    def on_appearance(self, _button):
+        dialog = Adw.AlertDialog.new(
+            "Appearance & color",
+            "Use an explicit Light or Dark appearance and optional GC UI color palette."
+        )
+        form = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        form.append(Gtk.Label(label="Appearance", xalign=0))
+        appearance = Gtk.DropDown.new_from_strings(["Light", "Dark"])
+        appearance.set_selected(APPEARANCES.index(self.theme_preferences["appearance"]))
+        form.append(appearance)
+        form.append(Gtk.Label(label="Accent", xalign=0))
+        accent = Gtk.DropDown.new_from_strings(
+            ["Neutral", "Lagoon", "Moss", "Ember", "Ocean", "Iris"]
+        )
+        accent.set_selected(ACCENTS.index(self.theme_preferences["accent"]))
+        form.append(accent)
+        dialog.set_extra_child(form)
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("save", "Save appearance")
+        dialog.set_default_response("save")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", self.on_appearance_response, appearance, accent)
+        dialog.present(self)
+
+    def on_appearance_response(self, _dialog, response, appearance, accent):
+        if response != "save":
+            return
+        mode = APPEARANCES[appearance.get_selected()]
+        palette = ACCENTS[accent.get_selected()]
+        self.apply_appearance(mode, palette)
+        try:
+            write_preferences(mode, palette)
+            self.message.set_text("Appearance saved on this device. Task data was not changed.")
+        except (OSError, ValueError) as error:
+            self.message.set_text(f"Appearance changed for this session; not saved: {error}")
 
     def update_projects(self, selected_id=None):
         self.projects = self.store.list_projects()

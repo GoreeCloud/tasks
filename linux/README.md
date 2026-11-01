@@ -83,6 +83,8 @@ accessibility or multi-distribution acceptance. The GC UI stylesheet uses
 libadwaita's adaptive palette variables for light/dark themes; GTK CSS does
 not support browser `@media` rules.
 
+**Appearance:** The native header offers Light/Dark and GC UI semantic accent choices (Neutral, Lagoon, Moss, Ember, Ocean and Iris). A new profile defaults to Light/Neutral, regardless of OS theme. The preference is kept outside the task database in `$XDG_CONFIG_HOME/goreecloud-tasks/appearance.json` (or `~/.config/goreecloud-tasks/appearance.json`), in a private user-local file, and is not part of portable JSON backups. See [GC UI appearance notes](../docs/GC_UI_APPEARANCE_MIGRATION.md).
+
 ## Known limitations
 
 The source installer has not undergone multi-distribution packaging tests, release signing, accessibility-device acceptance or update/rollback validation. Full Linux support and Stable acceptance remain pending.

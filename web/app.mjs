@@ -373,17 +373,20 @@ $('edit-task-form').addEventListener('submit', event => {
   taskEditor.close();
   render();
 });
+// Appearance is separate from task storage and is initialized before CSS.
+const appearanceDialog = $('appearance-dialog');
 $('theme-toggle').addEventListener('click', () => {
-  const root = document.documentElement;
-  const next = root.dataset.mode === 'dark' ? 'light' : 'dark';
-  root.dataset.mode = next;
-  try { localStorage.setItem('goreecloud.tasks.theme', next); }
-  catch { report('Theme preference could not be saved.'); }
+  $('appearance-mode').value = document.documentElement.dataset.mode || 'light';
+  $('appearance-accent').value = document.documentElement.dataset.gcAccent || 'neutral';
+  appearanceDialog.showModal();
 });
-try {
-  const saved = localStorage.getItem('goreecloud.tasks.theme');
-  if (saved === 'light' || saved === 'dark') document.documentElement.dataset.mode = saved;
-} catch { /* theme remains available for this session */ }
+$('appearance-cancel').addEventListener('click', () => appearanceDialog.close());
+$('appearance-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const persisted = window.GoreeTasksTheme.save($('appearance-mode').value, $('appearance-accent').value);
+  appearanceDialog.close();
+  report(persisted ? 'Appearance saved on this browser.' : 'Appearance applied for this session; saving the preference was blocked.');
+});
 $('export-data').addEventListener('click', () => {
   if (unreadableStore) { report('Cannot export unreadable task data. Restore a valid backup first.'); return; }
   if (writeLocked) { report('This browser tab has stale task data. Reload before exporting a backup.'); return; }
@@ -453,6 +456,10 @@ document.addEventListener('keydown', event => {
   }
 });
 window.addEventListener('storage', event => {
+  if (['goreecloud.tasks.ui.v1', 'goreecloud.tasks.appearance',
+       'goreecloud.tasks.accent', 'goreecloud.tasks.theme'].includes(event.key)) {
+    window.GoreeTasksTheme.apply(window.GoreeTasksTheme.read());
+  }
   if (event.key === STORAGE_KEY && event.newValue !== lastSavedRaw) {
     locked('This workspace changed in another tab. Reload before editing to avoid lost updates.');
     render();

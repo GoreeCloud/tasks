@@ -5,8 +5,7 @@ headerbar { background-color: @headerbar_bg_color; }
 list { border-radius: 18px; }
 row { min-height: 66px; }
 button.suggested-action {
-  background-color: #5145d9;
-  color: white;
+  min-height: 44px;
   border-radius: 12px;
 }
 entry { border-radius: 12px; min-height: 44px; }

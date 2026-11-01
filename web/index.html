@@ -1,11 +1,14 @@
 <!doctype html>
-<html lang="en" data-mode="light" data-accent="iris">
+<html lang="en" data-mode="light" data-theme="light" data-gc-accent="neutral">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#5145d9">
+  <meta name="theme-color" content="#ecf0f8">
   <title>GoreeCloud Tasks</title>
+  <script src="./theme-bootstrap.js"></script>
+  <link rel="stylesheet" href="./gc-app-semantic.css">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./mobile.css">
+  <link rel="stylesheet" href="./theme-overrides.css">
   <script type="module" src="./app.mjs"></script>
 </head>
 <body>
@@ -31,14 +34,14 @@
       <label for="mobile-project-select" class="visually-hidden">Browse projects</label>
       <select id="mobile-project-select" aria-label="Browse projects"><option value="">Projects</option></select>
       <button type="button" id="mobile-new-project">+ Project</button>
-      <details class="mobile-options"><summary aria-label="More settings">•••</summary><div class="mobile-options-content"><button id="mobile-export" type="button">↓ Export data</button><button id="mobile-import" type="button">↑ Restore backup</button><button id="mobile-theme" type="button">◐ Change theme</button></div></details>
+      <details class="mobile-options"><summary aria-label="More settings">•••</summary><div class="mobile-options-content"><button id="mobile-export" type="button">↓ Export data</button><button id="mobile-import" type="button">↑ Restore backup</button><button id="mobile-theme" type="button">◐ Appearance &amp; color</button></div></details>
     </div>
     <div class="sidebar-bottom">
       <p><strong>Privacy-first foundation</strong><span>Saved on this browser only. Sync and shared accounts are not available yet.</span></p>
       <button id="export-data" class="sidebar-action">↓ Export data</button>
       <button id="import-data" class="sidebar-action" type="button">↑ Restore backup</button>
       <input id="import-file" class="visually-hidden" type="file" accept=".json,application/json" aria-label="Choose GoreeCloud Tasks JSON backup">
-      <button id="theme-toggle" class="sidebar-action">◐ Change theme</button>
+      <button id="theme-toggle" class="sidebar-action">◐ Appearance &amp; color</button>
     </div>
   </aside>
   <main class="workspace" id="main-content" tabindex="-1">
@@ -85,6 +88,17 @@
     </div>
   </main>
 </div>
+<dialog id="appearance-dialog" aria-labelledby="appearance-heading">
+  <form id="appearance-form">
+    <h2 id="appearance-heading">Appearance &amp; color</h2>
+    <p>Choose your personal colors for this browser. Task data is unaffected.</p>
+    <label for="appearance-mode">Appearance</label>
+    <select id="appearance-mode"><option value="light">Light</option><option value="dark">Dark</option></select>
+    <label for="appearance-accent">Accent</label>
+    <select id="appearance-accent"><option value="neutral">Neutral (default)</option><option value="lagoon">Lagoon · teal</option><option value="moss">Moss · green</option><option value="ember">Ember · terracotta</option><option value="ocean">Ocean · blue</option><option value="iris">Iris · violet</option></select>
+    <div class="dialog-actions"><button id="appearance-cancel" type="button">Cancel</button><button type="submit" class="primary-button">Save appearance</button></div>
+  </form>
+</dialog>
 <dialog id="project-dialog"><form method="dialog" id="project-form"><h2>Create project</h2><p>Group your tasks around a meaningful goal.</p><label for="project-title">Project name</label><input id="project-title" required maxlength="100" placeholder="e.g. Launch checklist"><div class="dialog-actions"><button type="button" id="project-cancel">Cancel</button><button class="primary-button" type="submit">Create</button></div></form></dialog>
 <dialog id="edit-task-dialog" aria-labelledby="edit-task-heading">
   <form id="edit-task-form" autocomplete="off">

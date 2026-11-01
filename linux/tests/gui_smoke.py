@@ -16,6 +16,7 @@ def main():
         raise RuntimeError("GTK smoke requires a display; use xvfb-run")
     with tempfile.TemporaryDirectory(prefix="goreecloud-tasks-gui-smoke-") as directory:
         os.environ["XDG_DATA_HOME"] = directory
+        os.environ["XDG_CONFIG_HOME"] = directory
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
         from app import TasksApp, TasksWindow
         from gi.repository import Gtk
@@ -25,6 +26,16 @@ def main():
             raise RuntimeError("Could not register GTK application")
         window = TasksWindow(app)
         try:
+            # Verify theme controls never write task data or source backups.
+            from theme import read_preferences
+            assert window.theme_preferences == {"appearance": "light", "accent": "neutral"}
+            mode = Gtk.DropDown.new_from_strings(["Light", "Dark"])
+            mode.set_selected(1)
+            palette = Gtk.DropDown.new_from_strings(["Neutral", "Lagoon", "Moss", "Ember", "Ocean", "Iris"])
+            palette.set_selected(1)
+            window.on_appearance_response(None, "save", mode, palette)
+            assert read_preferences() == {"appearance": "dark", "accent": "lagoon"}
+            assert window.theme_preferences == read_preferences()
             project = window.store.add_project("Synthetic project")
             task = window.store.add_task("Before", priority=3)
             window.refresh()

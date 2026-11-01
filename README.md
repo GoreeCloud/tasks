@@ -16,6 +16,7 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Views and task filters | Inbox, Today, Next 7 days, Overdue, Upcoming, Priority, All, Completed | Open, Today, Next 7 days, Overdue, Upcoming, Priority, Completed, Project | Open, Today, Next 7 days, Overdue, Upcoming, Priority, Completed, Project |
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
 | Priority filter / sorting | All/P1–P4; Smart/Due date/Newest/Title | All/P1–P4; Smart/Due date/Title | All/P1–P4; Smart/Due date/Title |
+| GC UI appearance | Light default, Neutral + 5 accents, local preference | Light default, Neutral + 5 accents, private XDG preference | Light default, Neutral + 5 accents, private preferences |
 | Bulk actions | Visible-task selection, complete/reopen, priority, project moves, local Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash |
 | Keyboard workflow | / search, N quick add, skip-to-content link | Not part of this change | Not part of this change |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
@@ -24,7 +25,7 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Accessibility and GC UI alignment | Initial design only | Initial native design only | Initial native design only |
 | Multi-device synchronization | Not implemented | Not implemented | Not implemented |
 
-Each app is native to its target platform. They are not web wrappers. They use GC UI's design language as the design authority; consumer compliance and visual acceptance are **not** asserted.
+Each app is native to its target platform. They are not web wrappers. They use GC UI's design language as the design authority; consumer compliance and visual acceptance are **not** asserted. The appearance settings now offer explicit Light/Dark modes and Neutral, Lagoon, Moss, Ember, Ocean and Iris accents, with first-run **Light/Neutral**. Preferences are retained separately on each device; no theme setting is synchronized or included in task backups. See [GC UI appearance integration](docs/GC_UI_APPEARANCE_MIGRATION.md).
 
 ## Run the web app
 
@@ -124,6 +125,7 @@ GitHub Actions builds the Android debug variant separately. A build result does 
 - `docs/WEB_PRODUCTIVITY_UPGRADE.md` — browser-only productivity controls and acceptance gaps.
 - `docs/NATIVE_VIEW_PARITY.md` — native due-date views and priority/sort UI with verification boundaries.
 - `docs/NATIVE_BULK_OPERATIONS.md` — native transactional multi-selection and recoverable batch actions.
+- `docs/GC_UI_APPEARANCE_MIGRATION.md` — app-local Light-first GC UI semantic theme integration and acceptance gaps.
 - `.github/workflows/verify.yml` — model tests, Python checks, Android build.
 
 ## Design, governance, and ownership

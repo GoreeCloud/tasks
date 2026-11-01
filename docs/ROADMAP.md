@@ -32,6 +32,8 @@
 - [x] Additional native Linux and Android UI source for Overdue/Next 7 days views, P1–P4 priority filtering, and Smart/Due date/Title sorting. Existing native data schema and backups unchanged. Linux unit and GTK runtime smoke covered and previous Android CI succeeded; real-device UI acceptance remains pending. See [native view parity](NATIVE_VIEW_PARITY.md).
 - [x] Native Linux and Android batch-edit source: select visible tasks and apply complete/reopen, P1–P4, project/Inbox move or confirmed recoverable Trash in a single validated SQLite transaction; rejects stale/duplicate IDs and rolls back on Trash collisions. Linux unit and GTK smoke validation added; Android Robolectric/CI must pass at this commit, device accessibility pending. See [native bulk operations](NATIVE_BULK_OPERATIONS.md).
 
+- [x] GC UI appearance integration: browser semantic snapshot pinned to GC UI, Light/Neutral first launch, explicit Light/Dark and accent choices stored separately from tasks across browser, Linux GTK4 and Android Compose. Browser/Linux unit and GTK smoke checks added; Android CI and real UI/device accessibility acceptance are separate gates. See [GC UI appearance migration](GC_UI_APPEARANCE_MIGRATION.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.
