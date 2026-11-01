@@ -67,6 +67,11 @@ synthetic Android context: round trips, protected existing rows, upgrade and
 mid-transaction rollback. Physical device/file-provider acceptance remains pending. These JSON
 files are unencrypted: store them privately and verify restoration elsewhere.
 
+The CI build verifies the debug APK signature and SHA-256 and temporarily stores the
+compiled APK as a GitHub Actions artifact for internal testing. GitHub wraps
+this file in a ZIP; this is not a public APK release, signed production build,
+or end-user delivery. Artifact retention is seven days.
+
 An Android APK is **not considered delivered** by its appearance in local build output or GitHub Actions artifacts. Any actual APK delivered to the owner must be inspected, extracted as a standalone `.apk`, and uploaded to the existing Google Drive `GoreeCloud/Artifacts` folder, with provenance and readback, as required by GoreeCloud governance.
 
 ## Experimental local API
