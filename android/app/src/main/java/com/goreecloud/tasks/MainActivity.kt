@@ -3,6 +3,8 @@ package com.goreecloud.tasks
 import android.app.DatePickerDialog
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -67,6 +69,26 @@ private fun TasksScreen(db: TasksDatabase) {
         var view by remember { mutableStateOf("Open") }
         var search by remember { mutableStateOf("") }
         var error by remember { mutableStateOf("") }
+        var backupNotice by remember { mutableStateOf("") }
+        var preparedBackup by remember { mutableStateOf<ByteArray?>(null) }
+        val exportLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument("application/json")
+        ) { document ->
+            val bytes = preparedBackup
+            preparedBackup = null
+            if (document != null && bytes != null) {
+                try {
+                    val stream = context.contentResolver.openOutputStream(document, "w")
+                        ?: throw IllegalStateException("Could not open selected document.")
+                    stream.use { it.write(bytes); it.flush() }
+                    error = ""
+                    backupNotice = "Backup exported. Keep this unencrypted file private."
+                } catch (failure: Exception) {
+                    error = failure.message ?: "Could not write backup."
+                    backupNotice = ""
+                }
+            }
+        }
         var editing by remember { mutableStateOf<TaskRecord?>(null) }
         var editTitle by remember { mutableStateOf("") }
         var editPriority by remember { mutableIntStateOf(4) }
@@ -118,6 +140,24 @@ private fun TasksScreen(db: TasksDatabase) {
                             fontWeight = FontWeight.SemiBold, fontSize = 12.sp
                         )
                     }
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            preparedBackup = db.exportPortableBackup()
+                            backupNotice = ""
+                            exportLauncher.launch("goreecloud-tasks-backup.json")
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Backup cannot be exported."
+                            backupNotice = ""
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Export private JSON backup") }
+                if (backupNotice.isNotBlank()) {
+                    Text(backupNotice, style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.primary)
                 }
                 Spacer(Modifier.height(16.dp))
                 Text("Quick capture", style = MaterialTheme.typography.titleLarge,

@@ -23,7 +23,7 @@ internal data class ProjectRecord(val id: String, val name: String)
  * Version 2 adds project and due-date fields non-destructively; v1 tasks survive upgrade.
  */
 internal class TasksDatabase(context: Context) :
-    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 2) {
+    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 3) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
@@ -36,7 +36,7 @@ internal class TasksDatabase(context: Context) :
             "CREATE TABLE tasks (" +
                 "id TEXT PRIMARY KEY, title TEXT NOT NULL, " +
                 "priority INTEGER NOT NULL DEFAULT 4 CHECK(priority BETWEEN 1 AND 4), " +
-                "completed INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, " +
+                "completed INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, completed_at INTEGER, " +
                 "due_date TEXT, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL)"
         )
         db.execSQL("CREATE INDEX idx_tasks_priority ON tasks(completed, priority, created_at)")
@@ -49,6 +49,11 @@ internal class TasksDatabase(context: Context) :
             db.execSQL("ALTER TABLE tasks ADD COLUMN due_date TEXT")
             db.execSQL("ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL")
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(completed, due_date)")
+        }
+        if (oldVersion < 3) {
+            // Preserve historical completions without fabricating a completion date.
+            // Earlier records can have completed=1 and completed_at=NULL.
+            db.execSQL("ALTER TABLE tasks ADD COLUMN completed_at INTEGER")
         }
     }
 
@@ -121,9 +126,19 @@ internal class TasksDatabase(context: Context) :
     }
 
     fun setCompleted(id: String, completed: Boolean) {
-        val update = ContentValues().apply { put("completed", if (completed) 1 else 0) }
-        writableDatabase.update("tasks", update, "id=?", arrayOf(id))
+        val flag = if (completed) 1 else 0
+        val update = ContentValues().apply {
+            put("completed", flag)
+            if (completed) put("completed_at", System.currentTimeMillis())
+            else putNull("completed_at")
+        }
+        // A repeated toggle does not rewrite the original completion timestamp.
+        writableDatabase.update("tasks", update, "id=? AND completed<>?",
+                                arrayOf(id, flag.toString()))
     }
+
+    /** Explicit user-controlled, local document export; never uploads task data. */
+    fun exportPortableBackup(): ByteArray = PortableBackup.encode(readableDatabase)
 
     fun delete(id: String) {
         writableDatabase.delete("tasks", "id=?", arrayOf(id))
