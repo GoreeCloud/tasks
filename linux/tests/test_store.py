@@ -65,6 +65,13 @@ class TaskStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.list_tasks(view="INVALID")
 
+    def test_private_database_file_and_symlink_guard(self):
+        self.assertEqual(self.store.path.stat().st_mode & 0o777, 0o600)
+        linked = Path(self.dir.name) / "alias.sqlite3"
+        linked.symlink_to(self.store.path)
+        with self.assertRaises(ValueError):
+            TaskStore(linked)
+
     def test_data_persists_after_clean_restart(self):
         self.store.add_task("Save across restarts", priority=2)
         self.store.close()

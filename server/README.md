@@ -27,10 +27,10 @@ Requires Python 3.10+ (standard library only). Run from repository root:
 
 ```sh
 export GOREETASKS_API_TOKEN="$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')"
-python3 server/api.py --port 3037 --database /tmp/goreecloud-tasks-dev.sqlite3
+python3 server/api.py --port 3037
 ```
 
-Do not reuse production credentials or user task records. The above database is deliberately outside the native client databases. Environment-based token use is only a development control; deploy no public services from this script.
+Do not reuse production credentials or user task records. The server database defaults to a separate private XDG directory (`~/.local/share/goreecloud-tasks-server/` unless `XDG_DATA_HOME` is set), deliberately outside the native client databases. Database files are created with mode 0600 and obvious symlink paths are rejected. Ensure every custom `--database` directory is private as well, including its SQLite journal files. Environment-based token use is only a development control; deploy no public services from this script.
 
 ## API contract
 

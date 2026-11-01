@@ -13,11 +13,25 @@ VIEWS = ("Open", "Today", "Upcoming", "Priority", "Completed", "Project")
 
 class TaskStore:
     def __init__(self, db_path: str | Path | None = None):
+        db_path_is_default = db_path is None
         if db_path is None:
             home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
             db_path = home / "goreecloud-tasks" / "tasks.sqlite3"
         self.path = Path(db_path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        if db_path_is_default:
+            self.path.parent.chmod(0o700)
+        if self.path.is_symlink():
+            raise ValueError("Refusing symlinked task database")
+        if not self.path.exists():
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+                os.close(fd)
+            except FileExistsError:
+                raise ValueError("Task database was created concurrently; reopen safely")
+        if not self.path.is_file():
+            raise ValueError("Task database path is not a regular file")
+        self.path.chmod(0o600)
         self.db = sqlite3.connect(self.path)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")

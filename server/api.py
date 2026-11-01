@@ -92,6 +92,17 @@ class TaskDatabase:
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if self.path.is_symlink():
+            raise ValueError("Refusing symlinked server database")
+        if not self.path.exists():
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+                os.close(fd)
+            except FileExistsError:
+                raise ValueError("Server database created concurrently; reopen safely")
+        if not self.path.is_file():
+            raise ValueError("Server database path is not a regular file")
+        self.path.chmod(0o600)
         with closing(self.connect()) as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS tasks (

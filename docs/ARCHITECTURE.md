@@ -5,7 +5,7 @@
 ## Native clients
 
 - **Web:** HTML/CSS/ECMAScript browser application, localStorage-backed development model. A served web application is the actual target here, not a substitute for OS-native clients.
-- **Linux:** Python GTK4/libadwaita application, private XDG SQLite store with SQL constraints and parameter binding.
+- **Linux:** Python GTK4/libadwaita application, private XDG SQLite store with SQL constraints, parameter binding, owner-only file/directory permissions, and symlink guards.
 - **Android:** Kotlin Jetpack Compose application, private SQLiteOpenHelper-based local database with no Internet permission.
 - **Design:** GC UI Canvas/Surface/Lens principles, semantic color and native platform controls. Formal visual acceptance remains pending.
 

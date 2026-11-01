@@ -134,6 +134,13 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(len({response["id"] for _, response, _ in results}), 1)
         self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 1)
 
+    def test_private_sqlite_permissions_and_symlink_rejection(self):
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+        alias = Path(self.tmp.name) / "alias.sqlite3"
+        alias.symlink_to(self.path)
+        with self.assertRaises(ValueError):
+            TaskDatabase(alias)
+
     def test_persists_across_store_reopens(self):
         self.create("Persistent")
         reopened = TaskDatabase(self.path)

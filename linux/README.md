@@ -26,6 +26,8 @@ sh linux/tests/test_install.sh
 
 The installer copies the native application into `$XDG_DATA_HOME/goreecloud-tasks/application` (or `~/.local/share/goreecloud-tasks/application`), creates a launcher under `~/.local/bin` and a desktop entry and icon in XDG user-local locations. It does not require sudo or install dependencies.
 
+The application creates task database files with private permissions (0600) and rejects symlinked database paths. The default XDG task directory is restricted to the owner (0700).
+
 The database at `$XDG_DATA_HOME/goreecloud-tasks/tasks.sqlite3` is intentionally **preserved on uninstall**. To delete task data, an explicit separate user action is required. Uninstall is not proof of data backup. There are no automatic updates or signing guarantees yet.
 
 ## Portable task backups (experimental)
