@@ -27,11 +27,13 @@
       <label for="mobile-project-select" class="visually-hidden">Browse projects</label>
       <select id="mobile-project-select" aria-label="Browse projects"><option value="">Projects</option></select>
       <button type="button" id="mobile-new-project">+ Project</button>
-      <details class="mobile-options"><summary aria-label="More settings">•••</summary><div class="mobile-options-content"><button id="mobile-export" type="button">↓ Export data</button><button id="mobile-theme" type="button">◐ Change theme</button></div></details>
+      <details class="mobile-options"><summary aria-label="More settings">•••</summary><div class="mobile-options-content"><button id="mobile-export" type="button">↓ Export data</button><button id="mobile-import" type="button">↑ Restore backup</button><button id="mobile-theme" type="button">◐ Change theme</button></div></details>
     </div>
     <div class="sidebar-bottom">
       <p><strong>Privacy-first foundation</strong><span>Saved on this browser only. Sync and shared accounts are not available yet.</span></p>
       <button id="export-data" class="sidebar-action">↓ Export data</button>
+      <button id="import-data" class="sidebar-action" type="button">↑ Restore backup</button>
+      <input id="import-file" class="visually-hidden" type="file" accept=".json,application/json" aria-label="Choose GoreeCloud Tasks JSON backup">
       <button id="theme-toggle" class="sidebar-action">◐ Change theme</button>
     </div>
   </aside>

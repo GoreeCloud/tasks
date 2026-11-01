@@ -14,10 +14,10 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Device-local persistence | Browser localStorage | SQLite | SQLite |
 | Four priorities | Yes | Yes | Yes |
 | Views and task filters | Inbox, Today, Upcoming, Priority, All, Completed | Open/Completed | Open, Priority, Completed |
-| Projects | Create and assign tasks | Store contract (UI pending) | Pending |
-| Due dates | Date entry and views | Store contract (UI pending) | Pending |
-| Search / edit title | Yes | Pending | Pending |
-| JSON export | Yes | Pending | Pending |
+| Projects | Create and assign tasks | Create and assign tasks | Pending |
+| Due dates | Date entry and views | Date entry and filtered views | Pending |
+| Search / edit title | Yes | Search and store-level title edit | Pending |
+| JSON export / restore | Validated local export and explicit replacement restore | Pending | Pending |
 | Accessibility and GC UI alignment | Initial design only | Initial native design only | Initial native design only |
 | Multi-device synchronization | Not implemented | Not implemented | Not implemented |
 
@@ -31,7 +31,7 @@ Requires Python 3 for the local file server, or any equivalent static server:
 python3 -m http.server 4173 --directory web --bind 127.0.0.1
 ```
 
-Open http://127.0.0.1:4173 in a modern browser. Data is saved in that browser's local storage. Use **Export data** to retain a separate copy. There is no import or restore yet: exported JSON should be treated as a development backup, not a proven recovery mechanism.
+Open http://127.0.0.1:4173 in a modern browser. Data is saved in that browser's local storage. Use **Export data** to retain a separate copy. **Restore backup** validates the file against schema 1 and requires explicit confirmation before replacing all local data. This is early-development backup tooling, not yet a proven disaster-recovery solution. Another browser tab modifying data will disable editing until reload; IndexedDB-based transactional storage remains planned.
 
 ## Run the Linux app
 
@@ -58,7 +58,8 @@ An Android APK is **not considered delivered** by its appearance in local build 
 ## Verification
 
 ```sh
-node --test web/model.test.mjs
+node --check web/app.mjs
+node --test web/*.test.mjs
 python3 -m unittest discover -s linux/tests -v
 python3 -m py_compile linux/app.py linux/store.py
 ```
