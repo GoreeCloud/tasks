@@ -22,7 +22,7 @@ jobs:
       - name: Python store tests
         run: python3 -m unittest discover -s linux/tests -v
       - name: Compile Python syntax
-        run: python3 -m py_compile linux/app.py linux/store.py
+        run: python3 -m py_compile linux/app.py linux/store.py linux/backup.py
       - name: Isolated Linux user install/uninstall smoke
         run: sh -n linux/install.sh && sh -n linux/uninstall.sh && sh linux/tests/test_install.sh
   api:

@@ -28,6 +28,20 @@ The installer copies the native application into `$XDG_DATA_HOME/goreecloud-task
 
 The database at `$XDG_DATA_HOME/goreecloud-tasks/tasks.sqlite3` is intentionally **preserved on uninstall**. To delete task data, an explicit separate user action is required. Uninstall is not proof of data backup. There are no automatic updates or signing guarantees yet.
 
+## Portable task backups (experimental)
+
+The Linux CLI can export projects and tasks using the **same validated schema-1 JSON format as the browser**. It includes task IDs, priorities, due dates, completion timestamps and project references. A backup file is created with private file permissions and will **not** overwrite an existing file.
+
+```sh
+# Use the default device-local SQLite store; create a new JSON file:
+python3 linux/backup.py export --file ~/Documents/goreecloud-tasks-backup.json
+
+# On a separate test database, restore without overwriting existing tasks:
+python3 linux/backup.py --database /tmp/goreecloud-tasks-import-test.sqlite3 import --file ~/Documents/goreecloud-tasks-backup.json
+```
+
+**Import requires an empty task database** and validates the entire JSON snapshot before committing any records. It never replaces live records. Export refuses a missing SQLite database or existing output file, so it cannot silently provide an empty misleading backup. Test backup compatibility and verify real recovery before using it for important work. Native GUI import/export controls and Android portability remain pending.
+
 ## Known limitations
 
 The source installer has not undergone multi-distribution packaging tests, release signing, accessibility-device acceptance or update/rollback validation. Full Linux support and Stable acceptance remain pending.

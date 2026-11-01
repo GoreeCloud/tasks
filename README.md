@@ -17,7 +17,7 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
 | Search / edit title | Yes | Search and store-level title edit | Pending |
-| JSON export / restore | Validated local export and explicit replacement restore | Pending | Pending |
+| JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI export and empty-store import (no overwrite) | Pending |
 | Accessibility and GC UI alignment | Initial design only | Initial native design only | Initial native design only |
 | Multi-device synchronization | Not implemented | Not implemented | Not implemented |
 
@@ -67,7 +67,7 @@ An Android APK is **not considered delivered** by its appearance in local build 
 node --check web/app.mjs
 node --test web/*.test.mjs
 python3 -m unittest discover -s linux/tests -v
-python3 -m py_compile linux/app.py linux/store.py server/api.py
+python3 -m py_compile linux/app.py linux/store.py linux/backup.py server/api.py
 python3 -m unittest discover -s server/tests -v
 sh linux/tests/test_install.sh
 ```
