@@ -145,6 +145,107 @@ class RestoreDatabaseTest {
         }
     }
 
+    @Test fun localTrashPreservesExactBackupMetadataAcrossRestart() {
+        val source = snapshot()
+        db.restorePortableBackup(source)
+        assertTrue(db.delete("task-2"))
+        assertFalse(db.delete("task-2"))
+        assertEquals(listOf("task-2"), db.listDeletedTasks().map { it.id })
+        assertEquals(listOf("task-1"), db.listTasks().map { it.id })
+        assertEquals(listOf("task-1"),
+            PortableRestore.parse(db.exportPortableBackup()).tasks.map { it.id })
+        db.close()
+        db = TasksDatabase(context)
+        assertEquals(listOf("task-2"), db.listDeletedTasks().map { it.id })
+        assertTrue(db.restoreDeletedTask("task-2"))
+        assertFalse(db.restoreDeletedTask("task-2"))
+        assertTrue(db.listDeletedTasks().isEmpty())
+        assertEquals(source.tasks.sortedBy { it.id },
+            PortableRestore.parse(db.exportPortableBackup()).tasks.sortedBy { it.id })
+    }
+
+    @Test fun emptyActiveWorkspaceWithTrashRejectsPortableImport() {
+        db.add("Synthetic deleted task", 2, null, null)
+        val id = db.listTasks().single().id
+        assertTrue(db.delete(id))
+        assertEquals(0L to 0L, counts())
+        assertFalse(db.isEmptyForRestore())
+        try {
+            db.restorePortableBackup(snapshot())
+            throw AssertionError("Protected Trash should block import")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(listOf(id), db.listDeletedTasks().map { it.id })
+        assertEquals(0L to 0L, counts())
+    }
+
+    @Test fun trashCollisionRollsBackBothRows() {
+        db.add("Original synthetic", 4, null, null)
+        val id = db.listTasks().single().id
+        assertTrue(db.delete(id))
+        db.writableDatabase.execSQL(
+            "INSERT INTO tasks(id,title,priority,completed,created_at) VALUES(?,?,?,?,?)",
+            arrayOf(id, "Different active row", 2, 0, System.currentTimeMillis())
+        )
+        try {
+            db.restoreDeletedTask(id)
+            throw AssertionError("Duplicate task ID should block restore")
+        } catch (_: SQLiteConstraintException) { }
+        assertEquals("Different active row", db.listTasks().single().title)
+        assertEquals("Original synthetic", db.listDeletedTasks().single().title)
+        try {
+            db.delete(id)
+            throw AssertionError("Duplicate Trash ID should block deletion")
+        } catch (_: SQLiteConstraintException) { }
+        assertEquals("Different active row", db.listTasks().single().title)
+        assertEquals("Original synthetic", db.listDeletedTasks().single().title)
+    }
+
+    @Test fun missingProjectFailsClosedWithoutLosingTrash() {
+        db.restorePortableBackup(snapshot())
+        assertTrue(db.delete("task-1"))
+        db.writableDatabase.delete("projects", "id=?", arrayOf("project-1"))
+        try {
+            db.restoreDeletedTask("task-1")
+            throw AssertionError("Deleted project should block restoration")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(listOf("task-1"), db.listDeletedTasks().map { it.id })
+        assertEquals(listOf("task-2"), db.listTasks().map { it.id })
+    }
+
+    @Test fun versionFourUpgradeAddsTrashWithoutReplacingExistingRows() {
+        db.close()
+        context.deleteDatabase("goreecloud-tasks.db")
+        val legacy = SQLiteDatabase.openOrCreateDatabase(
+            context.getDatabasePath("goreecloud-tasks.db"), null
+        )
+        legacy.execSQL("CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL)")
+        legacy.execSQL(
+            "CREATE TABLE tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+                "priority INTEGER NOT NULL,completed INTEGER NOT NULL," +
+                "created_at INTEGER NOT NULL,completed_at INTEGER," +
+                "created_at_exact TEXT,completed_at_exact TEXT," +
+                "due_date TEXT,project_id TEXT)"
+        )
+        legacy.execSQL(
+            "INSERT INTO tasks(id,title,priority,completed,created_at,created_at_exact) " +
+                "VALUES('historical','Existing task',2,0,1761904800123," +
+                "'2026-10-31T12:00:00.123456+00:00')"
+        )
+        legacy.version = 4
+        legacy.close()
+        db = TasksDatabase(context)
+        assertEquals("Existing task", db.listTasks().single().title)
+        assertTrue(db.listDeletedTasks().isEmpty())
+        assertTrue(db.delete("historical"))
+        assertTrue(db.restoreDeletedTask("historical"))
+        db.readableDatabase.rawQuery(
+            "SELECT created_at_exact FROM tasks WHERE id='historical'", null
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("2026-10-31T12:00:00.123456+00:00", cursor.getString(0))
+        }
+    }
+
     @Test fun versionThreeUpgradeRetainsExistingTaskAndAddsExactColumns() {
         db.close()
         context.deleteDatabase("goreecloud-tasks.db")

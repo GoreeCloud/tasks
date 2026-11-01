@@ -58,6 +58,7 @@ private fun TasksScreen(db: TasksDatabase) {
         val context = LocalContext.current
         val tasks = remember { mutableStateListOf<TaskRecord>().apply { addAll(db.listTasks()) } }
         val projects = remember { mutableStateListOf<ProjectRecord>().apply { addAll(db.listProjects()) } }
+        val deletedTasks = remember { mutableStateListOf<TaskRecord>().apply { addAll(db.listDeletedTasks()) } }
         var title by remember { mutableStateOf("") }
         var priority by remember { mutableIntStateOf(4) }
         var priorityMenu by remember { mutableStateOf(false) }
@@ -103,7 +104,7 @@ private fun TasksScreen(db: TasksDatabase) {
                         ?: throw IllegalStateException("Could not open selected document.")
                     stream.use { it.write(bytes); it.flush() }
                     error = ""
-                    backupNotice = "Backup exported. Keep this unencrypted file private."
+                    backupNotice = "Backup exported. Local Trash is not included. Keep this private."
                 } catch (failure: Exception) {
                     error = failure.message ?: "Could not write backup."
                     backupNotice = ""
@@ -123,8 +124,14 @@ private fun TasksScreen(db: TasksDatabase) {
             tasks.addAll(db.listTasks())
             projects.clear()
             projects.addAll(db.listProjects())
+            deletedTasks.clear()
+            deletedTasks.addAll(db.listDeletedTasks())
         }
-        val visible = TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search)
+        val visible = if (view == "Trash") {
+            deletedTasks.filter {
+                search.isBlank() || it.title.contains(search.trim(), ignoreCase = true)
+            }
+        } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search)
         val activeProjectName = projects.find { it.id == selectedProjectId }?.name ?: "Inbox"
         val chooseDate = {
             val initial = dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
@@ -268,7 +275,7 @@ private fun TasksScreen(db: TasksDatabase) {
                 )
                 Spacer(Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    items(TaskViews.names) { name ->
+                    items(TaskViews.names + "Trash") { name ->
                         FilterChip(
                             selected = view == name, onClick = { view = name },
                             label = { Text(name) }
@@ -282,8 +289,10 @@ private fun TasksScreen(db: TasksDatabase) {
                         shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(Modifier.padding(22.dp)) {
-                            Text("All clear here ✦", fontWeight = FontWeight.Bold)
-                            Text("Capture a task or choose a different view.",
+                            Text(if (view == "Trash") "Trash is empty ✦" else "All clear here ✦",
+                                fontWeight = FontWeight.Bold)
+                            Text(if (view == "Trash") "Deleted tasks remain recoverable on this device."
+                                else "Capture a task or choose a different view.",
                                 style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -301,12 +310,14 @@ private fun TasksScreen(db: TasksDatabase) {
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Checkbox(checked = task.completed, onCheckedChange = {
-                                        try { db.setCompleted(task.id, it); reload() }
-                                        catch (failure: Exception) {
-                                            error = failure.message ?: "Unable to save task."
-                                        }
-                                    })
+                                    if (view != "Trash") {
+                                        Checkbox(checked = task.completed, onCheckedChange = {
+                                            try { db.setCompleted(task.id, it); reload() }
+                                            catch (failure: Exception) {
+                                                error = failure.message ?: "Unable to save task."
+                                            }
+                                        })
+                                    }
                                     Column(Modifier.weight(1f).padding(start = 5.dp)) {
                                         Text(
                                             task.title, maxLines = 3,
@@ -321,14 +332,28 @@ private fun TasksScreen(db: TasksDatabase) {
                                         Text(detail, color = MaterialTheme.colorScheme.primary,
                                             fontSize = 12.sp)
                                     }
-                                    TextButton(onClick = {
-                                        editing = task
-                                        editTitle = task.title
-                                        editPriority = task.priority
-                                        editDueDate = task.dueDate
-                                        editProjectId = task.projectId
-                                    }) { Text("Edit") }
-                                    TextButton(onClick = { deletion = task }) { Text("Delete") }
+                                    if (view == "Trash") {
+                                        TextButton(onClick = {
+                                            try {
+                                                if (db.restoreDeletedTask(task.id)) {
+                                                    error = ""
+                                                    backupNotice = "Restored task from local Trash."
+                                                } else error = "Task is no longer in Trash."
+                                                reload()
+                                            } catch (failure: Exception) {
+                                                error = failure.message ?: "Could not restore task."
+                                            }
+                                        }) { Text("Restore") }
+                                    } else {
+                                        TextButton(onClick = {
+                                            editing = task
+                                            editTitle = task.title
+                                            editPriority = task.priority
+                                            editDueDate = task.dueDate
+                                            editProjectId = task.projectId
+                                        }) { Text("Edit") }
+                                        TextButton(onClick = { deletion = task }) { Text("Delete") }
+                                    }
                                 }
                             }
                         }
@@ -492,16 +517,22 @@ private fun TasksScreen(db: TasksDatabase) {
         deletion?.let { task ->
             AlertDialog(
                 onDismissRequest = { deletion = null },
-                title = { Text("Delete task?") },
-                text = { Text("This permanently removes \"${task.title}\" from this device.") },
+                title = { Text("Move task to Trash?") },
+                text = { Text("You can restore \"${task.title}\" from local Trash.") },
                 confirmButton = {
                     TextButton(onClick = {
-                        try { db.delete(task.id); reload(); error = "" }
+                        try {
+                            if (db.delete(task.id)) {
+                                error = ""
+                                backupNotice = "Task moved to local Trash."
+                            } else error = "Task no longer exists."
+                            reload()
+                        }
                         catch (failure: Exception) {
                             error = failure.message ?: "Unable to delete task."
                         }
                         deletion = null
-                    }) { Text("Delete") }
+                    }) { Text("Move to Trash") }
                 },
                 dismissButton = {
                     TextButton(onClick = { deletion = null }) { Text("Cancel") }

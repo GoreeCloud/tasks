@@ -20,11 +20,12 @@ internal data class ProjectRecord(val id: String, val name: String)
 /**
  * On-device private SQLite database. No Internet permission or server sync.
  *
- * V2 adds projects/dates, V3 completion timestamps, V4 exact imported timestamps.
+ * V2 adds projects/dates, V3 completion timestamps, V4 exact imported timestamps,
+ * V5 adds durable device-local Trash.
  * All upgrades preserve existing task rows.
  */
 internal class TasksDatabase(context: Context) :
-    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 4) {
+    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 5) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
@@ -42,6 +43,20 @@ internal class TasksDatabase(context: Context) :
         )
         db.execSQL("CREATE INDEX idx_tasks_priority ON tasks(completed, priority, created_at)")
         db.execSQL("CREATE INDEX idx_tasks_due_date ON tasks(completed, due_date)")
+        createTrashSchema(db)
+    }
+
+    private fun createTrashSchema(db: SQLiteDatabase) {
+        // Intentionally no FK: deleted records retain original project links.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS deleted_tasks (" +
+                "id TEXT PRIMARY KEY, title TEXT NOT NULL, priority INTEGER NOT NULL, " +
+                "completed INTEGER NOT NULL, created_at INTEGER NOT NULL, " +
+                "completed_at INTEGER, created_at_exact TEXT, completed_at_exact TEXT, " +
+                "due_date TEXT, project_id TEXT, deleted_at INTEGER NOT NULL)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_deleted_tasks_when " +
+            "ON deleted_tasks(deleted_at DESC)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -62,6 +77,7 @@ internal class TasksDatabase(context: Context) :
             db.execSQL("ALTER TABLE tasks ADD COLUMN created_at_exact TEXT")
             db.execSQL("ALTER TABLE tasks ADD COLUMN completed_at_exact TEXT")
         }
+        if (oldVersion < 5) createTrashSchema(db)
     }
 
     fun listTasks(): List<TaskRecord> {
@@ -81,6 +97,22 @@ internal class TasksDatabase(context: Context) :
                     if (cursor.isNull(5)) null else cursor.getString(5)
                 )
             }
+        }
+        return records
+    }
+
+    fun listDeletedTasks(): List<TaskRecord> {
+        val records = mutableListOf<TaskRecord>()
+        readableDatabase.rawQuery(
+            "SELECT id,title,priority,completed,due_date,project_id FROM deleted_tasks " +
+                "ORDER BY deleted_at DESC,id", null
+        ).use { cursor ->
+            while (cursor.moveToNext()) records += TaskRecord(
+                cursor.getString(0), cursor.getString(1), cursor.getInt(2),
+                cursor.getInt(3) == 1,
+                if (cursor.isNull(4)) null else cursor.getString(4),
+                if (cursor.isNull(5)) null else cursor.getString(5)
+            )
         }
         return records
     }
@@ -154,7 +186,8 @@ internal class TasksDatabase(context: Context) :
     fun isEmptyForRestore(): Boolean {
         val db = readableDatabase
         return android.database.DatabaseUtils.queryNumEntries(db, "tasks") == 0L &&
-            android.database.DatabaseUtils.queryNumEntries(db, "projects") == 0L
+            android.database.DatabaseUtils.queryNumEntries(db, "projects") == 0L &&
+            android.database.DatabaseUtils.queryNumEntries(db, "deleted_tasks") == 0L
     }
 
     /** All-or-nothing restore. Recheck emptiness inside the exclusive transaction. */
@@ -163,8 +196,9 @@ internal class TasksDatabase(context: Context) :
         db.beginTransaction()
         try {
             require(android.database.DatabaseUtils.queryNumEntries(db, "tasks") == 0L &&
-                android.database.DatabaseUtils.queryNumEntries(db, "projects") == 0L) {
-                "Restore requires an empty Tasks database. Export current tasks first."
+                android.database.DatabaseUtils.queryNumEntries(db, "projects") == 0L &&
+                android.database.DatabaseUtils.queryNumEntries(db, "deleted_tasks") == 0L) {
+                "Restore requires an empty Tasks database, including Trash."
             }
             for (project in snapshot.projects) {
                 val values = ContentValues().apply {
@@ -195,7 +229,71 @@ internal class TasksDatabase(context: Context) :
         }
     }
 
-    fun delete(id: String) {
-        writableDatabase.delete("tasks", "id=?", arrayOf(id))
+    /** Move a complete row to local Trash atomically; never overwrite an ID. */
+    fun delete(id: String): Boolean {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            if (!db.rawQuery("SELECT 1 FROM tasks WHERE id=?", arrayOf(id))
+                    .use { it.moveToFirst() }) {
+                db.setTransactionSuccessful()
+                return false
+            }
+            db.execSQL(
+                "INSERT INTO deleted_tasks (" +
+                    "id,title,priority,completed,created_at,completed_at," +
+                    "created_at_exact,completed_at_exact,due_date,project_id,deleted_at) " +
+                    "SELECT id,title,priority,completed,created_at,completed_at," +
+                    "created_at_exact,completed_at_exact,due_date,project_id,? " +
+                    "FROM tasks WHERE id=?",
+                arrayOf(System.currentTimeMillis(), id)
+            )
+            require(db.delete("tasks", "id=?", arrayOf(id)) == 1) {
+                "Task changed during deletion"
+            }
+            db.setTransactionSuccessful()
+            return true
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Restore task fields and exact timestamps with no project reassignment. */
+    fun restoreDeletedTask(id: String): Boolean {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val projectId = db.rawQuery(
+                "SELECT project_id FROM deleted_tasks WHERE id=?", arrayOf(id)
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) {
+                    db.setTransactionSuccessful()
+                    return false
+                }
+                if (cursor.isNull(0)) null else cursor.getString(0)
+            }
+            require(projectId == null || db.rawQuery(
+                "SELECT 1 FROM projects WHERE id=?", arrayOf(projectId)
+            ).use { it.moveToFirst() }) {
+                "Original project no longer exists; task stays in Trash"
+            }
+            // PRIMARY KEY collisions roll back without removing Trash.
+            db.execSQL(
+                "INSERT INTO tasks (" +
+                    "id,title,priority,completed,created_at,completed_at," +
+                    "created_at_exact,completed_at_exact,due_date,project_id) " +
+                    "SELECT id,title,priority,completed,created_at,completed_at," +
+                    "created_at_exact,completed_at_exact,due_date,project_id " +
+                    "FROM deleted_tasks WHERE id=?",
+                arrayOf(id)
+            )
+            require(db.delete("deleted_tasks", "id=?", arrayOf(id)) == 1) {
+                "Trash changed during restoration"
+            }
+            db.setTransactionSuccessful()
+            return true
+        } finally {
+            db.endTransaction()
+        }
     }
 }
