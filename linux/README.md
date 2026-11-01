@@ -42,6 +42,24 @@ python3 linux/backup.py export --file ~/Documents/goreecloud-tasks-backup.json
 python3 linux/backup.py --database /tmp/goreecloud-tasks-import-test.sqlite3 import --file ~/Documents/goreecloud-tasks-backup.json
 ```
 
+**Recoverable local Trash:** The Linux app has a **Trash** view with a native
+**Restore** button. Deletion moves a task into a separate SQLite table atomically
+instead of destroying its metadata; restoration preserves its original ID,
+project link, due date, priority, completion status and timestamps. Deleted
+tasks survive application restarts and are preserved with the local SQLite
+database during uninstall. Existing databases gain the Trash table through a
+non-destructive additive migration. If a task ID already exists in the active
+store, or its original project no longer exists, restoration fails without
+altering either row; it never silently overwrites or reassigns records.
+
+**Portable JSON exports deliberately exclude Trash history** to preserve
+cross-platform schema-1 compatibility. They contain current tasks and projects,
+not deleted records. Retaining the original SQLite database (including its WAL
+files or a verified SQLite snapshot) is necessary to preserve deleted tasks
+across device moves. There is currently no permanent-delete/empty-trash command;
+this is a conservative recovery-first foundation, not a complete lifecycle
+policy. Test the restore operation with synthetic data before relying on it.
+
 The native GTK interface also exposes **Export JSON** and **Import JSON** file dialogs using the same guarded implementation. It also provides a native **Edit** dialog for task title, priority, due date and project; changes are validated and applied together without clearing completion history. Completion toggles are idempotent: repeating an already-completed state does not rewrite the original completion timestamp stored in portable backups.
 
 **Import requires an empty task database** and validates the entire JSON snapshot before committing any records. It never replaces live records. Export refuses a missing SQLite database or existing output file, so it cannot silently provide an empty misleading backup. Test backup compatibility and verify real recovery before using it for important work. Android import/export is now implemented and a limited Android 16 native document-picker smoke test passed; comprehensive provider, completed-task, and release acceptance is still pending. File-dialog interactions require full platform-specific GUI acceptance beyond the initial smoke launch.
@@ -54,7 +72,7 @@ On a Linux machine with GTK4, libadwaita, PyGObject and `xvfb-run` installed:
 xvfb-run -a python3 linux/tests/gui_smoke.py
 ```
 
-This exercises the actual native window, task edit dialog and SQLite persistence
+This exercises the actual native window, task edit dialog, Trash/Restore actions and SQLite persistence
 using a **temporary XDG_DATA_HOME**. The same headless GTK4 test is run in
 GitHub Actions on Ubuntu 24.04 so source commits cannot silently break GTK
 startup or the tested edit flow. It never reads or writes the user's normal

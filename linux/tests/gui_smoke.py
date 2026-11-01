@@ -49,7 +49,22 @@ def main():
             assert row["priority"] == 1
             assert row["due_date"] == "2026-11-09"
             assert row["project_id"] == project
-            print("GTK4_LIBADWAITA_TASK_EDIT_SMOKE_PASS")
+            created_at = row["created_at"]
+            window.on_delete_response(None, "delete", task)
+            assert window.store.list_tasks() == []
+            deleted = window.store.list_deleted_tasks()
+            assert len(deleted) == 1 and deleted[0]["id"] == task
+            window.view.set_selected(6)
+            window.refresh()
+            assert window.view.get_selected() == 6
+            assert window.list_box.get_first_child() is not None
+            window.on_restore(None, task)
+            restored = window.store.list_tasks()[0]
+            assert restored["title"] == "After"
+            assert restored["project_id"] == project
+            assert restored["created_at"] == created_at
+            assert window.store.list_deleted_tasks() == []
+            print("GTK4_LIBADWAITA_TASK_EDIT_AND_TRASH_RECOVERY_SMOKE_PASS")
         finally:
             window.close()
 

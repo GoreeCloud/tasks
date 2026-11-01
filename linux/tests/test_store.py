@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
 import sys
 
@@ -30,6 +31,84 @@ class TaskStoreTests(unittest.TestCase):
         self.assertEqual(self.store.list_tasks()[0]["title"], "Updated title")
         self.assertTrue(self.store.delete_task(key))
         self.assertFalse(self.store.delete_task(key))
+
+    def test_trash_survives_restart_and_restores_exact_fields(self):
+        project = self.store.add_project("Roadmap")
+        task_id = self.store.add_task("Review 🚀", priority=1,
+                                      due_date="2026-11-09", project_id=project)
+        self.store.complete_task(task_id, True)
+        original = self.store.list_tasks(include_completed=True)[0]
+        self.assertTrue(self.store.delete_task(task_id))
+        self.assertFalse(self.store.delete_task(task_id))
+        self.assertEqual(self.store.list_tasks(include_completed=True), [])
+        deleted = self.store.list_deleted_tasks()
+        self.assertEqual(len(deleted), 1)
+        self.assertEqual(deleted[0]["id"], task_id)
+        self.assertTrue(deleted[0]["deleted_at"])
+        for field, value in original.items():
+            self.assertEqual(deleted[0][field], value)
+        self.assertEqual(len(self.store.list_deleted_tasks(query="Review")), 1)
+        self.assertEqual(self.store.list_deleted_tasks(query="%"), [])
+        self.store.close()
+        self.store = TaskStore(Path(self.dir.name) / "tasks.db")
+        self.assertEqual(self.store.list_tasks(include_completed=True), [])
+        self.assertEqual(self.store.list_deleted_tasks()[0]["id"], task_id)
+        self.assertTrue(self.store.restore_deleted_task(task_id))
+        self.assertFalse(self.store.restore_deleted_task(task_id))
+        self.assertEqual(self.store.list_deleted_tasks(), [])
+        self.assertEqual(self.store.list_tasks(include_completed=True), [original])
+
+    def test_trash_conflicts_roll_back_without_data_loss(self):
+        task_id = self.store.add_task("Original record")
+        self.assertTrue(self.store.delete_task(task_id))
+        trashed = self.store.list_deleted_tasks()[0]
+        # A restored import can later reuse the same ID; neither row should
+        # be overwritten by deletion or restoration after such a collision.
+        with self.store.db:
+            self.store.db.execute(
+                "INSERT INTO tasks (id,title,priority,created_at,completed) "
+                "VALUES (?,?,?,?,?)",
+                (task_id, "Different active row", 4, trashed["created_at"], 0)
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.store.restore_deleted_task(task_id)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.store.delete_task(task_id)
+        self.assertEqual(self.store.list_tasks()[0]["title"], "Different active row")
+        self.assertEqual(self.store.list_deleted_tasks(), [trashed])
+
+    def test_trash_missing_project_fails_closed(self):
+        project = self.store.add_project("Temporary")
+        task_id = self.store.add_task("Project-bound", project_id=project)
+        self.assertTrue(self.store.delete_task(task_id))
+        with self.store.db:
+            self.store.db.execute("DELETE FROM projects WHERE id=?", (project,))
+        with self.assertRaises(ValueError):
+            self.store.restore_deleted_task(task_id)
+        self.assertEqual(self.store.list_tasks(include_completed=True), [])
+        self.assertEqual(self.store.list_deleted_tasks()[0]["id"], task_id)
+
+    def test_legacy_database_gains_trash_without_replacing_rows(self):
+        self.store.close()
+        legacy_file = Path(self.dir.name) / "legacy.sqlite3"
+        with sqlite3.connect(legacy_file) as old:
+            old.execute("CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL)")
+            old.execute(
+                "CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, "
+                "priority INTEGER, completed INTEGER, due_date TEXT, "
+                "project_id TEXT, created_at TEXT, completed_at TEXT)"
+            )
+            old.execute(
+                "INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?)",
+                ("legacy-task", "Important", 2, 0, None, None,
+                 "2026-10-31T10:00:00+00:00", None)
+            )
+        self.store = TaskStore(legacy_file)
+        self.assertEqual(self.store.list_tasks()[0]["id"], "legacy-task")
+        self.assertEqual(self.store.list_deleted_tasks(), [])
+        self.assertTrue(self.store.delete_task("legacy-task"))
+        self.assertTrue(self.store.restore_deleted_task("legacy-task"))
+        self.assertEqual(self.store.list_tasks()[0]["title"], "Important")
 
     def test_completion_idempotency_preserves_original_timestamp(self):
         task_id = self.store.add_task("Timestamp-sensitive backup")

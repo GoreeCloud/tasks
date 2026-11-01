@@ -43,7 +43,7 @@ python3 linux/app.py
 
 For user-local desktop integration without sudo, see [Linux install/uninstall](linux/README.md). The source installer preserves device data on uninstall and has an isolated installation smoke test.
 
-The app stores its database under `$XDG_DATA_HOME/goreecloud-tasks/tasks.sqlite3` (otherwise `~/.local/share/goreecloud-tasks/tasks.sqlite3`). Do not treat this early client as fully backed up or synchronized.
+The app stores its database under `$XDG_DATA_HOME/goreecloud-tasks/tasks.sqlite3` (otherwise `~/.local/share/goreecloud-tasks/tasks.sqlite3`). Do not treat this early client as fully backed up or synchronized. Linux deletions now move tasks into durable, local-only SQLite Trash; the native Trash view can restore them across app restarts. **Portable JSON backups do not include Trash records**. See [Linux recovery details](linux/README.md).
 
 ## Build Android
 

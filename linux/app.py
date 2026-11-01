@@ -104,7 +104,7 @@ class TasksWindow(Adw.ApplicationWindow):
         schedule_row.append(self.due)
         schedule_row.append(Gtk.Label(label="View"))
         self.view = Gtk.DropDown.new_from_strings(
-            ["Open", "Today", "Upcoming", "Priority", "Completed", "Project"]
+            ["Open", "Today", "Upcoming", "Priority", "Completed", "Project", "Trash"]
         )
         self.view.connect("notify::selected", self.on_filter)
         schedule_row.append(self.view)
@@ -223,15 +223,19 @@ class TasksWindow(Adw.ApplicationWindow):
         while (child := self.list_box.get_first_child()) is not None:
             self.list_box.remove(child)
         active = self.view.get_selected()
-        view = ("Open", "Today", "Upcoming", "Priority", "Completed", "Project")[active]
-        tasks = self.store.list_tasks(
-            view=view, query=self.search.get_text(),
-            project_id=self.selected_project_id()
-        )
+        view = ("Open", "Today", "Upcoming", "Priority", "Completed", "Project", "Trash")[active]
+        if view == "Trash":
+            tasks = self.store.list_deleted_tasks(query=self.search.get_text())
+        else:
+            tasks = self.store.list_tasks(
+                view=view, query=self.search.get_text(),
+                project_id=self.selected_project_id()
+            )
         if not tasks:
             empty = Adw.ActionRow(
-                title="All clear here",
-                subtitle="Capture a task or choose another view."
+                title="Trash is empty" if view == "Trash" else "All clear here",
+                subtitle=("Deleted tasks will appear here until restored."
+                          if view == "Trash" else "Capture a task or choose another view.")
             )
             self.list_box.append(empty)
         for task in tasks:
@@ -242,6 +246,13 @@ class TasksWindow(Adw.ApplicationWindow):
             if project:
                 info.append(project)
             row = Adw.ActionRow(title=task["title"], subtitle="  ·  ".join(info))
+            if view == "Trash":
+                restore = Gtk.Button(label="Restore", tooltip_text="Restore " + task["title"])
+                restore.set_valign(Gtk.Align.CENTER)
+                restore.connect("clicked", self.on_restore, task["id"])
+                row.add_suffix(restore)
+                self.list_box.append(row)
+                continue
             checkbox = Gtk.CheckButton()
             checkbox.set_active(bool(task["completed"]))
             checkbox.set_valign(Gtk.Align.CENTER)
@@ -336,10 +347,23 @@ class TasksWindow(Adw.ApplicationWindow):
         except (ValueError, sqlite3.Error, OSError) as error:
             self.message.set_text(f"Edit failed: {error}")
 
+    def on_restore(self, _button, task_id):
+        try:
+            if self.store.restore_deleted_task(task_id):
+                self.message.set_text("Task restored with original completion history.")
+            else:
+                self.message.set_text("This task is no longer in Trash.")
+            self.refresh()
+        except (ValueError, sqlite3.Error, OSError) as error:
+            self.message.set_text(f"Restore failed; task remains in Trash: {error}")
+
     def on_delete(self, _button, task_id):
-        dialog = Adw.AlertDialog.new("Delete this task?", "This action permanently deletes the task on this device.")
+        dialog = Adw.AlertDialog.new(
+            "Move this task to Trash?",
+            "The task can be restored later from the local Trash view."
+        )
         dialog.add_response("cancel", "Cancel")
-        dialog.add_response("delete", "Delete")
+        dialog.add_response("delete", "Move to Trash")
         dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
@@ -349,10 +373,13 @@ class TasksWindow(Adw.ApplicationWindow):
     def on_delete_response(self, _dialog, response, task_id):
         if response == "delete":
             try:
-                self.store.delete_task(task_id)
+                if self.store.delete_task(task_id):
+                    self.message.set_text("Task moved to local Trash; restore it from the Trash view.")
+                else:
+                    self.message.set_text("Task no longer exists; nothing was deleted.")
                 self.refresh()
-            except sqlite3.Error as error:
-                self.message.set_text(str(error))
+            except (sqlite3.Error, ValueError) as error:
+                self.message.set_text(f"Delete failed: {error}")
 
     def on_close(self, *_args):
         self.store.close()

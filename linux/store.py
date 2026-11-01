@@ -51,6 +51,21 @@ class TaskStore:
                 completed_at TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_tasks_sort ON tasks(completed, priority, due_date);
+            -- Additive migration: deleted rows remain local and recoverable.
+            -- The standalone schema-1 backup intentionally exports active tasks only.
+            CREATE TABLE IF NOT EXISTS deleted_tasks (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                due_date TEXT,
+                project_id TEXT,
+                completed INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                deleted_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_deleted_tasks_when
+                ON deleted_tasks(deleted_at DESC);
         """)
         self.db.commit()
 
@@ -177,9 +192,67 @@ class TaskStore:
         return cur.rowcount > 0
 
     def delete_task(self, task_id: str) -> bool:
+        """Move a task to local durable Trash in one SQLite transaction."""
         with self.db:
+            current = self.db.execute(
+                "SELECT id FROM tasks WHERE id=?", (task_id,)).fetchone()
+            if current is None:
+                return False
+            # Never overwrite an older trashed row if the ID was later
+            # reintroduced via an import; a collision rolls back safely.
+            self.db.execute(
+                "INSERT INTO deleted_tasks "
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,deleted_at) "
+                "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,? "
+                "FROM tasks WHERE id=?",
+                (datetime.now(timezone.utc).isoformat(), task_id)
+            )
             cur = self.db.execute("DELETE FROM tasks WHERE id=?", (task_id,))
-        return cur.rowcount > 0
+            if cur.rowcount != 1:
+                raise sqlite3.IntegrityError("Task changed during deletion")
+        return True
+
+    def list_deleted_tasks(self, *, query: str = "") -> list[dict]:
+        """Deleted rows are local-only and excluded from portable backups."""
+        if not isinstance(query, str):
+            raise ValueError("Search must be text")
+        params = []
+        where = ""
+        if query.strip():
+            escaped = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            where = "WHERE title LIKE ? ESCAPE '\\'"
+            params.append("%" + escaped + "%")
+        rows = self.db.execute(
+            "SELECT * FROM deleted_tasks " + where +
+            " ORDER BY deleted_at DESC, id", params
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def restore_deleted_task(self, task_id: str) -> bool:
+        """Recreate the original task atomically; preserve timestamps and ID."""
+        with self.db:
+            row = self.db.execute(
+                "SELECT * FROM deleted_tasks WHERE id=?", (task_id,)).fetchone()
+            if row is None:
+                return False
+            if (row["project_id"] is not None and
+                    self.db.execute("SELECT 1 FROM projects WHERE id=?",
+                                    (row["project_id"],)).fetchone() is None):
+                raise ValueError("Original project no longer exists; task not restored")
+            # An ID collision raises and rolls back, leaving Trash untouched.
+            self.db.execute(
+                "INSERT INTO tasks "
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                tuple(row[field] for field in
+                      ("id", "title", "priority", "due_date", "project_id",
+                       "completed", "created_at", "completed_at"))
+            )
+            removed = self.db.execute(
+                "DELETE FROM deleted_tasks WHERE id=?", (task_id,))
+            if removed.rowcount != 1:
+                raise sqlite3.IntegrityError("Trash changed during restoration")
+        return True
 
     def add_project(self, name: str) -> str:
         if not isinstance(name, str):

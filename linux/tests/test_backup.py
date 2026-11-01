@@ -74,6 +74,20 @@ class PortableBackupTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(BackupError):
                 validate(invalid)
 
+    def test_portable_backup_excludes_local_trash_but_preserves_active_rows(self):
+        deleted_id = self.source.add_task("Recoverable but local only")
+        active_id = self.source.add_task("Keep in the portable backup")
+        self.assertTrue(self.source.delete_task(deleted_id))
+        exported = export_data(self.source)
+        self.assertEqual([task["id"] for task in exported["tasks"]], [active_id])
+        self.assertEqual(len(self.source.list_deleted_tasks()), 1)
+        self.assertEqual(import_data(self.target, exported), (1, 0))
+        self.assertEqual(self.target.list_deleted_tasks(), [])
+        self.assertEqual(self.target.list_tasks()[0]["id"], active_id)
+        # Restoring local Trash does not rewrite previously exported backups.
+        self.assertTrue(self.source.restore_deleted_task(deleted_id))
+        self.assertEqual([task["id"] for task in exported["tasks"]], [active_id])
+
     def test_roundtrip_without_data_loss(self):
         self.create_fixture()
         path = self.folder / "portable.json"
