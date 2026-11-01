@@ -67,5 +67,27 @@
   </main>
 </div>
 <dialog id="project-dialog"><form method="dialog" id="project-form"><h2>Create project</h2><p>Group your tasks around a meaningful goal.</p><label for="project-title">Project name</label><input id="project-title" required maxlength="100" placeholder="e.g. Launch checklist"><div class="dialog-actions"><button type="button" id="project-cancel">Cancel</button><button class="primary-button" type="submit">Create</button></div></form></dialog>
+<dialog id="edit-task-dialog" aria-labelledby="edit-task-heading">
+  <form id="edit-task-form" autocomplete="off">
+    <h2 id="edit-task-heading">Edit task</h2>
+    <p>Update this task on this browser. Completion history is preserved.</p>
+    <label for="edit-task-title">Title</label>
+    <input id="edit-task-title" type="text" required maxlength="240">
+    <label for="edit-task-priority">Priority</label>
+    <select id="edit-task-priority" required>
+      <option value="1">P1 · Urgent</option><option value="2">P2 · High</option>
+      <option value="3">P3 · Medium</option><option value="4">P4 · Normal</option>
+    </select>
+    <label for="edit-task-date">Due date (optional)</label>
+    <input id="edit-task-date" type="date">
+    <label for="edit-task-project">Project</label>
+    <select id="edit-task-project"></select>
+    <p id="edit-task-error" role="alert" aria-live="polite"></p>
+    <div class="dialog-actions">
+      <button type="button" id="edit-task-cancel">Cancel</button>
+      <button type="submit" class="primary-button">Save changes</button>
+    </div>
+  </form>
+</dialog>
 </body>
 </html>

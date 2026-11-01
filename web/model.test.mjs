@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY, hydrate, localDate, newTask, selectTasks } from './model.mjs';
+import { EMPTY, editTask, hydrate, localDate, newTask, selectTasks } from './model.mjs';
 test('bad persistence recovers safely', () => { assert.deepEqual(hydrate('{'), EMPTY()); assert.deepEqual(hydrate('{"schema":2}'), EMPTY()); });
 test('title and priority validation', () => { assert.throws(() => newTask('  ')); assert.throws(() => newTask('ok', null, '', 0)); assert.equal(newTask('  Plan  ').title, 'Plan'); });
 test('inbox, project, today, completed and priority filtering', () => {
@@ -26,4 +26,50 @@ test('Unicode scalar validation and native priority types', () => {
   assert.throws(() => newTask('valid', null, 0));
   assert.equal(newTask('Review 🚀', null, '', '2').priority, 2);
   assert.equal(newTask('Review 🚀').title, 'Review 🚀');
+});
+
+test('web edit changes all editable fields while preserving task identity and history', () => {
+  const original = { ...newTask('Original task', '', '2026-11-03', 4),
+    completed: true, completedAt: '2026-11-04T09:00:00Z' };
+  const projects = [{ id: 'project-alpha', name: 'Roadmap' }];
+  const edited = editTask(original, {
+    title: '  Review launch  ', projectId: 'project-alpha',
+    due: '2026-11-10', priority: '1'
+  }, projects);
+  assert.notStrictEqual(edited, original);
+  assert.deepEqual(
+    { id: edited.id, completed: edited.completed, createdAt: edited.createdAt,
+      completedAt: edited.completedAt },
+    { id: original.id, completed: original.completed, createdAt: original.createdAt,
+      completedAt: original.completedAt }
+  );
+  assert.equal(edited.title, 'Review launch');
+  assert.equal(edited.projectId, 'project-alpha');
+  assert.equal(edited.due, '2026-11-10');
+  assert.equal(edited.priority, 1);
+  assert.equal(original.title, 'Original task');
+  const inbox = editTask(edited, {
+    title: 'Inbox', projectId: '', due: '', priority: 4
+  }, projects);
+  assert.equal(inbox.projectId, null);
+  assert.equal(inbox.due, '');
+});
+
+test('web edit refuses invalid titles, dates, priorities and missing projects', () => {
+  const original = newTask('Valid');
+  const fields = { title: 'Updated', projectId: null, due: '', priority: 2 };
+  const cases = [
+    { title: ' ' }, { title: 'x'.repeat(241) },
+    { title: 'bad ' + String.fromCharCode(0xD800) },
+    { due: '2026-02-30' }, { due: '2026-11-31' },
+    { priority: 0 }, { priority: true }, { priority: 'not-a-priority' },
+    { projectId: 'missing-project' }, { projectId: 42 }
+  ];
+  for (const bad of cases) {
+    assert.throws(() => editTask(original, { ...fields, ...bad }, []));
+    assert.equal(original.title, 'Valid');
+  }
+  assert.throws(() => editTask(null, fields, []));
+  assert.throws(() => editTask(original, fields, null));
+  assert.equal(newTask('Inbox', '').projectId, null);
 });

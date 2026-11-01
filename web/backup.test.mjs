@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { exportBackup, validateBackup, validateBackupText, validDate } from './backup.mjs';
 import { readFileSync } from 'node:fs';
+import { editTask, newTask } from './model.mjs';
 
 const valid = () => ({ schema: 1, projects: [{ id: 'p', name: ' Home ' }], tasks: [
   { id: 't', title: ' Task ', projectId: 'p', priority: 1, due: '2028-02-29',
@@ -24,6 +25,21 @@ test('shared schema-1 synthetic fixture round-trips with full field precision', 
     { ...original, tasks: [{ ...original.tasks[0], priority: true }] },
     { ...original, tasks: [{ ...original.tasks[0], due: '2026-02-30' }] }
   ]) assert.throws(() => validateBackup(invalid));
+});
+
+test('edited task retains completion metadata through portable backup roundtrip', () => {
+  const task = {
+    ...newTask('Original', null, '2026-11-03', 4),
+    completed: true, completedAt: '2026-11-04T09:10:11.123Z'
+  };
+  const projects = [{ id: 'p', name: 'Delivery' }];
+  const edited = editTask(task, {
+    title: 'Shipped', projectId: 'p', due: '2026-11-20', priority: '1'
+  }, projects);
+  const restored = validateBackupText(exportBackup({ schema: 1, projects, tasks: [edited] }));
+  assert.deepEqual(restored.tasks[0], edited);
+  assert.equal(restored.tasks[0].completedAt, task.completedAt);
+  assert.equal(restored.tasks[0].createdAt, task.createdAt);
 });
 
 test('strict lossless backup roundtrip except whitespace trimming', () => {

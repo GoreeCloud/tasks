@@ -1,4 +1,4 @@
-import { EMPTY, localDate, newTask, selectTasks, STORAGE_KEY } from './model.mjs';
+import { EMPTY, editTask, localDate, newTask, selectTasks, STORAGE_KEY } from './model.mjs';
 import { exportBackup, MAX_BACKUP_BYTES, validateBackupText } from './backup.mjs';
 
 const $ = id => document.getElementById(id);
@@ -20,8 +20,8 @@ function report(message) { $('status').textContent = message; }
 function locked(message) {
   writeLocked = true;
   report(message);
-  ['task-form', 'project-form'].forEach(id => {
-    $(id).querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
+  ['task-form', 'project-form', 'edit-task-form'].forEach(id => {
+    $(id).querySelectorAll('input, select, button[type="submit"]').forEach(control => { control.disabled = true; });
   });
   $('new-project').disabled = true;
   $('mobile-new-project').disabled = true;
@@ -67,6 +67,22 @@ function makeButton(label, className, click) {
   button.disabled = writeLocked;
   button.addEventListener('click', click);
   return button;
+}
+const taskEditor = $('edit-task-dialog');
+let editingTaskId = null;
+function openTaskEditor(task) {
+  if (writeLocked) return;
+  editingTaskId = task.id;
+  $('edit-task-title').value = task.title;
+  $('edit-task-priority').value = String(task.priority);
+  $('edit-task-date').value = task.due || '';
+  const projectSelect = $('edit-task-project');
+  projectSelect.replaceChildren(new Option('Inbox', ''));
+  for (const project of state.projects) projectSelect.add(new Option(project.name, project.id));
+  projectSelect.value = task.projectId || '';
+  $('edit-task-error').textContent = '';
+  taskEditor.showModal();
+  $('edit-task-title').focus();
 }
 function render() {
   const today = localDate();
@@ -133,14 +149,8 @@ function render() {
     const project = state.projects.find(entry => entry.id === task.projectId);
     if (project) details.append(el('span', 'project-pill', project.name));
     body.append(details);
-    const edit = makeButton('Edit', 'row-button', () => {
-      const changed = prompt('Edit task title', task.title);
-      if (changed === null) return;
-      const title = changed.trim();
-      if (!title || title.length > 240) { report('Task title must be 1–240 characters.'); return; }
-      mutate(draft => { draft.tasks.find(entry => entry.id === task.id).title = title; });
-      render();
-    });
+    const edit = makeButton('Edit', 'row-button', () => openTaskEditor(task));
+    edit.setAttribute('aria-label', 'Edit ' + task.title);
     const remove = makeButton('Delete', 'row-button danger', () => {
       if (!confirm('Delete this task permanently? Export a backup first if needed.')) return;
       mutate(draft => { draft.tasks = draft.tasks.filter(entry => entry.id !== task.id); });
@@ -183,6 +193,33 @@ $('project-form').addEventListener('submit', event => {
     dialog.close();
     $('project-form').reset();
   }
+  render();
+});
+$('edit-task-cancel').addEventListener('click', () => taskEditor.close());
+taskEditor.addEventListener('close', () => { editingTaskId = null; $('edit-task-error').textContent = ''; });
+$('edit-task-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (writeLocked || !editingTaskId) {
+    $('edit-task-error').textContent = 'Editing is unavailable. Reload before making changes.';
+    return;
+  }
+  const id = editingTaskId;
+  const updates = {
+    title: $('edit-task-title').value,
+    priority: $('edit-task-priority').value,
+    due: $('edit-task-date').value,
+    projectId: $('edit-task-project').value || null
+  };
+  const saved = mutate(draft => {
+    const index = draft.tasks.findIndex(task => task.id === id);
+    if (index < 0) throw new Error('Task no longer exists.');
+    draft.tasks[index] = editTask(draft.tasks[index], updates, draft.projects);
+  });
+  if (!saved) {
+    $('edit-task-error').textContent = $('status').textContent || 'Could not save changes.';
+    return;
+  }
+  taskEditor.close();
   render();
 });
 $('theme-toggle').addEventListener('click', () => {
@@ -238,6 +275,7 @@ $('import-file').addEventListener('change', async event => {
     view = 'inbox';
     search = '';
     $('search').value = '';
+    $('edit-task-form').querySelectorAll('input, select, button[type="submit"]').forEach(control => { control.disabled = false; });
     report('Backup restored locally (' + summary + '). Please verify your tasks.');
     render();
   } catch { report('Could not restore: browser storage is unavailable. Existing data was not changed.'); }

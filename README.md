@@ -16,8 +16,8 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Views and task filters | Inbox, Today, Upcoming, Priority, All, Completed | Open, Today, Upcoming, Priority, Completed, Project | Open, Today, Upcoming, Priority, Completed, Project |
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
-| Search / edit title | Yes | Native search and task edit dialog | Native search and task editing (device acceptance pending) |
-| JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI + GTK file dialogs, empty-store import (no overwrite) | Pending |
+| Search / task editing | Search and dialog for title, priority, due date and project | Native search and task edit dialog | Native search and task editing (device acceptance pending) |
+| JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI + GTK file dialogs, empty-store import (no overwrite) | Native document-picker export, guarded empty-store import |
 | Accessibility and GC UI alignment | Initial design only | Initial native design only | Initial native design only |
 | Multi-device synchronization | Not implemented | Not implemented | Not implemented |
 
@@ -31,7 +31,7 @@ Requires Python 3 for the local file server, or any equivalent static server:
 python3 -m http.server 4173 --directory web --bind 127.0.0.1
 ```
 
-Open http://127.0.0.1:4173 in a modern browser. Data is saved in that browser's local storage. Use **Export data** to retain a separate copy. **Restore backup** validates the file against schema 1 and requires explicit confirmation before replacing all local data. This is early-development backup tooling, not yet a proven disaster-recovery solution. If stored data is unreadable, the web client disables edits and refuses to generate a misleading empty export. Another browser tab modifying data will disable editing until reload; IndexedDB-based transactional storage remains planned.
+Open http://127.0.0.1:4173 in a modern browser. Data is saved in that browser's local storage. The **Edit** action opens an accessible browser dialog for a task's title, P1–P4 priority, due date and project; changes preserve identity and completion history and pass through the existing stale-tab write check. Use **Export data** to retain a separate copy. **Restore backup** validates the file against schema 1 and requires explicit confirmation before replacing all local data. This is early-development backup tooling, not yet a proven disaster-recovery solution. If stored data is unreadable, the web client disables edits and refuses to generate a misleading empty export. Another browser tab modifying data will disable editing until reload; IndexedDB-based transactional storage remains planned.
 
 ## Run the Linux app
 

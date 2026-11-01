@@ -7,6 +7,7 @@
 - [x] Public `GoreeCloud/tasks` repository initialized with first-party web, Linux, Android sources.
 - [x] Device-local task creation, completion, reopening, deletion, and P1–P4 priorities in all three clients (source implemented; verification tracked separately).
 - [x] Web inbox/project creation, date entry, search, completed history, themes, validated JSON export/restore and stale-tab write protection (source; comprehensive recovery validation pending).
+- [x] Web native HTML edit dialog for title, priority, due date and project using shared create/edit validation, preserved completion metadata and stale-tab write gate; pure field and backup round-trip tests (browser visual acceptance pending).
 - [x] Linux GTK and Android Compose projects (source).
 - [x] Linux project creation/assignment, task view filters, due date capture and local search (source; GUI and device validation pending).
 - [x] Native Linux task edit dialog for title, priority, due date and project with atomic store update and negative validation tests; GUI acceptance pending.
