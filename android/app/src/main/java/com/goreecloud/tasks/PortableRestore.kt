@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
+import java.time.DateTimeException
 import java.time.OffsetDateTime
 
 /** Fully validated portable schema-1 data; never mutates a device database. */
@@ -151,7 +152,11 @@ internal object PortableRestore {
             val completed = item.opt("completed")
             require(completed is Boolean) { "Invalid completion flag" }
             val rawDue = requiredString(item.opt("due"), "due date")
-            val due = if (rawDue.isEmpty()) null else TaskRules.due(rawDue)
+            val due = try {
+                if (rawDue.isEmpty()) null else TaskRules.due(rawDue)
+            } catch (failure: DateTimeException) {
+                throw IllegalArgumentException("Invalid due date", failure)
+            }
             require(rawDue.isEmpty() || due == rawDue) { "Invalid due date" }
             require(item.has("projectId")) { "Missing task project reference" }
             val rawProject = item.opt("projectId")
