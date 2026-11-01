@@ -235,7 +235,14 @@ try {
 } catch { /* theme remains available for this session */ }
 $('export-data').addEventListener('click', () => {
   if (unreadableStore) { report('Cannot export unreadable task data. Restore a valid backup first.'); return; }
+  if (writeLocked) { report('This browser tab has stale task data. Reload before exporting a backup.'); return; }
   try {
+    // Fail closed if another tab saved a newer snapshot before the storage
+    // event was delivered. Otherwise export could misleadingly look current.
+    if (localStorage.getItem(STORAGE_KEY) !== lastSavedRaw) {
+      locked('Tasks changed in another tab. Reload before exporting a current backup.');
+      return;
+    }
     const data = exportBackup(state);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
