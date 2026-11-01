@@ -20,7 +20,7 @@ internal object PortableBackup {
         return Instant.ofEpochMilli(milliseconds).toString()
     }
 
-    /** Export the original portable timestamp verbatim after checking its stored millis. */
+    /** Preserve precise portable timestamps; normalize older nonportable source strings. */
     fun timestampForExport(milliseconds: Long, original: String?): String {
         if (original == null) return timestamp(milliseconds)
         require(original.length <= 40) { "Invalid restored timestamp" }
@@ -29,7 +29,9 @@ internal object PortableBackup {
             throw IllegalArgumentException("Invalid restored timestamp", failure)
         }
         require(parsed == milliseconds) { "Stored timestamp and original disagree" }
-        return original
+        // Earlier Android parsers accepted some OffsetDateTime strings without
+        // seconds. Emit a portable timestamp rather than an unrestorable backup.
+        return if (PortableRestore.isPortableTimestamp(original)) original else timestamp(milliseconds)
     }
 
     fun completionTimestamp(completed: Boolean, completedAt: Long?): Any {

@@ -28,7 +28,14 @@ internal data class RestoreSnapshot(
  */
 internal object PortableRestore {
     private const val MAX_RECORDS = 10_000
-    private val timestampPrefix = Regex("^\\d{4}-\\d\\d-\\d\\dT")
+    private val portableTimestamp = Regex(
+        "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d" +
+            "(?:\\.\\d{1,9})?(?:Z|[+-]\\d{2}:[0-5]\\d)$"
+    )
+
+    /** Shared backup grammar; also used to normalize any legacy Android imports. */
+    fun isPortableTimestamp(raw: String): Boolean =
+        raw.length <= 40 && portableTimestamp.matches(raw)
 
     private fun goodUnicode(value: String): Boolean {
         var index = 0
@@ -59,7 +66,7 @@ internal object PortableRestore {
 
     private fun timestamp(value: Any?, label: String): DecodedTime {
         val raw = requiredString(value, label)
-        require(raw.length <= 40 && timestampPrefix.containsMatchIn(raw)) {
+        require(isPortableTimestamp(raw)) {
             "Invalid $label"
         }
         val parsed = try { OffsetDateTime.parse(raw).toInstant() }
