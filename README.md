@@ -61,6 +61,15 @@ An Android APK is **not considered delivered** by its appearance in local build 
 
 `server/api.py` is a **single-user, loopback-only, authenticated development API** with SQLite storage, idempotent creates, revision-checked updates, soft deletion, and ordered change snapshots. It is a separate test domain: the web, Linux and Android clients do **not** connect to or sync with it. See [API limitations and local usage](server/README.md). Do not publicly expose this prototype.
 
+## Experimental offline outbox
+
+`server/outbox.py` is an isolated, durable SQLite mutation queue and remote
+projection for **future** offline synchronization. It retains idempotency keys,
+tracks conflicts, and atomically applies checked single-user API change pages
+with their cursor. It has no network transport, account identity, tokens, or
+native client integration. It **does not synchronize tasks yet**. See
+[offline outbox status and limitations](docs/OFFLINE_OUTBOX_PROTOTYPE.md).
+
 ## Verification
 
 ```sh

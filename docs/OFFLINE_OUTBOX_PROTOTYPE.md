@@ -1,0 +1,40 @@
+# Offline outbox prototype — GoreeCloud Tasks
+
+**Status: experimental reference module; not deployed or connected to clients.**
+
+The accompanying `server/outbox.py` is an isolated reference component for a future offline synchronization client. It has no network access, stores no tokens, and is not called by the browser, native Linux app, native Android app, or the experimental loopback server. The `server/` location allows the current GitHub `api` CI job to pick up `server/tests/test_outbox.py` automatically; move it to a shared sync package when native-client integration is designed.
+
+## What is implemented
+
+- A private-permission SQLite database with WAL and transactional writes.
+- Persistent mutation IDs to support idempotent retries after a crash or restart.
+- Explicit conflict state that preserves the unsent mutation and a remote snapshot for future manual reconciliation.
+- A remote server projection that does **not** overwrite local user edits.
+- A change-feed cursor persisted in the same transaction as the applied page, with rejection of gaps, duplicate sequences and stale cursors.
+- Validation for canonical UUIDs, UTF-8 JSON payloads, 64 KiB mutation bounds, task revisions, tombstones, and page lengths.
+- Synthetic tests for persistence, idempotency, malformed mutations, conflict retention, cursor rollback, snapshot isolation, symlink safety, and compatibility with the current persisted single-user API feed.
+
+## Important limits
+
+**Do not use this to synchronize real user data.** There is no identity, account/workspace authorization, encryption at rest, transport, token management, crash-safe coupling to any client task edit, conflict-resolution UI, or server acknowledgement verification. `acknowledge()` represents a local state transition and must not be called before a successful, authenticated server receipt is durably verified. This is not a complete multi-device synchronization solution.
+
+The current experimental single-user server emits contiguous global change sequences. The outbox deliberately rejects sequence gaps. A future multi-tenant or filtered feed may have noncontiguous global sequences and requires an updated cursor contract and reworked tests before use. There is no snapshot/bootstrap endpoint, so initial server-to-client reconciliation is not implemented.
+
+## Test and review
+
+Run from the checked-out `GoreeCloud/tasks` repository:
+
+```sh
+python3 -m py_compile server/outbox.py
+python3 -m unittest discover -s server/tests -v
+```
+
+The tests are synthetic, run with temporary SQLite databases, and do not access external networks or accounts. After integrating and verifying all CI jobs, add lifecycle and power-loss testing, concurrency under separate processes, model adapters, field-level conflicts, and security review before enabling any client synchronization.
+
+## Source and intended destination
+
+- `server/outbox.py` — reference implementation.
+- `server/tests/test_outbox.py` — isolated integration-style unit tests.
+- `docs/OFFLINE_OUTBOX_PROTOTYPE.md` — this document.
+
+This module is tracked source only. Its presence in a repository does not establish runtime client integration, remote deployment, or stable-release acceptance.
