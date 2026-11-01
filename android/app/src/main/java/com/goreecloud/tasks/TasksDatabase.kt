@@ -140,6 +140,49 @@ internal class TasksDatabase(context: Context) :
     /** Explicit user-controlled, local document export; never uploads task data. */
     fun exportPortableBackup(): ByteArray = PortableBackup.encode(readableDatabase)
 
+    /** Neither the preview nor the restore is permitted to replace existing rows. */
+    fun isEmptyForRestore(): Boolean {
+        val db = readableDatabase
+        return android.database.DatabaseUtils.queryNumEntries(db, "tasks") == 0L &&
+            android.database.DatabaseUtils.queryNumEntries(db, "projects") == 0L
+    }
+
+    /** All-or-nothing restore. Recheck emptiness inside the exclusive transaction. */
+    fun restorePortableBackup(snapshot: RestoreSnapshot) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            require(android.database.DatabaseUtils.queryNumEntries(db, "tasks") == 0L &&
+                android.database.DatabaseUtils.queryNumEntries(db, "projects") == 0L) {
+                "Restore requires an empty Tasks database. Export current tasks first."
+            }
+            for (project in snapshot.projects) {
+                val values = ContentValues().apply {
+                    put("id", project.id)
+                    put("name", project.name)
+                }
+                db.insertOrThrow("projects", null, values)
+            }
+            for (task in snapshot.tasks) {
+                val values = ContentValues().apply {
+                    put("id", task.id)
+                    put("title", task.title)
+                    put("priority", task.priority)
+                    put("completed", if (task.completed) 1 else 0)
+                    put("due_date", task.dueDate)
+                    put("project_id", task.projectId)
+                    put("created_at", task.createdAt)
+                    if (task.completedAt == null) putNull("completed_at")
+                    else put("completed_at", task.completedAt)
+                }
+                db.insertOrThrow("tasks", null, values)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun delete(id: String) {
         writableDatabase.delete("tasks", "id=?", arrayOf(id))
     }

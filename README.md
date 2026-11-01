@@ -60,8 +60,10 @@ system document picker and the browser/Linux portable schema-1 format
 (2 MiB maximum; 10,000 tasks and 10,000 projects). Export does not request
 Internet or storage permissions. Completed records created before v3 can lack
 accurate completion timestamps; rather than invent dates, the app refuses
-lossy export until those tasks are reopened and completed again. **Android
-backup import and physical-device acceptance remain pending.** These JSON
+lossy export until those tasks are reopened and completed again. Android import now validates schema-1 JSON using a size-bounded document picker,
+requires a second confirmation, and restores only into an empty database
+using an all-or-nothing SQLite transaction. Device/provider recovery
+acceptance remains pending. These JSON
 files are unencrypted: store them privately and verify restoration elsewhere.
 
 An Android APK is **not considered delivered** by its appearance in local build output or GitHub Actions artifacts. Any actual APK delivered to the owner must be inspected, extracted as a standalone `.apk`, and uploaded to the existing Google Drive `GoreeCloud/Artifacts` folder, with provenance and readback, as required by GoreeCloud governance.

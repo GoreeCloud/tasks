@@ -71,6 +71,27 @@ private fun TasksScreen(db: TasksDatabase) {
         var error by remember { mutableStateOf("") }
         var backupNotice by remember { mutableStateOf("") }
         var preparedBackup by remember { mutableStateOf<ByteArray?>(null) }
+        var pendingRestore by remember { mutableStateOf<RestoreSnapshot?>(null) }
+        val importLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument()
+        ) { document ->
+            if (document != null) {
+                try {
+                    require(db.isEmptyForRestore()) {
+                        "Restore requires an empty workspace. Export current tasks first."
+                    }
+                    val stream = context.contentResolver.openInputStream(document)
+                        ?: throw IllegalStateException("Could not read selected document.")
+                    val snapshot = stream.use { PortableRestore.parse(PortableRestore.readLimited(it)) }
+                    pendingRestore = snapshot
+                    error = ""
+                    backupNotice = ""
+                } catch (failure: Exception) {
+                    pendingRestore = null
+                    error = failure.message ?: "Backup could not be validated."
+                }
+            }
+        }
         val exportLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.CreateDocument("application/json")
         ) { document ->
@@ -155,6 +176,20 @@ private fun TasksScreen(db: TasksDatabase) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Export private JSON backup") }
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            require(db.isEmptyForRestore()) {
+                                "Import only works in an empty workspace. Export your tasks first."
+                            }
+                            error = ""
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Cannot import into this workspace."
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Import JSON into empty workspace") }
                 if (backupNotice.isNotBlank()) {
                     Text(backupNotice, style = MaterialTheme.typography.bodySmall,
                          color = MaterialTheme.colorScheme.primary)
@@ -300,6 +335,39 @@ private fun TasksScreen(db: TasksDatabase) {
                     }
                 }
             }
+        }
+
+        pendingRestore?.let { snapshot ->
+            AlertDialog(
+                onDismissRequest = { pendingRestore = null },
+                title = { Text("Import task backup?") },
+                text = {
+                    Text(
+                        "This validated backup contains ${snapshot.tasks.size} tasks and " +
+                            "${snapshot.projects.size} projects. It can only be restored " +
+                            "into an empty workspace. No existing tasks will be replaced."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        try {
+                            db.restorePortableBackup(snapshot)
+                            pendingRestore = null
+                            selectedProjectId = null
+                            reload()
+                            error = ""
+                            backupNotice = "Imported ${snapshot.tasks.size} tasks and " +
+                                "${snapshot.projects.size} projects. Verify your data."
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Restore failed; no changes committed."
+                            pendingRestore = null
+                        }
+                    }) { Text("Import") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingRestore = null }) { Text("Cancel") }
+                }
+            )
         }
 
         if (showProjectDialog) {
