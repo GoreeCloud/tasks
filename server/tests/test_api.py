@@ -109,6 +109,71 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(len(self.request("GET", "/v1/tasks")[1]["tasks"]), 1)
         self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 1)
 
+    def test_retry_receipts_patch_delete_and_duplicate_changes(self):
+        created = self.create("Work", key="receipt-create-0001")[1]
+        path = "/v1/tasks/" + created["id"]
+        patch_headers = {"If-Match": "1", "Idempotency-Key": "receipt-patch-0001"}
+        status, updated, _ = self.request("PATCH", path, {"title": "Updated"}, headers=patch_headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["revision"], 2)
+        self.assertEqual(self.request("PATCH", path, {"title": "Updated"}, headers=patch_headers)[1], updated)
+        self.assertEqual(self.request("PATCH", path, {"title": "Changed"}, headers=patch_headers)[0], 409)
+        self.assertEqual(self.request("PATCH", path, {"title": "Updated"},
+                                      headers={"If-Match": "2", "Idempotency-Key": "receipt-patch-0001"})[0], 409)
+        self.assertEqual(self.request("PATCH", path, {"title": "Updated"},
+                                      headers={"If-Match": "1", "Idempotency-Key": "receipt-patch-0002"})[0], 409)
+        self.assertEqual(self.request("PATCH", path, {"title": "Updated"},
+                                      headers={"If-Match": "2", "Idempotency-Key": "receipt-create-0001"})[0], 409)
+        self.assertEqual(self.request("PATCH", path, {"title": "Updated"},
+                                      headers={"If-Match": "2", "Idempotency-Key": "bad key"})[0], 400)
+
+        delete_headers = {"If-Match": "2", "Idempotency-Key": "receipt-delete-0001"}
+        status, deleted, _ = self.request("DELETE", path, headers=delete_headers)
+        self.assertEqual(status, 200)
+        self.assertTrue(deleted["deleted"])
+        self.assertEqual(self.request("GET", path)[0], 404)
+        self.assertEqual(self.request("DELETE", path, headers=delete_headers)[1], deleted)
+        self.assertEqual(self.request("DELETE", path, headers={"If-Match": "1",
+                              "Idempotency-Key": "receipt-delete-0001"})[0], 409)
+        self.assertEqual(self.request("DELETE", path, headers={"If-Match": "2",
+                              "Idempotency-Key": "receipt-delete-0002"})[0], 404)
+        self.assertEqual(self.request("PATCH", path, {"title": "Updated"},
+                              headers={"If-Match": "2", "Idempotency-Key": "receipt-delete-0001"})[0], 409)
+        self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 3)
+        self.assertEqual(TaskDatabase(self.path).delete_task(created["id"], 2,
+                             key="receipt-delete-0001"), deleted)
+
+    def test_concurrent_patch_retries_append_one_event(self):
+        created = self.create("Before", key="concurrent-create-0001")[1]
+        path = "/v1/tasks/" + created["id"]
+        headers = {"If-Match": "1", "Idempotency-Key": "concurrent-patch-0001"}
+        def replay(_):
+            return self.request("PATCH", path, {"title": "After"}, headers=headers)
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            results = list(pool.map(replay, range(6)))
+        self.assertTrue(all(status == 200 for status, _, _ in results))
+        self.assertTrue(all(payload == results[0][1] for _, payload, _ in results))
+        self.assertEqual(self.request("GET", path)[1]["revision"], 2)
+        self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 2)
+
+    def test_failed_transaction_does_not_persist_receipt(self):
+        created = self.create("Before", key="rollback-create-0001")[1]
+        original = self.store._record_change
+        def fail(*_args):
+            raise RuntimeError("synthetic rollback")
+        self.store._record_change = fail
+        try:
+            with self.assertRaises(RuntimeError):
+                self.store.update_task(created["id"], {"title": "After"}, 1,
+                                       key="rollback-patch-0001")
+        finally:
+            self.store._record_change = original
+        self.assertEqual(self.store.get_task(created["id"])["revision"], 1)
+        updated = self.store.update_task(created["id"], {"title": "After"}, 1,
+                                         key="rollback-patch-0001")
+        self.assertEqual(updated["revision"], 2)
+        self.assertEqual(len(self.store.changes()["changes"]), 2)
+
     def test_optimistic_revisions_and_historical_change_snapshots(self):
         _, created, _ = self.create("Draft")
         task_id = created["id"]

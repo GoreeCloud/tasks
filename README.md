@@ -59,7 +59,7 @@ An Android APK is **not considered delivered** by its appearance in local build 
 
 ## Experimental local API
 
-`server/api.py` is a **single-user, loopback-only, authenticated development API** with SQLite storage, idempotent creates, revision-checked updates, soft deletion, and ordered change snapshots. It is a separate test domain: the web, Linux and Android clients do **not** connect to or sync with it. See [API limitations and local usage](server/README.md). Do not publicly expose this prototype.
+`server/api.py` is a **single-user, loopback-only, authenticated development API** with SQLite storage, idempotent creates, optional durable edit/delete retry receipts, revision-checked updates, soft deletion, and ordered change snapshots. It is a separate test domain: the web, Linux and Android clients do **not** connect to or sync with it. See [API limitations and local usage](server/README.md). Do not publicly expose this prototype.
 
 ## Experimental offline outbox
 
@@ -78,7 +78,7 @@ node --test web/*.test.mjs
 python3 -m unittest discover -s linux/tests -v
 python3 -m py_compile linux/app.py linux/store.py linux/backup.py server/api.py
 python3 -m unittest discover -s server/tests -v
-python3 -m py_compile server/backup.py
+python3 -m py_compile server/backup.py server/outbox.py server/retry_receipts.py
 sh linux/tests/test_install.sh
 ```
 

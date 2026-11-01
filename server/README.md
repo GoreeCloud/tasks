@@ -15,6 +15,7 @@ This independent service foundation creates a contract for future authenticated 
 - Input validation and 64 KiB JSON request bounds; no unreviewed shell commands or executable payloads.
 - Parameterized SQLite queries, transactions and WAL, private-directory permissions where supported.
 - Idempotency-Key for task creation; conflicts on reused keys with divergent payloads.
+- Optional, durable Idempotency-Key receipts for PATCH/DELETE, bound to method/task/revision/normalized fields, committed in the task and change-event transaction.
 - Optimistic revision preconditions for task edits and deletion to prevent silent stale overwrites.
 - Soft deletion with immutable, ordered change-log snapshots and cursor-based pagination (100 events per page).
 - HTTP no-store/no-sniff headers. No request payloads, titles or tokens in the server's request log.
@@ -43,8 +44,8 @@ Responses are JSON. Requests with bodies require `Content-Type: application/json
 | GET | `/v1/tasks?limit=100` | Read up to 100 non-deleted tasks |
 | GET | `/v1/tasks/{id}` | Read a task |
 | POST | `/v1/tasks` | Create a task; requires `Idempotency-Key` (8–128 safe characters) |
-| PATCH | `/v1/tasks/{id}` | Update title, priority, due, completed; requires `If-Match` integer revision |
-| DELETE | `/v1/tasks/{id}` | Tombstone task; requires `If-Match` revision |
+| PATCH | `/v1/tasks/{id}` | Update title, priority, due, completed; requires `If-Match` integer revision; `Idempotency-Key` strongly recommended for retries |
+| DELETE | `/v1/tasks/{id}` | Tombstone task; requires `If-Match` revision; `Idempotency-Key` strongly recommended for retries |
 | GET | `/v1/changes?after=0&limit=100` | Immutable ordered changes with cursor/hasMore |
 
 POST body example:
@@ -54,6 +55,24 @@ POST body example:
 ```
 
 Success returns `id`, `revision`, `title`, `priority`, `due`, `completed`, `createdAt`, `updatedAt`, and `deleted`. PATCH accepts a subset of those mutable fields. Task IDs are server-generated UUID strings. Revision conflicts return HTTP 409; unauthenticated access returns 401; invalid payloads return 4xx.
+
+### Edit and delete retry receipts (development only)
+
+PATCH and DELETE accept optional `Idempotency-Key` headers matching the 8–128
+character safe-key syntax used for POST. Replaying exactly the same method,
+task UUID, `If-Match` revision, and normalized body with the same key returns
+the committed response **without** another revision or change event, including
+a replay after a process restart or after a task was tombstoned. Reusing a key
+for different content, a revision, another task, or a different method yields
+HTTP 409. Invalid key syntax yields HTTP 400. Keys share the POST namespace.
+
+These opt-in retry receipts are stored in the local plaintext SQLite ledger in
+the same transaction as their corresponding edits and change events. Existing
+unkeyed clients retain historical revision-conflict semantics; offline clients
+must always supply and persist a stable mutation key to retry safely. There is
+no workspace identity, device authorization, expiry, or key lifecycle yet; a
+future multi-user service must partition receipts by tenant and actor before
+use. No native client uses this API or ledger today.
 
 ### Consistent initial snapshot (development only)
 
@@ -73,7 +92,7 @@ multi-workspace design requires a new authorization and cursor contract.
 
 ```sh
 python3 -m unittest discover -s server/tests -v
-python3 -m py_compile server/api.py
+python3 -m py_compile server/api.py server/retry_receipts.py
 ```
 
 Tests start an ephemeral loopback server with a synthetic token and a temporary database. They verify authorization denial, validation, idempotent concurrent creation, revision conflicts, immutable change history, persistence after reopening, and basic recovery from invalid input. Passing tests do not establish penetration testing or release acceptance.

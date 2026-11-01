@@ -18,6 +18,7 @@ import re
 import sqlite3
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
+from retry_receipts import MutationReceipts, ReceiptConflict, ReceiptError, fingerprint
 
 MAX_BODY = 64 * 1024
 KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
@@ -208,10 +209,25 @@ class TaskDatabase:
             db.commit()
         return created
 
-    def update_task(self, task_id: str, body: object, expected_revision: int) -> dict:
+    def update_task(self, task_id: str, body: object, expected_revision: int,
+                    *, key: str | None = None) -> dict:
         fields = normalize_task_fields(body, create=False)
+        try:
+            digest = fingerprint("PATCH", task_id, expected_revision, fields) if key is not None else None
+        except ReceiptError as error:
+            raise ApiError(400, str(error)) from error
         with closing(self.connect()) as db:
             db.execute("BEGIN IMMEDIATE")
+            if key is not None:
+                try:
+                    replay = MutationReceipts.lookup(db, key, digest)
+                except ReceiptConflict as error:
+                    raise ApiError(409, str(error)) from error
+                except ReceiptError as error:
+                    raise ApiError(400, str(error)) from error
+                if replay is not None:
+                    db.rollback()
+                    return replay
             previous = db.execute("SELECT * FROM tasks WHERE id=? AND deleted=0", (task_id,)).fetchone()
             if not previous:
                 db.rollback()
@@ -229,12 +245,29 @@ class TaskDatabase:
             )
             updated = snapshot(db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone())
             self._record_change(db, updated, "updated")
+            if key is not None:
+                MutationReceipts.save(db, key, digest, updated)
             db.commit()
         return updated
 
-    def delete_task(self, task_id: str, expected_revision: int) -> dict:
+    def delete_task(self, task_id: str, expected_revision: int,
+                    *, key: str | None = None) -> dict:
+        try:
+            digest = fingerprint("DELETE", task_id, expected_revision, None) if key is not None else None
+        except ReceiptError as error:
+            raise ApiError(400, str(error)) from error
         with closing(self.connect()) as db:
             db.execute("BEGIN IMMEDIATE")
+            if key is not None:
+                try:
+                    replay = MutationReceipts.lookup(db, key, digest)
+                except ReceiptConflict as error:
+                    raise ApiError(409, str(error)) from error
+                except ReceiptError as error:
+                    raise ApiError(400, str(error)) from error
+                if replay is not None:
+                    db.rollback()
+                    return replay
             previous = db.execute("SELECT * FROM tasks WHERE id=? AND deleted=0", (task_id,)).fetchone()
             if not previous:
                 db.rollback()
@@ -248,6 +281,8 @@ class TaskDatabase:
             )
             tombstone = snapshot(db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone())
             self._record_change(db, tombstone, "deleted")
+            if key is not None:
+                MutationReceipts.save(db, key, digest, tombstone)
             db.commit()
         return tombstone
 
@@ -362,11 +397,13 @@ def make_handler(store: TaskDatabase, secret: str):
                     self.reply(200, store.get_task(task_id))
                     return
                 if method == "PATCH":
-                    updated = store.update_task(task_id, self.body_json(), self.revision())
+                    updated = store.update_task(task_id, self.body_json(), self.revision(),
+                                                key=self.headers.get("Idempotency-Key"))
                     self.reply(200, updated)
                     return
                 if method == "DELETE":
-                    deleted = store.delete_task(task_id, self.revision())
+                    deleted = store.delete_task(task_id, self.revision(),
+                                                key=self.headers.get("Idempotency-Key"))
                     self.reply(200, deleted)
                     return
             raise ApiError(404, "Endpoint not found")
