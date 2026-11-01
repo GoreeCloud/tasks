@@ -9,9 +9,11 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from http.server import ThreadingHTTPServer
 from concurrent.futures import ThreadPoolExecutor
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from api import TaskDatabase, make_handler
+from outbox import OfflineOutbox
 
 TOKEN = "synthetic-test-token-0123456789abcdef0123456789abcdef"
 
@@ -108,6 +110,46 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(self.create("Different")[0], 409)
         self.assertEqual(len(self.request("GET", "/v1/tasks")[1]["tasks"]), 1)
         self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 1)
+
+    def test_offline_outbox_receipt_acknowledgement_and_delta_contract(self):
+        """Synthetic loopback contract only: clients do not use the service."""
+        created = self.create("Initial", key="integrated-create-0001")[1]
+        path = "/v1/tasks/" + created["id"]
+        offline = OfflineOutbox(Path(self.tmp.name) / "synthetic-outbox.sqlite3")
+        bootstrap = self.request("GET", "/v1/bootstrap")[1]
+        self.assertEqual(offline.seed_bootstrap(bootstrap), 1)
+
+        update_id = str(uuid4())
+        offline.queue(update_id, created["id"], "update", {"title": "Edited offline"}, 1)
+        pending = offline.pending()
+        self.assertEqual(len(pending), 1)
+        headers = {"Idempotency-Key": pending[0]["id"],
+                   "If-Match": str(pending[0]["expectedRevision"])}
+        status, first, _ = self.request("PATCH", path, pending[0]["payload"], headers=headers)
+        self.assertEqual(status, 200)
+        # The first response is treated as lost; repeat the persisted ID.
+        self.assertEqual(self.request("PATCH", path, pending[0]["payload"], headers=headers)[1], first)
+        self.assertTrue(offline.acknowledge(update_id))
+        self.assertEqual(offline.apply_change_page(
+            self.request("GET", "/v1/changes?after=1")[1], 1), 2)
+        self.assertEqual(offline.remote_task(created["id"])["title"], "Edited offline")
+        self.assertIsNone(offline.conflict(update_id))
+
+        delete_id = str(uuid4())
+        offline.queue(delete_id, created["id"], "delete", {}, 2)
+        pending = offline.pending()
+        self.assertEqual(len(pending), 1)
+        headers = {"Idempotency-Key": pending[0]["id"],
+                   "If-Match": str(pending[0]["expectedRevision"])}
+        status, tombstone, _ = self.request("DELETE", path, headers=headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(self.request("DELETE", path, headers=headers)[1], tombstone)
+        self.assertTrue(offline.acknowledge(delete_id))
+        self.assertEqual(offline.apply_change_page(
+            self.request("GET", "/v1/changes?after=2")[1], 2), 3)
+        self.assertTrue(offline.remote_task(created["id"])["deleted"])
+        self.assertEqual(offline.pending(), [])
+        self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 3)
 
     def test_retry_receipts_patch_delete_and_duplicate_changes(self):
         created = self.create("Work", key="receipt-create-0001")[1]

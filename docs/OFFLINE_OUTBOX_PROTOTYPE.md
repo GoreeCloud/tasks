@@ -21,6 +21,22 @@ The accompanying `server/outbox.py` is an isolated reference component for a fut
 
 The current experimental single-user server emits contiguous global change sequences. The outbox deliberately rejects sequence gaps. A future multi-tenant or filtered feed may have noncontiguous global sequences and requires an updated cursor contract and reworked tests before use. An experimental, authenticated `/v1/bootstrap` endpoint now returns a consistent single-user snapshot and cursor for up to 100 tasks. The outbox accepts one such snapshot only when its local queue and remote projection are empty. This is not wired to the native clients; true end-to-end reconciliation and multi-tenant authorization remain unimplemented.
 
+### Retry/acknowledgement ordering
+
+A synthetic loopback contract test now demonstrates persisted mutation IDs from
+`OfflineOutbox.pending()` used as HTTP `Idempotency-Key` values for PATCH and
+DELETE, with repeated requests returning one server event before the outbox is
+acknowledged and the delta applied. This is test scaffolding, not a native
+client transport or a recovery protocol.
+
+**Unresolved race:** if a delta feed is applied to the outbox **before** the
+acknowledgement for an accepted local mutation, the current feed lacks an
+originating mutation ID and can mistakenly treat the device's own write as a
+conflict. Actual client sync must correlate authenticated server events with
+mutation IDs, make acknowledgement and local state transitions crash-safe, and
+test lost/reordered acknowledgements before enabling polling or automatic
+reconciliation. Do not conceal or auto-resolve such conflicts.
+
 ## Test and review
 
 Run from the checked-out `GoreeCloud/tasks` repository:
