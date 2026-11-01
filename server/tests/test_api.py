@@ -67,6 +67,15 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(cache, "no-store")
         self.assertEqual(response["tasks"], [])
 
+    def test_abusive_headers_and_large_parameters_fail_closed(self):
+        status, _, _ = self.request("GET", "/v1/tasks", auth=False, headers={"Authorization": "Bearer ñ"})
+        self.assertEqual(status, 401)
+        self.assertEqual(self.request("GET", "/v1/tasks?limit=" + "9" * 1000)[0], 400)
+        self.assertEqual(self.request("GET", "/v1/changes?after=" + "9" * 1000)[0], 400)
+        task = self.create("Protected")[1]
+        self.assertEqual(self.request("PATCH", "/v1/tasks/" + task["id"], {"title": "Unsafe"},
+                                      headers={"If-Match": "9" * 1000})[0], 428)
+
     def test_created_tasks_idempotency_and_conflicting_key(self):
         status, first, _ = self.create("Launch", priority=1, due="2026-11-07")
         self.assertEqual(status, 201)

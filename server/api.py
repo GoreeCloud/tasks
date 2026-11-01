@@ -266,7 +266,11 @@ def make_handler(store: TaskDatabase, secret: str):
 
         def authorize(self):
             provided = self.headers.get("Authorization", "")
-            if not hmac.compare_digest(provided, "Bearer " + secret):
+            try:
+                authorized = hmac.compare_digest(provided, "Bearer " + secret)
+            except (TypeError, UnicodeError):
+                authorized = False
+            if not authorized:
                 raise ApiError(401, "Authorization required")
 
         def body_json(self) -> object:
@@ -274,7 +278,7 @@ def make_handler(store: TaskDatabase, secret: str):
             if content_type != "application/json" or "Transfer-Encoding" in self.headers:
                 raise ApiError(415, "Expected Content-Type: application/json with Content-Length")
             length = self.headers.get("Content-Length", "")
-            if not length.isdecimal() or not 0 < int(length) <= MAX_BODY:
+            if len(length) > 5 or not length.isascii() or not length.isdecimal() or not 0 < int(length) <= MAX_BODY:
                 raise ApiError(413, "JSON request must be between 1 and 65536 bytes")
             try:
                 return json.loads(self.rfile.read(int(length)).decode("utf-8"))
@@ -283,7 +287,7 @@ def make_handler(store: TaskDatabase, secret: str):
 
         def revision(self) -> int:
             value = self.headers.get("If-Match", "")
-            if not value.isdecimal() or not 0 < int(value) < 2**31:
+            if len(value) > 10 or not value.isascii() or not value.isdecimal() or not 0 < int(value) < 2**31:
                 raise ApiError(428, "If-Match must specify the current task revision")
             return int(value)
 
@@ -308,10 +312,10 @@ def make_handler(store: TaskDatabase, secret: str):
                 if set(query) - {"after", "limit"}:
                     raise ApiError(400, "Unknown change cursor query")
                 after_raw = query.get("after", ["0"])
-                if len(after_raw) != 1 or not after_raw[0].isdecimal() or int(after_raw[0]) >= 2**63:
+                if len(after_raw) != 1 or len(after_raw[0]) > 19 or not after_raw[0].isascii() or not after_raw[0].isdecimal() or int(after_raw[0]) >= 2**63:
                     raise ApiError(400, "after must be a nonnegative change cursor")
                 limit_raw = query.get("limit", ["100"])
-                if len(limit_raw) != 1 or not limit_raw[0].isdecimal() or not 1 <= int(limit_raw[0]) <= 100:
+                if len(limit_raw) != 1 or len(limit_raw[0]) > 3 or not limit_raw[0].isascii() or not limit_raw[0].isdecimal() or not 1 <= int(limit_raw[0]) <= 100:
                     raise ApiError(400, "limit must be between 1 and 100")
                 self.reply(200, store.changes(int(after_raw[0]), int(limit_raw[0])))
                 return
@@ -338,7 +342,7 @@ def make_handler(store: TaskDatabase, secret: str):
             if set(params) - {"limit"}:
                 raise ApiError(400, "Unknown task query")
             raw = params.get("limit", ["100"])
-            if len(raw) != 1 or not raw[0].isdecimal() or not 1 <= int(raw[0]) <= 100:
+            if len(raw) != 1 or len(raw[0]) > 3 or not raw[0].isascii() or not raw[0].isdecimal() or not 1 <= int(raw[0]) <= 100:
                 raise ApiError(400, "limit must be between 1 and 100")
             return int(raw[0])
 
