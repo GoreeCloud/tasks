@@ -31,6 +31,24 @@ class TaskStoreTests(unittest.TestCase):
         self.assertTrue(self.store.delete_task(key))
         self.assertFalse(self.store.delete_task(key))
 
+    def test_completion_idempotency_preserves_original_timestamp(self):
+        task_id = self.store.add_task("Timestamp-sensitive backup")
+        self.assertFalse(self.store.complete_task(task_id, False))
+        self.assertTrue(self.store.complete_task(task_id, True))
+        before = self.store.list_tasks(include_completed=True)[0]["completed_at"]
+        self.assertIsNotNone(before)
+        self.assertFalse(self.store.complete_task(task_id, True))
+        self.assertEqual(
+            self.store.list_tasks(include_completed=True)[0]["completed_at"], before
+        )
+        for invalid in (1, 0, "true", None):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                self.store.complete_task(task_id, invalid)
+        self.assertTrue(self.store.complete_task(task_id, False))
+        self.assertIsNone(self.store.list_tasks(include_completed=True)[0]["completed_at"])
+        self.assertFalse(self.store.complete_task(task_id, False))
+        self.assertFalse(self.store.complete_task("missing", True))
+
     def test_edits_priority_date_and_project_atomically(self):
         project_id = self.store.add_project("Project")
         task_id = self.store.add_task("Original", priority=4, due_date="2026-11-02")

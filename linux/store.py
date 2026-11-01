@@ -152,10 +152,16 @@ class TaskStore:
         return [dict(row) for row in rows]
 
     def complete_task(self, task_id: str, completed: bool) -> bool:
+        """Change completion once; redundant toggles preserve the original date."""
+        if type(completed) is not bool:
+            raise ValueError("Task completion state must be boolean")
+        flag = int(completed)
         with self.db:
             cur = self.db.execute(
-                "UPDATE tasks SET completed=?, completed_at=? WHERE id=?",
-                (int(completed), datetime.now(timezone.utc).isoformat() if completed else None, task_id))
+                "UPDATE tasks SET completed=?, completed_at=? "
+                "WHERE id=? AND completed<>?",
+                (flag, datetime.now(timezone.utc).isoformat() if completed else None,
+                 task_id, flag))
         return cur.rowcount > 0
 
     def rename_task(self, task_id: str, title: str) -> bool:

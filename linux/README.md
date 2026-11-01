@@ -42,9 +42,9 @@ python3 linux/backup.py export --file ~/Documents/goreecloud-tasks-backup.json
 python3 linux/backup.py --database /tmp/goreecloud-tasks-import-test.sqlite3 import --file ~/Documents/goreecloud-tasks-backup.json
 ```
 
-The native GTK interface also exposes **Export JSON** and **Import JSON** file dialogs using the same guarded implementation. It also provides a native **Edit** dialog for task title, priority, due date and project; changes are validated and applied together without clearing completion history.
+The native GTK interface also exposes **Export JSON** and **Import JSON** file dialogs using the same guarded implementation. It also provides a native **Edit** dialog for task title, priority, due date and project; changes are validated and applied together without clearing completion history. Completion toggles are idempotent: repeating an already-completed state does not rewrite the original completion timestamp stored in portable backups.
 
-**Import requires an empty task database** and validates the entire JSON snapshot before committing any records. It never replaces live records. Export refuses a missing SQLite database or existing output file, so it cannot silently provide an empty misleading backup. Test backup compatibility and verify real recovery before using it for important work. Android export is now in source; native Android restore/import is still pending. File-dialog interactions require full platform-specific GUI acceptance beyond the initial smoke launch.
+**Import requires an empty task database** and validates the entire JSON snapshot before committing any records. It never replaces live records. Export refuses a missing SQLite database or existing output file, so it cannot silently provide an empty misleading backup. Test backup compatibility and verify real recovery before using it for important work. Android import/export is now implemented and a limited Android 16 native document-picker smoke test passed; comprehensive provider, completed-task, and release acceptance is still pending. File-dialog interactions require full platform-specific GUI acceptance beyond the initial smoke launch.
 
 ## GTK runtime smoke (optional)
 

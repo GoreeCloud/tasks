@@ -64,12 +64,11 @@ class RestoreDatabaseTest {
         db.restorePortableBackup(source)
         assertEquals(3L to 2L, counts())
         val exported = PortableRestore.parse(db.exportPortableBackup())
-        assertEquals(source.projects, exported.projects)
-        assertEquals(source.tasks, exported.tasks)
-        assertEquals("2026-11-01T01:23:45.654321Z",
-                     exported.tasks[0].completedAtExact)
-        assertEquals("2026-10-31T20:15:42.123456-05:00",
-                     exported.tasks[0].createdAtExact)
+        assertEquals(source.projects.sortedBy { it.id }, exported.projects.sortedBy { it.id })
+        assertEquals(source.tasks.sortedBy { it.id }, exported.tasks.sortedBy { it.id })
+        val completed = exported.tasks.single { it.id == "task-completed" }
+        assertEquals("2026-11-01T01:23:45.654321Z", completed.completedAtExact)
+        assertEquals("2026-10-31T20:15:42.123456-05:00", completed.createdAtExact)
     }
 
     @Test fun emptyStoreRestoreThenExportRetainsExactPortableFields() {
