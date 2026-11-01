@@ -65,6 +65,7 @@
         </div>
         <form id="task-form" class="quick-add" autocomplete="off">
           <span class="add-glyph">+</span><label for="task-title" class="visually-hidden">New task title</label><input id="task-title" maxlength="240" placeholder="Add a task to clear your mind..." required>
+          <label for="task-description" class="visually-hidden">Task notes (optional)</label><textarea id="task-description" maxlength="2000" rows="2" placeholder="Notes (optional)"></textarea>
           <label for="task-project" class="visually-hidden">Project</label><select id="task-project" title="Project"><option value="">Inbox</option></select>
           <label for="task-date" class="visually-hidden">Due date</label><input id="task-date" type="date" title="Due date">
           <label for="task-priority" class="visually-hidden">Priority</label><select id="task-priority" title="Priority"><option value="4">P4</option><option value="3">P3</option><option value="2">P2</option><option value="1">P1</option></select>
@@ -129,6 +130,8 @@
     <p>Update this task on this browser. Completion history is preserved.</p>
     <label for="edit-task-title">Title</label>
     <input id="edit-task-title" type="text" required maxlength="240">
+    <label for="edit-task-description">Description / notes</label>
+    <textarea id="edit-task-description" maxlength="2000" rows="4" placeholder="Context, links or next steps…"></textarea>
     <label for="edit-task-priority">Priority</label>
     <select id="edit-task-priority" required>
       <option value="1">P1 · Urgent</option><option value="2">P2 · High</option>

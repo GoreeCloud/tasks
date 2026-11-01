@@ -1,10 +1,15 @@
 export const STORAGE_KEY = 'goreecloud.tasks.local.v1';
 export const EMPTY = () => ({ schema: 1, projects: [], tasks: [] });
+export function checkedDescription(value) {
+  if (typeof value !== 'string' || !validUnicodeText(value) || value.length > 2000)
+    throw new Error('Description must be valid Unicode text, at most 2000 characters.');
+  return value;
+}
 export function hydrate(raw) {
   try {
     const data = JSON.parse(raw);
-    if (!data || data.schema !== 1 || !Array.isArray(data.projects) || !Array.isArray(data.tasks)) return EMPTY();
-    return { schema: 1, projects: data.projects.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string'), tasks: data.tasks.filter(t => t && typeof t.id === 'string' && typeof t.title === 'string') };
+    if (!data || ![1, 2].includes(data.schema) || !Array.isArray(data.projects) || !Array.isArray(data.tasks)) return EMPTY();
+    return { schema: data.schema, projects: data.projects.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string'), tasks: data.tasks.filter(t => t && typeof t.id === 'string' && typeof t.title === 'string') };
   } catch { return EMPTY(); }
 }
 export function validUnicodeText(value) {
@@ -30,19 +35,26 @@ function validatedTaskFields(title, projectId, due, priority) {
   if (due && (!/^\d{4}-\d{2}-\d{2}$/.test(due) || Number.isNaN(Date.parse(due + 'T00:00:00Z')) || new Date(due + 'T00:00:00Z').toISOString().slice(0, 10) !== due)) throw new Error('Due date must be a valid YYYY-MM-DD date.');
   return { title: name, projectId: projectId || null, due, priority: p };
 }
-export function newTask(title, projectId = null, due = '', priority = 4) {
+export function newTask(title, projectId = null, due = '', priority = 4, description = '') {
   const fields = validatedTaskFields(title, projectId, due, priority);
-  return { id: crypto.randomUUID(), ...fields, completed: false, createdAt: new Date().toISOString(), completedAt: null };
+  const result = { id: crypto.randomUUID(), ...fields, completed: false, createdAt: new Date().toISOString(), completedAt: null };
+  if (description !== '') result.description = checkedDescription(description);
+  return result;
 }
 /** Return a new task without changing identity, creation or completion history. */
-export function editTask(task, { title, projectId, due, priority }, projects) {
+export function editTask(task, { title, projectId, due, priority, description }, projects) {
   if (!task || typeof task !== 'object' || Array.isArray(task)) throw new Error('Task no longer exists.');
   const fields = validatedTaskFields(title, projectId, due, priority);
   if (!Array.isArray(projects) ||
       (fields.projectId !== null && !projects.some(project => project.id === fields.projectId))) {
     throw new Error('The chosen project no longer exists.');
   }
-  return { ...task, ...fields };
+  const edited = { ...task, ...fields };
+  if (description !== undefined) {
+    const notes = checkedDescription(description);
+    if (notes !== '' || Object.hasOwn(task, 'description')) edited.description = notes;
+  }
+  return edited;
 }
 /** Remove exactly one task from a draft; caller persists it only after validation. */
 export function deleteTask(draft, id) {

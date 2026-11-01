@@ -31,3 +31,7 @@ settings, tokens and application state do not belong in this JSON format.
 This is a format/regression fixture, not a real-world recovery warranty;
 physical-device provider, storage failure and signed release acceptance still
 require separate verification.
+
+## Schema 2: plain-text descriptions
+
+`schema2-synthetic.json` exercises an additive **plain-text description** field (up to 2,000 UTF-16 code units), including multiline Unicode notes and an empty description. Version 1 imports remain unchanged; exporters produce schema 1 when no active task has notes and schema 2 whenever notes must be preserved. Version 2 requires a `description` string on every task. Schema-1 input that attempts to add notes is rejected rather than silently discarding data. Trash remains device-local, not part of the portable export.

@@ -100,6 +100,7 @@ function openTaskEditor(task) {
   if (writeLocked) return;
   editingTaskId = task.id;
   $('edit-task-title').value = task.title;
+  $('edit-task-description').value = task.description || '';
   $('edit-task-priority').value = String(task.priority);
   $('edit-task-date').value = task.due || '';
   const projectSelect = $('edit-task-project');
@@ -211,6 +212,7 @@ function render() {
     if (view === 'trash') {
       const body = el('div', 'task-body');
       body.append(el('strong', 'task-name', task.title));
+    if (task.description) body.append(el('span', 'task-description', task.description));
       const details = el('div', 'task-details');
       details.append(el('span', 'priority priority-' + task.priority, 'P' + task.priority));
       details.append(el('span', '', 'Deleted ' + new Date(record.deletedAt).toLocaleDateString()));
@@ -247,6 +249,7 @@ function render() {
     });
     const body = el('div', 'task-body');
     body.append(el('strong', 'task-name', task.title));
+    if (task.description) body.append(el('span', 'task-description', task.description));
     const details = el('div', 'task-details');
     details.append(el('span', 'priority priority-' + task.priority, 'P' + task.priority));
     if (task.due) details.append(el('span', task.due < today && !task.completed ? 'due overdue' : 'due', task.due));
@@ -289,7 +292,7 @@ $('undo-task-delete').addEventListener('click', () => {
 $('task-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
-    const task = newTask($('task-title').value, $('task-project').value, $('task-date').value, $('task-priority').value);
+    const task = newTask($('task-title').value, $('task-project').value, $('task-date').value, $('task-priority').value, $('task-description').value);
     if (mutate(draft => { draft.tasks.push(task); })) {
       $('task-form').reset();
       if (matchMedia('(max-width:720px)').matches) {
@@ -422,6 +425,7 @@ $('edit-task-form').addEventListener('submit', event => {
   const id = editingTaskId;
   const updates = {
     title: $('edit-task-title').value,
+    description: $('edit-task-description').value,
     priority: $('edit-task-priority').value,
     due: $('edit-task-date').value,
     projectId: $('edit-task-project').value || null

@@ -93,6 +93,30 @@ async function run(engine,port){
     assert.equal(await restorePage.locator('.task-row').count(),1);
     note(engine.name()+' backup roundtrip',{schema:backup.schema,taskCount:backup.tasks.length});
     await restoreContext.close();
+    // Editing a task with notes must upgrade its export to schema 2, without
+    // changing the original task identity or completion metadata.
+    await page.getByRole('button',{name:'Edit Edited acceptance task'}).click();
+    await page.locator('#edit-task-description').fill('Private context 🧭\nSecond line');
+    await page.locator('#edit-task-form button[type=submit]').click();
+    assert.equal(await page.locator('.task-description').innerText(),'Private context 🧭\nSecond line');
+    const [notesDownload]=await Promise.all([
+      page.waitForEvent('download'),page.locator('#export-data').click()
+    ]);
+    const notesChunks=[];
+    for await(const chunk of await notesDownload.createReadStream())notesChunks.push(chunk);
+    const schemaTwo=JSON.parse(Buffer.concat(notesChunks).toString('utf8'));
+    assert.equal(schemaTwo.schema,2);
+    assert.equal(schemaTwo.tasks[0].description,'Private context 🧭\nSecond line');
+    const notesContext=await browser.newContext();
+    const notesPage=await notesContext.newPage();
+    await notesPage.goto(url,{waitUntil:'networkidle'});
+    notesPage.once('dialog',dialog=>dialog.accept());
+    await notesPage.locator('#import-file').setInputFiles({name:'notes.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(schemaTwo))});
+    await notesPage.getByText('Private context 🧭').waitFor();
+    await notesPage.reload({waitUntil:'networkidle'});
+    assert.equal(await notesPage.locator('.task-description').innerText(),'Private context 🧭\nSecond line');
+    note(engine.name()+' notes v2 portable roundtrip',{schema:schemaTwo.schema,notes:schemaTwo.tasks[0].description.length});
+    await notesContext.close();
     await context.close();
     const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1,colorScheme:'dark'});
     const small=await mobile.newPage();const mobileErrors=[];small.on('pageerror',e=>mobileErrors.push(e.message));

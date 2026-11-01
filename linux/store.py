@@ -67,10 +67,23 @@ class TaskStore:
             CREATE INDEX IF NOT EXISTS idx_deleted_tasks_when
                 ON deleted_tasks(deleted_at DESC);
         """)
+        # Additive, idempotent local migration. No existing task or Trash row is rewritten.
+        for table in ("tasks", "deleted_tasks"):
+            columns = {row[1] for row in self.db.execute(f"PRAGMA table_info({table})")}
+            if "description" not in columns:
+                self.db.execute(f"ALTER TABLE {table} ADD COLUMN description TEXT NOT NULL DEFAULT ''")
         self.db.commit()
 
+    @staticmethod
+    def checked_description(text):
+        if (type(text) is not str or len(text.encode("utf-16-le", "surrogatepass")) // 2 > 2000 or
+                any(0xD800 <= ord(ch) <= 0xDFFF for ch in text)):
+            raise ValueError("Description must be valid Unicode text, at most 2000 characters")
+        return text
+
     def add_task(self, title: str, *, priority: int = 4,
-                 due_date: str | None = None, project_id: str | None = None) -> str:
+                 due_date: str | None = None, project_id: str | None = None,
+                 description: str = "") -> str:
         if not isinstance(title, str):
             raise ValueError("Task title must be text")
         title = title.strip()
@@ -89,16 +102,18 @@ class TaskStore:
                     raise ValueError()
             except ValueError as error:
                 raise ValueError("Due date must be a valid YYYY-MM-DD date") from error
+        description = self.checked_description(description)
         task_id = str(uuid4())
         with self.db:
             self.db.execute(
-                "INSERT INTO tasks (id,title,priority,due_date,project_id,created_at) VALUES (?,?,?,?,?,?)",
+                "INSERT INTO tasks (id,title,priority,due_date,project_id,created_at,description) VALUES (?,?,?,?,?,?,?)",
                 (task_id, title, priority, due_date or None, project_id,
-                 datetime.now(timezone.utc).isoformat()))
+                 datetime.now(timezone.utc).isoformat(), description))
         return task_id
 
     def update_task(self, task_id: str, *, title: str, priority: int = 4,
-                    due_date: str | None = None, project_id: str | None = None) -> bool:
+                    due_date: str | None = None, project_id: str | None = None,
+                    description: str | None = None) -> bool:
         """Edit task fields in one transaction without losing completion metadata."""
         if not isinstance(title, str):
             raise ValueError("Task title must be text")
@@ -120,11 +135,17 @@ class TaskStore:
                 raise ValueError("Due date must be a valid YYYY-MM-DD date") from error
         if project_id is not None and not isinstance(project_id, str):
             raise ValueError("Project ID must be text or None")
+        if description is not None:
+            self.checked_description(description)
         with self.db:
-            result = self.db.execute(
-                "UPDATE tasks SET title=?,priority=?,due_date=?,project_id=? WHERE id=?",
-                (title, priority, due_date or None, project_id, task_id)
-            )
+            if description is None:
+                result = self.db.execute(
+                    "UPDATE tasks SET title=?,priority=?,due_date=?,project_id=? WHERE id=?",
+                    (title, priority, due_date or None, project_id, task_id))
+            else:
+                result = self.db.execute(
+                    "UPDATE tasks SET title=?,priority=?,due_date=?,project_id=?,description=? WHERE id=?",
+                    (title, priority, due_date or None, project_id, description, task_id))
         return result.rowcount == 1
 
     def list_tasks(self, *, include_completed: bool = False, view: str | None = None,
@@ -242,8 +263,8 @@ class TaskStore:
                 else:
                     self.db.execute(
                         "INSERT INTO deleted_tasks "
-                        "(id,title,priority,due_date,project_id,completed,created_at,completed_at,deleted_at) "
-                        "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,? "
+                        "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,deleted_at) "
+                        "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,description,? "
                         "FROM tasks WHERE id=?",
                         (when, task_id)
                     )
@@ -274,8 +295,8 @@ class TaskStore:
             # reintroduced via an import; a collision rolls back safely.
             self.db.execute(
                 "INSERT INTO deleted_tasks "
-                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,deleted_at) "
-                "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,? "
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description,deleted_at) "
+                "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,description,? "
                 "FROM tasks WHERE id=?",
                 (datetime.now(timezone.utc).isoformat(), task_id)
             )
@@ -314,11 +335,11 @@ class TaskStore:
             # An ID collision raises and rolls back, leaving Trash untouched.
             self.db.execute(
                 "INSERT INTO tasks "
-                "(id,title,priority,due_date,project_id,completed,created_at,completed_at) "
-                "VALUES (?,?,?,?,?,?,?,?)",
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
                 tuple(row[field] for field in
                       ("id", "title", "priority", "due_date", "project_id",
-                       "completed", "created_at", "completed_at"))
+                       "completed", "created_at", "completed_at", "description"))
             )
             removed = self.db.execute(
                 "DELETE FROM deleted_tasks WHERE id=?", (task_id,))

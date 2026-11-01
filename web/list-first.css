@@ -319,3 +319,9 @@ body { background:var(--gc-surface-raised); }
   .overview .metric { min-width:0; }
   .overview .metric span,.overview .metric small { overflow-wrap:anywhere; }
 }
+
+/* Portable schema-2 task notes: first-party plain text, no HTML interpretation. */
+.quick-add #task-description { grid-column:1/-1;resize:vertical;min-height:46px;width:100%;max-width:100%; }
+.task-description { display:block;color:var(--gc-text-soft);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:3.9em;overflow:hidden; }
+#edit-task-description { width:100%;min-height:90px;resize:vertical; }
+@media(max-width:720px){.quick-add #task-description {grid-column:1/-1;}}

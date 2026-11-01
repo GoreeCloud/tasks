@@ -43,8 +43,9 @@ function checkedTrash(workspace, trash) {
         !projects.some(project => project.id === task.projectId)) {
       projects.push({ id: task.projectId, name: 'Archived project' });
     }
+    const version = task.description !== undefined && task.description !== '' ? 2 : 1;
     const validated = validateBackup({
-      schema: 1, projects, tasks: [task]
+      schema: version, projects, tasks: [{ ...task, ...(version === 2 ? {description: task.description} : {}) }]
     }).tasks[0];
     return { task: validated, deletedAt: entry.deletedAt };
   });
@@ -70,7 +71,9 @@ export function readLocalSnapshot(raw) {
 }
 
 export function serializeLocalSnapshot(workspace, trash) {
-  const current = validateBackup(workspace);
+  const version = workspace.schema === 2 || workspace.tasks.some(t => t.description !== undefined && t.description !== '') ? 2 : 1;
+  const current = validateBackup({ ...workspace, schema: version, tasks: workspace.tasks.map(t =>
+    version === 2 ? { ...t, description: t.description ?? '' } : t) });
   // Guarantee that active data remains exportable on its own.
   exportBackup(current);
   const checked = checkedTrash(current, trash);

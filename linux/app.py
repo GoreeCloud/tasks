@@ -189,6 +189,12 @@ class TasksWindow(Adw.ApplicationWindow):
         self.due.set_max_length(10)
         self.due.set_width_chars(22)
         due_row.append(self.due)
+        self.description_entry = Gtk.TextView()
+        self.description_entry.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.description_entry.set_size_request(-1, 70)
+        self.description_entry.set_tooltip_text("Optional plain-text task description, maximum 2000 characters")
+        capture_box.append(Gtk.Label(label="Notes (optional)", xalign=0))
+        capture_box.append(self.description_entry)
         schedule_row = Gtk.Box(spacing=10)
         content.append(schedule_row)
         view_label = Gtk.Label(label="View")
@@ -539,8 +545,12 @@ class TasksWindow(Adw.ApplicationWindow):
                 self.entry.get_text(),
                 priority=(4, 3, 2, 1)[self.priority.get_selected()],
                 due_date=self.due.get_text().strip() or None,
-                project_id=self.selected_project_id()
+                project_id=self.selected_project_id(),
+                description=self.description_entry.get_buffer().get_text(
+                    self.description_entry.get_buffer().get_start_iter(),
+                    self.description_entry.get_buffer().get_end_iter(), False)
             )
+            self.description_entry.get_buffer().set_text("")
             self.entry.set_text("")
             self.due.set_text("")
             self.capture_revealer.set_reveal_child(False)
@@ -614,6 +624,8 @@ class TasksWindow(Adw.ApplicationWindow):
                 info.append("Due " + task["due_date"])
             if project:
                 info.append(project)
+            if task.get("description"):
+                info.append("Notes: " + task["description"].replace("\n", " ")[:65])
             row = Adw.ActionRow(title=task["title"], subtitle="  ·  ".join(info))
             if view == "Trash":
                 restore = Gtk.Button(label="Restore", tooltip_text="Restore " + task["title"])
@@ -759,6 +771,12 @@ class TasksWindow(Adw.ApplicationWindow):
         title.set_max_length(240)
         title.set_text(task["title"])
         form.append(title)
+        form.append(Gtk.Label(label="Description / notes", xalign=0))
+        description = Gtk.TextView()
+        description.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        description.set_size_request(-1, 85)
+        description.get_buffer().set_text(task.get("description") or "")
+        form.append(description)
 
         form.append(Gtk.Label(label="Priority", xalign=0))
         priority = Gtk.DropDown.new_from_strings(
@@ -789,12 +807,12 @@ class TasksWindow(Adw.ApplicationWindow):
         dialog.set_close_response("cancel")
         dialog.connect(
             "response", self.on_edit_response, task["id"], title, priority,
-            due, project, project_ids
+            due, project, project_ids, description
         )
         dialog.present(self)
 
     def on_edit_response(self, _dialog, response, task_id, title, priority,
-                         due, project, project_ids):
+                         due, project, project_ids, description=None):
         if response != "save":
             return
         try:
@@ -803,7 +821,11 @@ class TasksWindow(Adw.ApplicationWindow):
                 title=title.get_text(),
                 priority=(4, 3, 2, 1)[priority.get_selected()],
                 due_date=due.get_text().strip() or None,
-                project_id=project_ids[project.get_selected()]
+                project_id=project_ids[project.get_selected()],
+                **({"description": description.get_buffer().get_text(
+                    description.get_buffer().get_start_iter(),
+                    description.get_buffer().get_end_iter(), False)}
+                   if description is not None else {})
             )
             if not found:
                 self.message.set_text("Task was deleted; nothing was changed.")

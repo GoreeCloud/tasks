@@ -173,3 +173,13 @@ test('bulk edits reject stale IDs and invalid patches without partial mutation',
   assert.throws(()=>batchEditTasks(workspace,[one.id],{completed:true},'not-a-time'));
   assert.deepEqual(workspace,original);
 });
+
+test('task descriptions preserve Unicode and editing history', () => {
+  const task = newTask('Plan',null,'',2,'Notes 🚀\nMore details');
+  assert.equal(task.description,'Notes 🚀\nMore details');
+  const edited = editTask(task,{title:'Updated',projectId:null,due:'',priority:1},[]);
+  assert.equal(edited.description,task.description);
+  assert.equal(editTask(edited,{title:'Updated',projectId:null,due:'',priority:1,description:''},[]).description,'');
+  assert.throws(()=>newTask('Bad',null,'',4,'x'.repeat(2001)));
+  assert.throws(()=>newTask('Bad',null,'',4,String.fromCharCode(0xD800)));
+});

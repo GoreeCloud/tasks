@@ -112,7 +112,7 @@ test('malformed local snapshots fail closed rather than return an empty workspac
     JSON.stringify({ ...stored, trash: [{ ...stored.trash[0], deletedAt: '2026-02-30T12:00:00Z' }] }),
     JSON.stringify({ ...stored, trash: [{ ...stored.trash[0], task: { ...stored.trash[0].task, priority: true } }] }),
     JSON.stringify({ ...stored, workspace: { ...stored.workspace, tasks: [{ ...stored.trash[0].task }] } }),
-    JSON.stringify({ ...stored, workspace: { schema: 2, projects: [], tasks: [] } }),
+    JSON.stringify({ ...stored, workspace: { schema: 3, projects: [], tasks: [] } }),
     JSON.stringify({ ...stored, trash: [{ ...stored.trash[0], task: { ...stored.trash[0].task, completedAt: null } }] })
   ];
   for (const raw of corrupt) assert.throws(() => readLocalSnapshot(raw));
@@ -130,4 +130,18 @@ test('deletion or restore failure is reversible with the same local draft', () =
   assert.deepEqual(trash, []);
   assert.throws(() => restoreFromTrash(workspace, trash, undoTaskDelete, 'task-inbox'));
   assert.equal(workspace.tasks.length, 3);
+});
+
+test('schema-2 notes survive local Trash and restart', () => {
+  const workspace = {schema:1,projects:[],tasks:[newTask('Memo',null,'',1,'Keep secret in local Trash')]};
+  const local = serializeLocalSnapshot(workspace,[]);
+  const parsed = readLocalSnapshot(local);
+  assert.equal(parsed.workspace.schema,2);
+  const trash=[];
+  const original=parsed.workspace.tasks[0];
+  moveToTrash(parsed.workspace,trash,deleteTask,original.id,'2026-11-01T15:00:00Z');
+  const read=readLocalSnapshot(serializeLocalSnapshot(parsed.workspace,trash));
+  assert.equal(read.trash[0].task.description,original.description);
+  restoreFromTrash(read.workspace,read.trash,undoTaskDelete,original.id);
+  assert.equal(read.workspace.tasks[0].description,original.description);
 });

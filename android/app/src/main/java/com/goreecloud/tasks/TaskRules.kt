@@ -38,6 +38,13 @@ internal object TaskRules {
         return cleaned
     }
 
+    fun description(value: String): String {
+        require(value.length <= 2000 && hasValidSurrogates(value)) {
+            "Description must be valid Unicode text, at most 2000 characters"
+        }
+        return value
+    }
+
     fun priority(value: Int): Int {
         require(value in 1..4) { "Priority must be P1–P4" }
         return value

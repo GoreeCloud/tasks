@@ -3,6 +3,7 @@ package com.goreecloud.tasks
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteDatabase
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,6 +60,29 @@ class RestoreDatabaseTest {
             android.database.DatabaseUtils.queryNumEntries(database, "projects")
     }
 
+
+    @Test fun schemaTwoDescriptionSurvivesImportUpdateBulkTrashAndExport() {
+        val source = PortableRestore.parse(PortableFixture.read("schema2-synthetic.json"))
+        db.restorePortableBackup(source)
+        assertEquals("Check accessibility 🧭\nFollow up on copy edits.",
+            db.listTasks().single { it.id == "task-notes" }.description)
+        db.update("task-notes", "Review release", 1, "2026-11-03", "project-alpha")
+        db.bulkEdit(listOf("task-notes"), "priority", "2")
+        val json = JSONObject(String(db.exportPortableBackup(), Charsets.UTF_8))
+        assertEquals(2, json.getInt("schema"))
+        assertEquals(source.tasks.single { it.id == "task-notes" }.description,
+            PortableRestore.parse(db.exportPortableBackup()).tasks
+                .single { it.id == "task-notes" }.description)
+        assertTrue(db.delete("task-notes"))
+        db.close(); db = TasksDatabase(context)
+        assertEquals(source.tasks.single { it.id == "task-notes" }.description,
+            db.listDeletedTasks().single().description)
+        assertTrue(db.restoreDeletedTask("task-notes"))
+        assertEquals(source.tasks.single { it.id == "task-notes" }.description,
+            db.listTasks().single { it.id == "task-notes" }.description)
+        db.update("task-notes", "Review release", 2, "2026-11-03", "project-alpha", "")
+        assertEquals(1, JSONObject(String(db.exportPortableBackup(), Charsets.UTF_8)).getInt("schema"))
+    }
 
     @Test fun atomicBulkActionsPreserveMetadataAndMoveToRecoverableTrash() {
         val source = snapshot()
@@ -275,6 +299,27 @@ class RestoreDatabaseTest {
         } catch (_: IllegalArgumentException) { }
         assertEquals(listOf("task-1"), db.listDeletedTasks().map { it.id })
         assertEquals(listOf("task-2"), db.listTasks().map { it.id })
+    }
+
+    @Test fun versionFiveUpgradeAddsDescriptionsWithoutChangingExistingTasks() {
+        db.close()
+        context.deleteDatabase("goreecloud-tasks.db")
+        val old = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath("goreecloud-tasks.db"), null)
+        old.execSQL("CREATE TABLE projects (id TEXT PRIMARY KEY,name TEXT NOT NULL)")
+        old.execSQL("CREATE TABLE tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT)")
+        old.execSQL("CREATE TABLE deleted_tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT,deleted_at INTEGER)")
+        old.execSQL("INSERT INTO tasks (id,title,priority,completed,created_at) VALUES ('old','Preserved',4,0,1761904800123)")
+        old.version = 5
+        old.close()
+        db = TasksDatabase(context)
+        assertEquals("Preserved", db.listTasks().single().title)
+        assertEquals("", db.listTasks().single().description)
+        db.update("old", "Preserved", 4, null, null, "Notes after upgrade")
+        assertEquals("Notes after upgrade", db.listTasks().single().description)
     }
 
     @Test fun versionFourUpgradeAddsTrashWithoutReplacingExistingRows() {

@@ -44,6 +44,7 @@ internal object PortableBackup {
     fun encode(database: SQLiteDatabase): ByteArray {
         val projects = JSONArray()
         val tasks = JSONArray()
+        var hasDescriptions = false
         val projectIds = mutableSetOf<String>()
         database.beginTransactionNonExclusive()
         try {
@@ -60,7 +61,7 @@ internal object PortableBackup {
             val taskIds = mutableSetOf<String>()
             database.rawQuery(
                 "SELECT id,title,priority,completed,due_date,project_id,created_at,completed_at, " +
-                    "created_at_exact,completed_at_exact " +
+                    "created_at_exact,completed_at_exact,description " +
                     "FROM tasks ORDER BY id", null
             ).use { cursor ->
                 while (cursor.moveToNext()) {
@@ -76,6 +77,8 @@ internal object PortableBackup {
                     val completedAt = if (cursor.isNull(7)) null else cursor.getLong(7)
                     val createdExact = if (cursor.isNull(8)) null else cursor.getString(8)
                     val completedExact = if (cursor.isNull(9)) null else cursor.getString(9)
+                    val description = TaskRules.description(cursor.getString(10))
+                    if (description.isNotEmpty()) hasDescriptions = true
                     require(id.isNotBlank() && id.length <= 128 && taskIds.add(id))
                     require(TaskRules.title(title) == title)
                     TaskRules.priority(priority)
@@ -96,11 +99,17 @@ internal object PortableBackup {
                             require(completed) { "Completion metadata is inconsistent" }
                             timestampForExport(completedAt, completedExact)
                         })
+                    task.put("description", description)
                     tasks.put(task)
                 }
             }
+            // A schema-1 export must remain byte-compatible when notes are empty.
+            // Omit the schema-2 field in that case rather than silently dropping content.
+            if (!hasDescriptions) for (index in 0 until tasks.length()) {
+                tasks.getJSONObject(index).remove("description")
+            }
             val backup = JSONObject()
-                .put("schema", 1)
+                .put("schema", if (hasDescriptions) 2 else 1)
                 .put("projects", projects)
                 .put("tasks", tasks)
             val bytes = backup.toString(2).toByteArray(Charsets.UTF_8)

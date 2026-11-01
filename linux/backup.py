@@ -78,8 +78,8 @@ def _scalar(value):
 
 
 def validate(data):
-    if not _object(data) or type(data.get("schema")) is not int or data["schema"] != 1:
-        raise BackupError("Unsupported backup version (expected schema 1)")
+    if not _object(data) or type(data.get("schema")) is not int or data["schema"] not in (1, 2):
+        raise BackupError("Unsupported backup version (expected schema 1 or 2)")
     if not isinstance(data.get("projects"), list) or not isinstance(data.get("tasks"), list):
         raise BackupError("Backup must contain tasks and projects arrays")
     if len(data["projects"]) > MAX_RECORDS or len(data["tasks"]) > MAX_RECORDS:
@@ -123,13 +123,20 @@ def validate(data):
             raise BackupError("Inconsistent completion metadata")
         if project_id is not None and (not _scalar(project_id) or project_id not in ids):
             raise BackupError("Task references a missing project")
+        if data["schema"] == 1 and "description" in task:
+            raise BackupError("Descriptions require schema 2; backup cannot lose notes")
+        description = task.get("description") if data["schema"] == 2 else None
+        if data["schema"] == 2 and (not _scalar(description) or
+                                    len(description.encode("utf-16-le")) // 2 > 2000):
+            raise BackupError("Invalid task description")
         task_ids.add(tid)
         tasks.append({
             "id": tid, "title": title.strip(), "projectId": project_id,
             "due": due, "priority": priority, "completed": completed,
-            "createdAt": created, "completedAt": completed_at
+            "createdAt": created, "completedAt": completed_at,
+            **({"description": description} if data["schema"] == 2 else {})
         })
-    return {"schema": 1, "projects": projects, "tasks": tasks}
+    return {"schema": data["schema"], "projects": projects, "tasks": tasks}
 
 
 def serialized(data):
@@ -151,15 +158,18 @@ def read_backup(path: Path):
 
 
 def export_data(store: TaskStore):
+    all_tasks = store.list_tasks(include_completed=True)
+    version = 2 if any(row["description"] for row in all_tasks) else 1
     return validate({
-        "schema": 1,
+        "schema": version,
         "projects": store.list_projects(),
         "tasks": [{
             "id": row["id"], "title": row["title"],
+            **({"description": row["description"]} if version == 2 else {}),
             "projectId": row["project_id"], "due": row["due_date"] or "",
             "priority": row["priority"], "completed": bool(row["completed"]),
             "createdAt": row["created_at"], "completedAt": row["completed_at"]
-        } for row in store.list_tasks(include_completed=True)]
+        } for row in all_tasks]
     })
 
 
@@ -201,10 +211,11 @@ def import_data(store: TaskStore, data):
             store.db.execute("INSERT INTO projects(id,name) VALUES (?,?)", (project["id"], project["name"]))
         for task in validated["tasks"]:
             store.db.execute(
-                "INSERT INTO tasks(id,title,priority,due_date,project_id,completed,created_at,completed_at) "
-                "VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO tasks(id,title,priority,due_date,project_id,completed,created_at,completed_at,description) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
                 (task["id"], task["title"], task["priority"], task["due"] or None,
-                 task["projectId"], int(task["completed"]), task["createdAt"], task["completedAt"])
+                 task["projectId"], int(task["completed"]), task["createdAt"], task["completedAt"],
+                 task.get("description", ""))
             )
     return len(validated["tasks"]), len(validated["projects"])
 

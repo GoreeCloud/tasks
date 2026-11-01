@@ -67,7 +67,7 @@ test('strict lossless backup roundtrip except whitespace trimming', () => {
 test('rejects malformed, wrong-version, and excessive JSON', () => {
   assert.throws(() => validateBackupText('not json'));
   assert.throws(() => validateBackupText(' '.repeat(2 * 1024 * 1024 + 1)));
-  assert.throws(() => validateBackup({ ...valid(), schema: 2 }));
+  assert.throws(() => validateBackup({ ...valid(), schema: 3 }));
   assert.throws(() => validateBackup({ ...valid(), projects: [] }));
 });
 test('rejects invalid due dates, reference collisions and unknown projects', () => {
@@ -112,4 +112,24 @@ test('preserves emoji but refuses unpaired Unicode in backups', () => {
   input.tasks[0].title = 'valid';
   input.projects[0].name = 'bad ' + invalid;
   assert.throws(() => validateBackup(input));
+});
+
+test('schema-2 descriptions round-trip, and schema-1 cannot silently discard notes', () => {
+  const task = newTask('Review',null,'',2,'Nested line\nPrivacy note 📋');
+  const snapshot = {schema:1,projects:[],tasks:[task]};
+  assert.throws(()=>validateBackup(snapshot),/schema 2/);
+  const encoded = JSON.parse(exportBackup(snapshot));
+  assert.equal(encoded.schema,2);
+  assert.equal(encoded.tasks[0].description,task.description);
+  assert.equal(validateBackupText(JSON.stringify(encoded)).tasks[0].description,task.description);
+  assert.throws(()=>validateBackup({...encoded,tasks:[{...task,description:23}]}));
+  assert.throws(()=>validateBackup({...encoded,tasks:[{...task,description:'x'.repeat(2001)}]}));
+  assert.equal(JSON.parse(exportBackup({schema:1,projects:[],tasks:[newTask('Old')]})).schema,1);
+});
+
+test('shared schema-2 synthetic fixture round-trips with multiline Unicode descriptions', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../fixtures/portable/schema2-synthetic.json',import.meta.url),'utf8'));
+  assert.deepEqual(validateBackupText(exportBackup(fixture)),fixture);
+  assert.equal(fixture.tasks[0].description,'Check accessibility 🧭\nFollow up on copy edits.');
+  assert.throws(()=>validateBackup({...fixture,tasks:[{...fixture.tasks[0],description:'🧭'.repeat(1001)}]}));
 });

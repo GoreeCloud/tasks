@@ -16,7 +16,8 @@ internal data class RestoreTask(
     val id: String, val title: String, val priority: Int, val completed: Boolean,
     val dueDate: String?, val projectId: String?, val createdAt: Long,
     val completedAt: Long?, val createdAtExact: String,
-    val completedAtExact: String?
+    val completedAtExact: String?,
+    val description: String = ""
 )
 internal data class RestoreSnapshot(
     val projects: List<RestoreProject>, val tasks: List<RestoreTask>
@@ -125,7 +126,8 @@ internal object PortableRestore {
             throw IllegalArgumentException("Backup is not valid JSON", failure)
         } ?: throw IllegalArgumentException("Backup must be a JSON object")
         require(tokener.nextClean() == '\u0000') { "Unexpected content after JSON" }
-        require(root.opt("schema") is Int && root.getInt("schema") == 1) {
+        val schema = root.opt("schema")
+        require(schema is Int && schema in 1..2) {
             "Unsupported or incomplete GoreeCloud Tasks backup schema"
         }
         val projectEntries = childArray(root, "projects")
@@ -182,9 +184,15 @@ internal object PortableRestore {
             require(completed == (completedAt != null)) {
                 "Task completion metadata is inconsistent"
             }
+            if (schema == 1 && item.has("description")) {
+                throw IllegalArgumentException("Descriptions require schema 2")
+            }
+            val description = if (schema == 2) {
+                TaskRules.description(requiredString(item.opt("description"), "task description"))
+            } else ""
             tasks.add(RestoreTask(key, title, priority, completed, due, projectId,
                                   createdAt.millis, completedAt?.millis,
-                                  createdAt.original, completedAt?.original))
+                                  createdAt.original, completedAt?.original, description))
         }
         return RestoreSnapshot(projects, tasks)
     }

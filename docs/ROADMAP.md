@@ -42,6 +42,8 @@
 
 - [x] GTK4 screenshot-led layout correction: view/project Browse popover under 700px, live project counts, hidden idle batch controls, collapsible advanced filters/new-project form, Ctrl+N/Ctrl+F, true mapped 600×480 and 940×760 synthetic CI smoke. Assistant-reviewed Light/Dark screenshots; owner/Orca/large-text and Android physical acceptance remain open. See [native list-first UI](NATIVE_LIST_FIRST_UI.md).
 
+- [x] First cross-platform richer task field: validated plain-text task descriptions (max 2,000 UTF-16 units) with backward-compatible schema-1 reads and versioned schema-2 exports, GTK/Compose/browser editor support and additive SQLite migrations. Cross-client fixture, Trash recovery and strict export rules added; Android CI, physical-device, AT and recovery sign-off remain separate. See [portable schema 2](PORTABLE_SCHEMA2_DESCRIPTIONS.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

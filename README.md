@@ -144,3 +144,5 @@ This repo must not receive user passwords, access tokens, private tasks, export 
 ## License
 
 First-party code in this repository is provided under Apache License 2.0 (see `LICENSE`). Third-party frameworks and libraries retain their own licenses.
+
+Portable schema 2 supports optional plain-text task descriptions across the browser, Linux and Android. Existing schema-1 backups remain readable; notes require schema-2-aware readers. See [compatibility and recovery gates](docs/PORTABLE_SCHEMA2_DESCRIPTIONS.md).

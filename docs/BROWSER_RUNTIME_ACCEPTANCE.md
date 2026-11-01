@@ -30,3 +30,7 @@ The test-only dependencies are pinned to Playwright 1.64.1 and axe-core 4.10.3 w
 ## Remaining acceptance
 
 Human contrast and visual review of all themes/accents, true browser zoom and font scaling, RTL/localization, screen readers, accessibility focus and task edit dialogs at all sizes, native Android TalkBack/physical-device acceptance, Linux GTK Orca/focus checks, full recovery and production distribution remain outstanding. This work does not implement cross-device task synchronization, shared accounts, Todoist migration, subtasks, labels, reminders or recurring tasks.
+
+## Schema-2 notes regression
+
+The synthetic Chromium/Firefox runner now edits a description, exports schema-2 JSON and restores its exact multiline text into a separate empty browser profile, as well as retaining the original schema-1 round trip. This proves the tested browser workflow only; Android and Linux have their own schema-2 fixture and native SQLite regression suites. See [versioned contract](PORTABLE_SCHEMA2_DESCRIPTIONS.md).

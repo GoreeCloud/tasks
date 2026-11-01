@@ -64,6 +64,7 @@ private fun TasksScreen(db: TasksDatabase) {
         val projects = remember { mutableStateListOf<ProjectRecord>().apply { addAll(db.listProjects()) } }
         val deletedTasks = remember { mutableStateListOf<TaskRecord>().apply { addAll(db.listDeletedTasks()) } }
         var title by remember { mutableStateOf("") }
+        var description by remember { mutableStateOf("") }
         var priority by remember { mutableIntStateOf(4) }
         var priorityMenu by remember { mutableStateOf(false) }
         var selectedProjectId by remember { mutableStateOf<String?>(null) }
@@ -140,6 +141,7 @@ private fun TasksScreen(db: TasksDatabase) {
         }
         var editing by remember { mutableStateOf<TaskRecord?>(null) }
         var editTitle by remember { mutableStateOf("") }
+        var editDescription by remember { mutableStateOf("") }
         var editPriority by remember { mutableIntStateOf(4) }
         var editDueDate by remember { mutableStateOf<String?>(null) }
         var editProjectId by remember { mutableStateOf<String?>(null) }
@@ -295,6 +297,14 @@ private fun TasksScreen(db: TasksDatabase) {
                     modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)
                 )
                 Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { if (it.length <= 2000) description = it },
+                    label = { Text("Description / notes (optional)") },
+                    minLines = 2, maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.weight(1f)) {
@@ -338,8 +348,9 @@ private fun TasksScreen(db: TasksDatabase) {
                 Button(
                     onClick = {
                         try {
-                            db.add(title, priority, dueDate, selectedProjectId)
+                            db.add(title, priority, dueDate, selectedProjectId, description)
                             title = ""
+                            description = ""
                             dueDate = null
                             error = ""
                             showCapture = false
@@ -522,6 +533,12 @@ private fun TasksScreen(db: TasksDatabase) {
                                             overflow = TextOverflow.Ellipsis,
                                             fontWeight = FontWeight.SemiBold
                                         )
+                                        if (task.description.isNotEmpty()) {
+                                            Text(task.description, maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodySmall)
+                                        }
                                         val detail = buildList {
                                             add("P${task.priority}")
                                             task.dueDate?.let { add("Due $it") }
@@ -555,6 +572,7 @@ private fun TasksScreen(db: TasksDatabase) {
                                                     actionsOpen = false
                                                     editing = task
                                                     editTitle = task.title
+                                                    editDescription = task.description
                                                     editPriority = task.priority
                                                     editDueDate = task.dueDate
                                                     editProjectId = task.projectId
@@ -754,11 +772,20 @@ private fun TasksScreen(db: TasksDatabase) {
                 onDismissRequest = { editing = null },
                 title = { Text("Edit task") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = 490.dp)
+                            .verticalScroll(rememberScrollState())) {
                         OutlinedTextField(
                             value = editTitle,
                             onValueChange = { if (it.length <= 240) editTitle = it },
                             label = { Text("Task title") }, singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = editDescription,
+                            onValueChange = { if (it.length <= 2000) editDescription = it },
+                            label = { Text("Description / notes") },
+                            minLines = 2, maxLines = 5,
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box {
@@ -823,7 +850,7 @@ private fun TasksScreen(db: TasksDatabase) {
                 confirmButton = {
                     TextButton(onClick = {
                         try {
-                            db.update(task.id, editTitle, editPriority, editDueDate, editProjectId)
+                            db.update(task.id, editTitle, editPriority, editDueDate, editProjectId, editDescription)
                             reload()
                             editing = null
                             error = ""
