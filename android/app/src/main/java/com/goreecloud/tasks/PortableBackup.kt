@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteDatabase
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
+import java.time.OffsetDateTime
 
 /**
  * Browser/Linux-compatible schema-1 JSON export for an already-open Android DB.
@@ -17,6 +18,18 @@ internal object PortableBackup {
     fun timestamp(milliseconds: Long): String {
         require(milliseconds > 0) { "Missing historical timestamp; export cancelled." }
         return Instant.ofEpochMilli(milliseconds).toString()
+    }
+
+    /** Export the original portable timestamp verbatim after checking its stored millis. */
+    fun timestampForExport(milliseconds: Long, original: String?): String {
+        if (original == null) return timestamp(milliseconds)
+        require(original.length <= 40) { "Invalid restored timestamp" }
+        val parsed = try { OffsetDateTime.parse(original).toInstant().toEpochMilli() }
+        catch (failure: Exception) {
+            throw IllegalArgumentException("Invalid restored timestamp", failure)
+        }
+        require(parsed == milliseconds) { "Stored timestamp and original disagree" }
+        return original
     }
 
     fun completionTimestamp(completed: Boolean, completedAt: Long?): Any {
@@ -44,7 +57,8 @@ internal object PortableBackup {
             }
             val taskIds = mutableSetOf<String>()
             database.rawQuery(
-                "SELECT id,title,priority,completed,due_date,project_id,created_at,completed_at " +
+                "SELECT id,title,priority,completed,due_date,project_id,created_at,completed_at, " +
+                    "created_at_exact,completed_at_exact " +
                     "FROM tasks ORDER BY id", null
             ).use { cursor ->
                 while (cursor.moveToNext()) {
@@ -58,6 +72,8 @@ internal object PortableBackup {
                     val projectId = if (cursor.isNull(5)) null else cursor.getString(5)
                     val created = cursor.getLong(6)
                     val completedAt = if (cursor.isNull(7)) null else cursor.getLong(7)
+                    val createdExact = if (cursor.isNull(8)) null else cursor.getString(8)
+                    val completedExact = if (cursor.isNull(9)) null else cursor.getString(9)
                     require(id.isNotBlank() && id.length <= 128 && taskIds.add(id))
                     require(TaskRules.title(title) == title)
                     TaskRules.priority(priority)
@@ -71,8 +87,13 @@ internal object PortableBackup {
                         .put("completed", completed)
                         .put("due", due)
                         .put("projectId", projectId ?: JSONObject.NULL)
-                        .put("createdAt", timestamp(created))
-                        .put("completedAt", completionTimestamp(completed, completedAt))
+                        .put("createdAt", timestampForExport(created, createdExact))
+                        .put("completedAt", if (completedAt == null) {
+                            completionTimestamp(completed, null)
+                        } else {
+                            require(completed) { "Completion metadata is inconsistent" }
+                            timestampForExport(completedAt, completedExact)
+                        })
                     tasks.put(task)
                 }
             }

@@ -54,6 +54,17 @@ class PortableRestoreTest {
         }
     }
 
+    @Test fun preservesLinuxMicrosecondPrecisionAndTimezoneOffsets() {
+        val restored = parse(fixture()
+            .replace("2026-10-31T18:00:00.000Z", "2026-10-31T18:00:00.123456+00:00")
+            .replace("2026-10-31T12:10:11.123+00:00", "2026-10-31T12:10:11.123456+00:00"))
+        assertEquals("2026-10-31T18:00:00.123456+00:00", restored.tasks[0].createdAtExact)
+        assertEquals("2026-10-31T12:10:11.123456+00:00", restored.tasks[1].completedAtExact)
+        assertEquals("2026-10-31T18:00:00.123456+00:00",
+            PortableBackup.timestampForExport(restored.tasks[0].createdAt,
+                                              restored.tasks[0].createdAtExact))
+    }
+
     @Test fun rejectsUnsupportedAndIncompleteSchema() {
         rejects(fixture().replace("\"schema\": 1", "\"schema\": 2"))
         rejects(fixture().replace("\"tasks\": [", "\"missing\": ["))
@@ -69,7 +80,7 @@ class PortableRestoreTest {
         rejects(fixture().replace("\"completedAt\":null",
                                    "\"completedAt\":\"2026-10-31T00:00:00Z\""))
         rejects(fixture().replace("2026-10-31T12:10:11.123+00:00",
-                                   "2026-10-31T12:10:11.123456Z"))
+                                   "2026-13-31T12:10:11.123456Z"))
     }
 
     @Test fun rejectsInvalidUnicodeControlAndPadding() {

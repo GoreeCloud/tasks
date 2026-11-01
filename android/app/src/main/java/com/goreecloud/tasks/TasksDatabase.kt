@@ -20,10 +20,11 @@ internal data class ProjectRecord(val id: String, val name: String)
 /**
  * On-device private SQLite database. No Internet permission or server sync.
  *
- * Version 2 adds project and due-date fields non-destructively; v1 tasks survive upgrade.
+ * V2 adds projects/dates, V3 completion timestamps, V4 exact imported timestamps.
+ * All upgrades preserve existing task rows.
  */
 internal class TasksDatabase(context: Context) :
-    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 3) {
+    SQLiteOpenHelper(context, "goreecloud-tasks.db", null, 4) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
@@ -36,7 +37,7 @@ internal class TasksDatabase(context: Context) :
             "CREATE TABLE tasks (" +
                 "id TEXT PRIMARY KEY, title TEXT NOT NULL, " +
                 "priority INTEGER NOT NULL DEFAULT 4 CHECK(priority BETWEEN 1 AND 4), " +
-                "completed INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, completed_at INTEGER, " +
+                "completed INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, completed_at INTEGER, created_at_exact TEXT, completed_at_exact TEXT, " +
                 "due_date TEXT, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL)"
         )
         db.execSQL("CREATE INDEX idx_tasks_priority ON tasks(completed, priority, created_at)")
@@ -54,6 +55,12 @@ internal class TasksDatabase(context: Context) :
             // Preserve historical completions without fabricating a completion date.
             // Earlier records can have completed=1 and completed_at=NULL.
             db.execSQL("ALTER TABLE tasks ADD COLUMN completed_at INTEGER")
+        }
+        if (oldVersion < 4) {
+            // Preserve sub-millisecond timestamps from portable Linux backups
+            // without changing the existing INTEGER columns or task ordering.
+            db.execSQL("ALTER TABLE tasks ADD COLUMN created_at_exact TEXT")
+            db.execSQL("ALTER TABLE tasks ADD COLUMN completed_at_exact TEXT")
         }
     }
 
@@ -131,6 +138,9 @@ internal class TasksDatabase(context: Context) :
             put("completed", flag)
             if (completed) put("completed_at", System.currentTimeMillis())
             else putNull("completed_at")
+            // This local action now uses millisecond precision; stale imported
+            // timestamp originals must never survive completion changes.
+            putNull("completed_at_exact")
         }
         // A repeated toggle does not rewrite the original completion timestamp.
         writableDatabase.update("tasks", update, "id=? AND completed<>?",
@@ -172,8 +182,10 @@ internal class TasksDatabase(context: Context) :
                     put("due_date", task.dueDate)
                     put("project_id", task.projectId)
                     put("created_at", task.createdAt)
+                    put("created_at_exact", task.createdAtExact)
                     if (task.completedAt == null) putNull("completed_at")
                     else put("completed_at", task.completedAt)
+                    put("completed_at_exact", task.completedAtExact)
                 }
                 db.insertOrThrow("tasks", null, values)
             }

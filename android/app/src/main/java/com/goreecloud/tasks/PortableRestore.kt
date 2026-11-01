@@ -15,7 +15,8 @@ internal data class RestoreProject(val id: String, val name: String)
 internal data class RestoreTask(
     val id: String, val title: String, val priority: Int, val completed: Boolean,
     val dueDate: String?, val projectId: String?, val createdAt: Long,
-    val completedAt: Long?
+    val completedAt: Long?, val createdAtExact: String,
+    val completedAtExact: String?
 )
 internal data class RestoreSnapshot(
     val projects: List<RestoreProject>, val tasks: List<RestoreTask>
@@ -54,22 +55,23 @@ internal object PortableRestore {
         return value
     }
 
-    private fun timestamp(value: Any?, label: String): Long {
+    private data class DecodedTime(val millis: Long, val original: String)
+
+    private fun timestamp(value: Any?, label: String): DecodedTime {
         val raw = requiredString(value, label)
         require(raw.length <= 40 && timestampPrefix.containsMatchIn(raw)) {
             "Invalid $label"
         }
         val parsed = try { OffsetDateTime.parse(raw).toInstant() }
         catch (failure: Exception) { throw IllegalArgumentException("Invalid $label", failure) }
-        require(parsed.nano % 1_000_000 == 0) {
-            "Timestamp exceeds the Android millisecond precision limit"
-        }
         val millis = try { parsed.toEpochMilli() }
         catch (failure: ArithmeticException) {
             throw IllegalArgumentException("Timestamp is outside the supported range", failure)
         }
         require(millis > 0) { "Invalid historical timestamp" }
-        return millis
+        // Keep the exact source (including microseconds and offset). SQLite
+        // still stores milliseconds for local sorting and completion logic.
+        return DecodedTime(millis, raw)
     }
 
     private fun objectAt(collection: JSONArray, index: Int): JSONObject {
@@ -174,7 +176,8 @@ internal object PortableRestore {
                 "Task completion metadata is inconsistent"
             }
             tasks.add(RestoreTask(key, title, priority, completed, due, projectId,
-                                  createdAt, completedAt))
+                                  createdAt.millis, completedAt?.millis,
+                                  createdAt.original, completedAt?.original))
         }
         return RestoreSnapshot(projects, tasks)
     }

@@ -53,14 +53,14 @@ Requirements: Android SDK Platform 35, JDK 17, and Gradle 8.10.2. The Gradle pro
 gradle -p android :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The Android application has an original first-party GC UI Iris native adaptive app icon for Android API 26+. The package ID is `com.goreecloud.tasks`; the project uses Kotlin and Jetpack Compose. The Android app stores tasks in private app-local SQLite with non-destructive v1 → v3 migrations for projects, due dates and accurate completion timestamps. It does **not** request Internet permission or claim shared synchronization. The Android unit suite tests pure view/filtering rules; the native debug build compiles the actual UI.
+The Android application has an original first-party GC UI Iris native adaptive app icon for Android API 26+. The package ID is `com.goreecloud.tasks`; the project uses Kotlin and Jetpack Compose. The Android app stores tasks in private app-local SQLite with non-destructive v1 → v4 migrations for projects, due dates, completion timestamps and exact imported portable timestamps. It does **not** request Internet permission or claim shared synchronization. The Android unit suite tests pure view/filtering rules; the native debug build compiles the actual UI.
 
 Android includes a native **Export private JSON backup** action using the
 system document picker and the browser/Linux portable schema-1 format
 (2 MiB maximum; 10,000 tasks and 10,000 projects). Export does not request
 Internet or storage permissions. Completed records created before v3 can lack
 accurate completion timestamps; rather than invent dates, the app refuses
-lossy export until those tasks are reopened and completed again. Android import now validates schema-1 JSON using a size-bounded document picker,
+lossy export until those tasks are reopened and completed again. Android import preserves Linux microsecond timestamps without rounding away source precision. It validates schema-1 JSON using a size-bounded document picker,
 requires a second confirmation, and restores only into an empty database
 using an all-or-nothing SQLite transaction. Device/provider recovery
 acceptance remains pending. These JSON
