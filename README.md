@@ -13,9 +13,9 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Create, complete, reopen, delete tasks | Yes | Yes | Yes |
 | Device-local persistence | Browser localStorage | SQLite | SQLite |
 | Four priorities | Yes | Yes | Yes |
-| Views and task filters | Inbox, Today, Upcoming, Priority, All, Completed | Open/Completed | Open, Priority, Completed |
-| Projects | Create and assign tasks | Create and assign tasks | Pending |
-| Due dates | Date entry and views | Date entry and filtered views | Pending |
+| Views and task filters | Inbox, Today, Upcoming, Priority, All, Completed | Open, Today, Upcoming, Priority, Completed, Project | Open, Today, Upcoming, Priority, Completed, Project |
+| Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
+| Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
 | Search / edit title | Yes | Search and store-level title edit | Pending |
 | JSON export / restore | Validated local export and explicit replacement restore | Pending | Pending |
 | Accessibility and GC UI alignment | Initial design only | Initial native design only | Initial native design only |
@@ -48,10 +48,10 @@ The app stores its database under `$XDG_DATA_HOME/goreecloud-tasks/tasks.sqlite3
 Requirements: Android SDK Platform 35, JDK 17, and Gradle 8.10.2. The Gradle project lives under `android/`:
 
 ```sh
-gradle -p android :app:assembleDebug
+gradle -p android :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The package ID is `com.goreecloud.tasks`; the project uses Kotlin and Jetpack Compose. The Android app stores tasks in private app-local SQLite. It does **not** request Internet permission or claim shared synchronization.
+The package ID is `com.goreecloud.tasks`; the project uses Kotlin and Jetpack Compose. The Android app stores tasks in private app-local SQLite with non-destructive v1 → v2 schema migration for project and due-date fields. It does **not** request Internet permission or claim shared synchronization. The Android unit suite tests pure view/filtering rules; the native debug build compiles the actual UI.
 
 An Android APK is **not considered delivered** by its appearance in local build output or GitHub Actions artifacts. Any actual APK delivered to the owner must be inspected, extracted as a standalone `.apk`, and uploaded to the existing Google Drive `GoreeCloud/Artifacts` folder, with provenance and readback, as required by GoreeCloud governance.
 

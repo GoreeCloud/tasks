@@ -40,4 +40,4 @@ jobs:
         with:
           gradle-version: '8.10.2'
       - name: Compile native Android debug APK
-        run: gradle -p android :app:assembleDebug --no-daemon --stacktrace
+        run: gradle -p android :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
