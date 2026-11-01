@@ -18,6 +18,7 @@ This independent service foundation creates a contract for future authenticated 
 - Optional, durable Idempotency-Key receipts for PATCH/DELETE, bound to method/task/revision/normalized fields, committed in the task and change-event transaction.
 - Optimistic revision preconditions for task edits and deletion to prevent silent stale overwrites.
 - Soft deletion with immutable, ordered change-log snapshots and cursor-based pagination (100 events per page).
+- Optional originating `mutationId` in new change events; legacy events remain readable with null mutationId after a non-destructive schema upgrade.
 - HTTP no-store/no-sniff headers. No request payloads, titles or tokens in the server's request log.
 
 These controls are useful development foundations but **not** proof of production security, authorization completeness or stable synchronization. There is no account identity, workspace isolation, rate limiting, authentication rotation, data encryption at rest, reverse-proxy TLS, backend monitoring, migrations, or restore drills. No Internet binding or external publication is provided.
@@ -73,6 +74,18 @@ must always supply and persist a stable mutation key to retry safely. There is
 no workspace identity, device authorization, expiry, or key lifecycle yet; a
 future multi-user service must partition receipts by tenant and actor before
 use. No native client uses this API or ledger today.
+
+### Origin metadata and historical data preservation
+
+New change-feed entries include `mutationId`, the request's idempotency key if
+supplied, otherwise null. The server upgrades existing single-user development
+SQLite databases by adding a nullable column without discarding prior change
+history, task rows or idempotency receipts. Historical entries remain null;
+no origin is inferred. The experimental outbox can recognize an accepted local
+edit/delete by matching task ID, originating key, operation and revision, even
+if it receives the change feed before a client acknowledgement. This is not a
+substitute for authenticated tenant-scoped event provenance, session management,
+crash-safe local task/outbox transactions or conflict UI in a future service.
 
 ### Consistent initial snapshot (development only)
 

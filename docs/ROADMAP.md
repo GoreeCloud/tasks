@@ -33,6 +33,7 @@
 - [x] Durable, offline SQLite outbox *reference* with mutation retries, a remote projection, guarded conflict preservation, atomic cursor updates and single-user API contract tests; not wired to native clients or a network.
 - [x] Experimental authenticated single-user bootstrap endpoint with consistent snapshot/cursor and fail-closed 100-task cap, plus guarded outbox initialization and regression tests; not deployed or connected.
 - [x] Experimental optional PATCH/DELETE idempotency receipts with atomic success replay, concurrent retry and rollback tests; native client integration and multi-tenant isolation pending.
+- [x] Non-destructive experimental mutation-origin event metadata and outbox acknowledgement-before/after-pull contract tests; still no native client transport or workspace authorization.
 
 - [ ] Secure API and PostgreSQL migrations with per-tenant access controls.
 - [ ] Authentication, device sessions, invitation and role policies.

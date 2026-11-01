@@ -1,5 +1,6 @@
 """No external network, credentials or real user data are used by API tests."""
 import json
+import sqlite3
 from pathlib import Path
 import sys
 import tempfile
@@ -111,6 +112,19 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(len(self.request("GET", "/v1/tasks")[1]["tasks"]), 1)
         self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 1)
 
+    def test_non_destructive_change_schema_migration(self):
+        import sqlite3
+        dbpath = Path(self.tmp.name) / "legacy.sqlite3"
+        with sqlite3.connect(dbpath) as db:
+            db.execute("CREATE TABLE changes(seq INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,operation TEXT NOT NULL,snapshot_json TEXT NOT NULL)")
+            db.execute("INSERT INTO changes(task_id,operation,snapshot_json) VALUES (?,?,?)", (str(uuid4()), "created", json.dumps({"title":"legacy"})))
+        store = TaskDatabase(dbpath)
+        self.assertEqual(store.changes()["changes"][0]["task"]["title"], "legacy")
+        self.assertIsNone(store.changes()["changes"][0]["mutationId"])
+        store.create_task({"title":"new"}, "migrate-test-0001")
+        self.assertEqual(store.changes(after=1)["changes"][0]["mutationId"], "migrate-test-0001")
+        self.assertEqual(TaskDatabase(dbpath).changes()["cursor"], 2)
+
     def test_offline_outbox_receipt_acknowledgement_and_delta_contract(self):
         """Synthetic loopback contract only: clients do not use the service."""
         created = self.create("Initial", key="integrated-create-0001")[1]
@@ -129,9 +143,11 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         # The first response is treated as lost; repeat the persisted ID.
         self.assertEqual(self.request("PATCH", path, pending[0]["payload"], headers=headers)[1], first)
-        self.assertTrue(offline.acknowledge(update_id))
-        self.assertEqual(offline.apply_change_page(
-            self.request("GET", "/v1/changes?after=1")[1], 1), 2)
+        page = self.request("GET", "/v1/changes?after=1")[1]
+        self.assertEqual(page["changes"][0]["mutationId"], update_id)
+        # Simulate a pull arriving before the lost acknowledgement.
+        self.assertEqual(offline.apply_change_page(page, 1), 2)
+        self.assertFalse(offline.acknowledge(update_id))
         self.assertEqual(offline.remote_task(created["id"])["title"], "Edited offline")
         self.assertIsNone(offline.conflict(update_id))
 
@@ -144,9 +160,11 @@ class ApiTest(unittest.TestCase):
         status, tombstone, _ = self.request("DELETE", path, headers=headers)
         self.assertEqual(status, 200)
         self.assertEqual(self.request("DELETE", path, headers=headers)[1], tombstone)
-        self.assertTrue(offline.acknowledge(delete_id))
-        self.assertEqual(offline.apply_change_page(
-            self.request("GET", "/v1/changes?after=2")[1], 2), 3)
+        page = self.request("GET", "/v1/changes?after=2")[1]
+        self.assertEqual(page["changes"][0]["mutationId"], delete_id)
+        self.assertEqual(offline.apply_change_page(page, 2), 3)
+        self.assertFalse(offline.acknowledge(delete_id))
+        self.assertIsNone(offline.conflict(delete_id))
         self.assertTrue(offline.remote_task(created["id"])["deleted"])
         self.assertEqual(offline.pending(), [])
         self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 3)

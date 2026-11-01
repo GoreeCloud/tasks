@@ -121,7 +121,8 @@ class TaskDatabase:
                     seq INTEGER PRIMARY KEY AUTOINCREMENT,
                     task_id TEXT NOT NULL,
                     operation TEXT NOT NULL,
-                    snapshot_json TEXT NOT NULL
+                    snapshot_json TEXT NOT NULL,
+                    mutation_key TEXT
                 );
                 CREATE TABLE IF NOT EXISTS idempotency (
                     request_key TEXT PRIMARY KEY,
@@ -130,6 +131,12 @@ class TaskDatabase:
                 );
                 CREATE INDEX IF NOT EXISTS idx_tasks_open ON tasks(deleted, completed, priority);
             """)
+            # Existing development databases are upgraded in place; no task,
+            # event or idempotency rows are discarded.
+            db.execute("BEGIN IMMEDIATE")
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(changes)")}
+            if "mutation_key" not in columns:
+                db.execute("ALTER TABLE changes ADD COLUMN mutation_key TEXT")
             db.commit()
 
     def connect(self) -> sqlite3.Connection:
@@ -139,10 +146,11 @@ class TaskDatabase:
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
-    def _record_change(self, db: sqlite3.Connection, task: dict, action: str):
+    def _record_change(self, db: sqlite3.Connection, task: dict, action: str,
+                       mutation_key: str | None = None):
         db.execute(
-            "INSERT INTO changes(task_id,operation,snapshot_json) VALUES (?,?,?)",
-            (task["id"], action, json.dumps(task, separators=(",", ":")))
+            "INSERT INTO changes(task_id,operation,snapshot_json,mutation_key) VALUES (?,?,?,?)",
+            (task["id"], action, json.dumps(task, separators=(",", ":")), mutation_key)
         )
 
     def list_tasks(self, limit: int = 100) -> list[dict]:
@@ -201,7 +209,7 @@ class TaskDatabase:
                 (task_id, fields["title"], fields["priority"], fields["due"], now, now)
             )
             created = snapshot(db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone())
-            self._record_change(db, created, "created")
+            self._record_change(db, created, "created", key)
             db.execute(
                 "INSERT INTO idempotency(request_key,payload_hash,response_json) VALUES (?,?,?)",
                 (key, digest, json.dumps(created))
@@ -244,7 +252,7 @@ class TaskDatabase:
                  expected_revision + 1, now, task_id)
             )
             updated = snapshot(db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone())
-            self._record_change(db, updated, "updated")
+            self._record_change(db, updated, "updated", key)
             if key is not None:
                 MutationReceipts.save(db, key, digest, updated)
             db.commit()
@@ -280,7 +288,7 @@ class TaskDatabase:
                 (expected_revision + 1, utc_now(), task_id)
             )
             tombstone = snapshot(db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone())
-            self._record_change(db, tombstone, "deleted")
+            self._record_change(db, tombstone, "deleted", key)
             if key is not None:
                 MutationReceipts.save(db, key, digest, tombstone)
             db.commit()
@@ -289,7 +297,7 @@ class TaskDatabase:
     def changes(self, after: int = 0, limit: int = 100) -> dict:
         with closing(self.connect()) as db:
             rows = db.execute(
-                "SELECT seq,operation,snapshot_json FROM changes WHERE seq>? ORDER BY seq ASC LIMIT ?",
+                "SELECT seq,operation,snapshot_json,mutation_key FROM changes WHERE seq>? ORDER BY seq ASC LIMIT ?",
                 (after, limit + 1)
             ).fetchall()
         has_more = len(rows) > limit
@@ -297,7 +305,8 @@ class TaskDatabase:
         return {
             "changes": [{
                 "seq": row["seq"], "operation": row["operation"],
-                "task": json.loads(row["snapshot_json"])
+                "task": json.loads(row["snapshot_json"]),
+                "mutationId": row["mutation_key"]
             } for row in rows],
             "cursor": rows[-1]["seq"] if rows else after,
             "hasMore": has_more

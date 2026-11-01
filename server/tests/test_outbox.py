@@ -196,6 +196,20 @@ class OfflineOutboxTests(unittest.TestCase):
         self.assertEqual(self.store.pending(), [])
         self.assertEqual(OfflineOutbox(self.path).cursor(), 3)
 
+    def test_event_origin_mismatch_and_invalid_identifier_roll_back(self):
+        self.store.queue(self.mutation_id, self.task_id, "delete", {}, 1)
+        mismatched = {**self.change(), "mutationId": self.mutation_id}
+        with self.assertRaises(OutboxError):
+            self.store.apply_change_page(self.page(mismatched), 0)
+        self.assertEqual(self.store.cursor(), 0)
+        self.assertIsNone(self.store.remote_task(self.task_id))
+        self.assertEqual(self.store.pending()[0]["id"], self.mutation_id)
+
+        invalid = {**self.change(), "mutationId": "bad key"}
+        with self.assertRaises(OutboxError):
+            self.store.apply_change_page(self.page(invalid), 0)
+        self.assertEqual(self.store.cursor(), 0)
+
     def test_symlinked_database_is_rejected(self):
         alias = Path(self.temp.name) / "alias.sqlite3"
         alias.symlink_to(self.path)

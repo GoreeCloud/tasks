@@ -11,6 +11,7 @@ The accompanying `server/outbox.py` is an isolated reference component for a fut
 - Explicit conflict state that preserves the unsent mutation and a remote snapshot for future manual reconciliation.
 - A remote server projection that does **not** overwrite local user edits.
 - A change-feed cursor persisted in the same transaction as the applied page, with rejection of gaps, duplicate sequences and stale cursors.
+- Conditional origin-mutation acknowledgement for matching single-user edit/delete events; rejection of forged or inconsistent operation/revision metadata.
 - One-time initial snapshot seeding, with atomic checkpoint and refusal to overwrite queued local work.
 - Validation for canonical UUIDs, UTF-8 JSON payloads, 64 KiB mutation bounds, task revisions, tombstones, and page lengths.
 - Synthetic tests for persistence, idempotency, malformed mutations, conflict retention, cursor rollback, snapshot isolation, symlink safety, and compatibility with the current persisted single-user API feed.
@@ -29,13 +30,16 @@ DELETE, with repeated requests returning one server event before the outbox is
 acknowledged and the delta applied. This is test scaffolding, not a native
 client transport or a recovery protocol.
 
-**Unresolved race:** if a delta feed is applied to the outbox **before** the
-acknowledgement for an accepted local mutation, the current feed lacks an
-originating mutation ID and can mistakenly treat the device's own write as a
-conflict. Actual client sync must correlate authenticated server events with
-mutation IDs, make acknowledgement and local state transitions crash-safe, and
-test lost/reordered acknowledgements before enabling polling or automatic
-reconciliation. Do not conceal or auto-resolve such conflicts.
+**Prototyped origin correlation:** new loopback API change events now include
+an optional `mutationId`. For a known pending task edit/deletion, the outbox
+checks its task, operation and expected revision before acknowledging the
+mutation in the same transaction as its remote projection and cursor. A
+synthetic HTTP contract test covers a delta arriving **before** the client
+receives the successful mutation response. Earlier historical events keep a
+null origin after non-destructive SQLite migration; they are not invented or
+auto-acknowledged. A real native client still needs secure event attribution,
+crash-safe coupling to its own task database, reconciliation UI and lifecycle
+handling. Never conceal or silently overwrite a conflict.
 
 ## Test and review
 

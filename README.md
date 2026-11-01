@@ -65,7 +65,7 @@ An Android APK is **not considered delivered** by its appearance in local build 
 
 `server/outbox.py` is an isolated, durable SQLite mutation queue and remote
 projection for **future** offline synchronization. It retains idempotency keys,
-tracks conflicts, and atomically applies checked single-user API change pages
+tracks conflicts, recognizes matching mutation origins, and atomically applies checked single-user API change pages
 with their cursor. It has no network transport, account identity, tokens, or
 native client integration. A versioned, authenticated, one-transaction bootstrap prototype is also available for up to 100 active tasks. It **does not synchronize tasks yet**. See
 [offline outbox status and limitations](docs/OFFLINE_OUTBOX_PROTOTYPE.md).

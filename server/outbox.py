@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import closing
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 import stat
@@ -297,7 +298,11 @@ class OfflineOutbox:
                 raise OutboxError("Invalid task revision")
             if type(deleted) is not bool or (operation == "deleted") != deleted:
                 raise OutboxError("Invalid deletion marker")
-            planned.append((task_id, raw, revision, seq))
+            mutation_id = change.get("mutationId")
+            if mutation_id is not None and (not isinstance(mutation_id, str) or
+                    not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", mutation_id)):
+                raise OutboxError("Invalid source mutation identifier")
+            planned.append((task_id, raw, revision, seq, mutation_id, operation))
         if type(page.get("cursor")) is not int or page["cursor"] != seq:
             raise OutboxError("Page cursor mismatch")
         with closing(self._open()) as db, db:
@@ -305,7 +310,7 @@ class OfflineOutbox:
             current = db.execute("SELECT seq FROM sync_cursor WHERE singleton=1").fetchone()[0]
             if current != expected_cursor:
                 raise StaleCursor("Checkpoint advanced; refresh page before retry")
-            for task_id, raw, revision, position in planned:
+            for task_id, raw, revision, position, mutation_id, operation in planned:
                 previous = db.execute(
                     "SELECT revision FROM remote_tasks WHERE task_id=?", (task_id,)
                 ).fetchone()
@@ -317,6 +322,24 @@ class OfflineOutbox:
                     "snapshot_json=excluded.snapshot_json,revision=excluded.revision,seq=excluded.seq",
                     (task_id, raw, revision, position)
                 )
+                if mutation_id is not None:
+                    local = db.execute(
+                        "SELECT operation,expected_revision FROM mutations "
+                        "WHERE id=? AND task_id=? AND state='pending'",
+                        (mutation_id, task_id)
+                    ).fetchone()
+                    if local:
+                        expected_operation = {"created": "create", "updated": "update",
+                                              "deleted": "delete"}[operation]
+                        correct_revision = (revision == 1 if operation == "created" else
+                                            local["expected_revision"] == revision - 1)
+                        if local["operation"] != expected_operation or not correct_revision:
+                            raise OutboxError("Origin mutation does not match remote revision")
+                        db.execute(
+                            "UPDATE mutations SET state='acknowledged' "
+                            "WHERE id=? AND task_id=? AND state='pending'",
+                            (mutation_id, task_id)
+                        )
                 db.execute(
                     "UPDATE mutations SET state='conflict', remote_conflict_json=? "
                     "WHERE task_id=? AND state='pending'", (raw, task_id)
