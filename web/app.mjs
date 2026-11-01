@@ -1,5 +1,6 @@
 import { EMPTY, deleteTask, editTask, localDate, newTask, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
 import { exportBackup, MAX_BACKUP_BYTES, validateBackupText } from './backup.mjs';
+import { moveToTrash, readLocalSnapshot, restoreFromTrash, serializeLocalSnapshot } from './local-store.mjs';
 
 const $ = id => document.getElementById(id);
 let state = EMPTY();
@@ -8,12 +9,11 @@ let writeLocked = false;
 let unreadableStore = false;
 let view = 'inbox';
 let search = '';
-// Session-only, bounded recovery history; never misrepresented as a backup.
+// Recoverable Trash is stored with active tasks in the same local snapshot.
 const deletedTasks = [];
-const MAX_UNDO_TASKS = 20;
 function showUndo() {
   const button = $('undo-task-delete');
-  button.hidden = writeLocked || deletedTasks.length === 0;
+  button.hidden = view === 'trash' || writeLocked || deletedTasks.length === 0;
   button.disabled = writeLocked || deletedTasks.length === 0;
 }
 const views = {
@@ -22,7 +22,8 @@ const views = {
   upcoming: ['Upcoming', 'See what is coming, one day at a time.'],
   priority: ['Priority', 'Keep high-impact work in sight.'],
   all: ['All tasks', 'Everything on your plate, in one thoughtful view.'],
-  completed: ['Completed', 'A record of the progress you have made.']
+  completed: ['Completed', 'A record of the progress you have made.'],
+  trash: ['Trash', 'Restore deleted tasks locally. Trash is not included in JSON exports.']
 };
 function report(message) { $('status').textContent = message; }
 function locked(message) {
@@ -37,7 +38,9 @@ function locked(message) {
 }
 try {
   lastSavedRaw = localStorage.getItem(STORAGE_KEY);
-  if (lastSavedRaw !== null) state = validateBackupText(lastSavedRaw);
+  const loaded = readLocalSnapshot(lastSavedRaw);
+  state = loaded.workspace;
+  deletedTasks.push(...loaded.trash);
 } catch {
   unreadableStore = true;
   locked('Stored task data is unreadable. Editing and exporting are disabled to prevent a misleading empty backup; restore a valid backup to recover.');
@@ -52,11 +55,13 @@ function mutate(change) {
       return false;
     }
     const draft = structuredClone(state);
-    change(draft);
-    const raw = exportBackup(draft);
+    const trashDraft = structuredClone(deletedTasks);
+    change(draft, trashDraft);
+    const raw = serializeLocalSnapshot(draft, trashDraft);
     localStorage.setItem(STORAGE_KEY, raw);
     lastSavedRaw = raw;
     state = draft;
+    deletedTasks.splice(0, deletedTasks.length, ...trashDraft);
     report('');
     return true;
   } catch (error) {
@@ -95,16 +100,22 @@ function openTaskEditor(task) {
 }
 function render() {
   const today = localDate();
-  const filtered = selectTasks(state.tasks, view, today, search);
+  const filtered = view === 'trash'
+    ? deletedTasks.filter(entry => !search.trim() || entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
+    : selectTasks(state.tasks, view, today, search);
   const meta = views[view] || (view.startsWith('project:') ?
     [state.projects.find(project => project.id === view.slice(8))?.name || 'Project', 'Your project tasks, all in one place.'] : views.inbox);
   $('page-title').textContent = meta[0];
   $('crumb').textContent = meta[0];
   $('page-description').textContent = meta[1];
+  $('tasks-heading').firstChild.textContent = view === 'trash' ? 'Deleted tasks ' : 'Your tasks ';
+  $('task-form').hidden = view === 'trash';
+  $('task-list').setAttribute('aria-label', view === 'trash' ? 'Deleted tasks' : 'Tasks');
   $('stat-open').textContent = String(state.tasks.filter(task => !task.completed).length);
   $('stat-today').textContent = String(state.tasks.filter(task => !task.completed && task.due && task.due <= today).length);
   $('stat-done').textContent = String(state.tasks.filter(task => task.completed).length);
   $('inbox-count').textContent = String(state.tasks.filter(task => !task.completed && !task.projectId).length);
+  $('trash-count').textContent = String(deletedTasks.length);
   $('result-count').textContent = '(' + filtered.length + ')';
   document.querySelectorAll('[data-view]').forEach(button => {
     const active = button.dataset.view === view;
@@ -135,8 +146,27 @@ function render() {
   const list = $('task-list');
   list.replaceChildren();
   $('empty').hidden = filtered.length !== 0;
-  filtered.forEach(task => {
+  $('empty').querySelector('h3').textContent = view === 'trash' ? 'Trash is empty' : 'All clear here';
+  $('empty').querySelector('p').textContent = view === 'trash'
+    ? 'Deleted tasks stay on this browser until restored.'
+    : 'Start with a small next step. Your future self will thank you.';
+  filtered.forEach(record => {
+    const task = view === 'trash' ? record.task : record;
     const item = el('li', 'task-row' + (task.completed ? ' is-completed' : ''));
+    if (view === 'trash') {
+      const body = el('div', 'task-body');
+      body.append(el('strong', 'task-name', task.title));
+      const details = el('div', 'task-details');
+      details.append(el('span', 'priority priority-' + task.priority, 'P' + task.priority));
+      details.append(el('span', '', 'Deleted ' + new Date(record.deletedAt).toLocaleDateString()));
+      if (task.completed) details.append(el('span', '', 'Completed'));
+      body.append(details);
+      const restore = makeButton('Restore', 'row-button', () => restoreTrashedTask(task.id));
+      restore.setAttribute('aria-label', 'Restore ' + task.title);
+      item.append(body, restore);
+      list.append(item);
+      return;
+    }
     const checkbox = el('input', 'task-checkbox');
     checkbox.type = 'checkbox';
     checkbox.checked = task.completed;
@@ -161,12 +191,11 @@ function render() {
     const edit = makeButton('Edit', 'row-button', () => openTaskEditor(task));
     edit.setAttribute('aria-label', 'Edit ' + task.title);
     const remove = makeButton('Delete', 'row-button danger', () => {
-      if (!confirm('Delete this task? You can undo it until the page is reloaded.')) return;
-      let deleted;
-      if (mutate(draft => { deleted = deleteTask(draft, task.id); })) {
-        deletedTasks.push(deleted);
-        if (deletedTasks.length > MAX_UNDO_TASKS) deletedTasks.shift();
-        report('Task deleted. Undo is available until you reload or close this page.');
+      if (!confirm('Move this task to local Trash? You can restore it after reloading.')) return;
+      if (mutate((draft, trash) => {
+        moveToTrash(draft, trash, deleteTask, task.id, new Date().toISOString());
+      })) {
+        report('Task moved to local Trash. Restore it from the Trash view.');
       }
       render();
     });
@@ -175,14 +204,17 @@ function render() {
   });
   showUndo();
 }
+function restoreTrashedTask(id) {
+  if (writeLocked) return;
+  let restored;
+  if (mutate((draft, trash) => {
+    restored = restoreFromTrash(draft, trash, undoTaskDelete, id);
+  })) report('Restored task: ' + restored.title);
+  render();
+}
 $('undo-task-delete').addEventListener('click', () => {
   if (writeLocked || deletedTasks.length === 0) return;
-  const task = deletedTasks[deletedTasks.length - 1];
-  if (mutate(draft => undoTaskDelete(draft, task))) {
-    deletedTasks.pop();
-    report('Restored task: ' + task.title);
-  }
-  render();
+  restoreTrashedTask(deletedTasks[deletedTasks.length - 1].task.id);
 });
 $('task-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -275,7 +307,7 @@ $('export-data').addEventListener('click', () => {
     link.download = 'goreecloud-tasks-' + localDate() + '.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
-    report('Backup exported. Verify the downloaded file before relying on it.');
+    report('Backup exported (active tasks only; local Trash excluded). Verify the downloaded file.');
   } catch (error) { report('Export failed: ' + error.message); }
 });
 $('import-data').addEventListener('click', () => $('import-file').click());
@@ -288,18 +320,18 @@ $('import-file').addEventListener('change', async event => {
   try { candidate = validateBackupText(await file.text()); }
   catch (error) { report('Import rejected: ' + error.message); return; }
   const summary = candidate.tasks.length + ' task(s), ' + candidate.projects.length + ' project(s).';
-  if (!confirm('Replace ALL browser-local GoreeCloud Tasks data with this backup (' + summary + ')? Export your current data first.')) return;
+  if (!confirm('Replace active browser tasks and projects with this backup (' + summary + ')? Existing local Trash will be preserved; colliding IDs are rejected. Export current active data first.')) return;
   try {
     if (localStorage.getItem(STORAGE_KEY) !== lastSavedRaw) {
       locked('Tasks changed while importing. Reload before restoring.');
       return;
     }
-    const raw = exportBackup(candidate);
+    // Preserve durable Trash atomically with the imported active snapshot.
+    // Any colliding IDs cause the entire import to fail closed.
+    const raw = serializeLocalSnapshot(candidate, deletedTasks);
     localStorage.setItem(STORAGE_KEY, raw);
     lastSavedRaw = raw;
     state = candidate;
-    // A wholesale restore invalidates any in-session task deletion history.
-    deletedTasks.length = 0;
     writeLocked = false;
     unreadableStore = false;
     ['task-form', 'project-form'].forEach(id => $(id).querySelectorAll('input, select, button').forEach(control => { control.disabled = false; }));
@@ -309,9 +341,9 @@ $('import-file').addEventListener('change', async event => {
     search = '';
     $('search').value = '';
     $('edit-task-form').querySelectorAll('input, select, button[type="submit"]').forEach(control => { control.disabled = false; });
-    report('Backup restored locally (' + summary + '). Please verify your tasks.');
+    report('Backup restored locally (' + summary + '). Existing local Trash was preserved.');
     render();
-  } catch { report('Could not restore: browser storage is unavailable. Existing data was not changed.'); }
+  } catch (error) { report('Import not saved: ' + error.message + ' Existing data was not changed.'); }
 });
 $('mobile-export').addEventListener('click', () => $('export-data').click());
 $('mobile-import').addEventListener('click', () => $('import-data').click());

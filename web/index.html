@@ -20,6 +20,7 @@
       <button class="nav-item" data-view="priority"><span>⚑</span> Priority</button>
       <button class="nav-item" data-view="all"><span>☷</span> All tasks</button>
       <button class="nav-item" data-view="completed"><span>✓</span> Completed</button>
+      <button class="nav-item" data-view="trash"><span>↶</span> Trash <em id="trash-count"></em></button>
     </nav>
     <div class="projects-label"><span>PROJECTS</span><button id="new-project" title="Create project" aria-label="Create project">+</button></div>
     <nav id="project-nav" aria-label="Projects"></nav>
@@ -59,7 +60,7 @@
           <button type="submit" class="primary-button">Add task</button>
         </form>
         <div id="status" role="status" aria-live="polite"></div>
-        <button id="undo-task-delete" class="undo-task-delete" type="button" hidden>↶ Undo last task deletion</button>
+        <button id="undo-task-delete" class="undo-task-delete" type="button" hidden>↶ Restore latest deleted task</button>
         <ul id="task-list" class="task-list" aria-label="Tasks"></ul>
         <div id="empty" class="empty" hidden><span class="empty-icon">✦</span><h3>All clear here</h3><p>Start with a small next step. Your future self will thank you.</p></div>
       </section>
