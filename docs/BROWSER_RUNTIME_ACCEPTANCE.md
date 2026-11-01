@@ -11,7 +11,7 @@ The first-party browser QA runner `qa/browser-acceptance.cjs` starts a local-onl
 - **Mobile (390×844):** Add task and change appearance from the native mobile settings menu; both browsers report no viewport horizontal overflow. The menu now closes when its appearance action is selected.
 - **Effective zoom:** Applying CSS `zoom:200%` to the document root at a 390px mobile viewport yields about 195 CSS pixels of usable layout width; no horizontal overflow in either Chromium or Firefox after container/narrow-viewport corrections. This is **not** a substitute for human tests of actual browser toolbar zoom and OS font enlargement.
 - **Accessibility:** Axe-core with WCAG 2 A/AA, 2.1 A/AA, 2.2 AA tags returns zero violations in the tested desktop and mobile states in each browser, with **two incomplete/manual-review items per scan**. Automation alone does not prove screen-reader or WCAG compliance. Chromium forced-colors mode was verified active, but the complete forced-color visual/composited contrast matrix remains untested.
-- **Screenshots:** Browser QA produces full-page desktop, mobile and effective-zoom PNGs for both engines. The CI artifact is synthetic, temporary and retained for five days; screenshots are not stored in Git or authoritative Drive.
+- **Screenshots:** Browser QA produces Light and Dark desktop/mobile full-page screenshots plus effective-zoom PNGs for both browser engines (ten synthetic images in total). The CI artifact is synthetic, temporary and retained for five days; screenshots are not stored in Git or authoritative Drive.
 
 ## Corrective UI changes
 

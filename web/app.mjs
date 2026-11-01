@@ -3,6 +3,7 @@ import { exportBackup, MAX_BACKUP_BYTES, validateBackupText } from './backup.mjs
 import { moveToTrash, readLocalSnapshot, restoreFromTrash, serializeLocalSnapshot } from './local-store.mjs';
 
 const $ = id => document.getElementById(id);
+document.body.classList.add('tasks-enhanced');
 let state = EMPTY();
 let lastSavedRaw = null;
 let writeLocked = false;
@@ -42,6 +43,7 @@ function locked(message) {
   });
   $('new-project').disabled = true;
   $('mobile-new-project').disabled = true;
+  for (const id of ['sidebar-add-task', 'toolbar-add-task', 'mobile-add-task']) $(id).disabled = true;
   $('bulk-toolbar').querySelectorAll('button, select').forEach(control => { control.disabled = true; });
   $('select-visible').disabled = true;
   showUndo();
@@ -151,10 +153,18 @@ function render() {
   $('inbox-count').textContent = String(state.tasks.filter(task => !task.completed && !task.projectId).length);
   $('trash-count').textContent = String(deletedTasks.length);
   $('result-count').textContent = '(' + filtered.length + ')';
+  for (const id of ['sidebar-add-task', 'toolbar-add-task', 'mobile-add-task']) {
+    $(id).disabled = writeLocked || view === 'trash';
+  }
   document.querySelectorAll('[data-view]').forEach(button => {
     const active = button.dataset.view === view;
     button.classList.toggle('selected', active);
     if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('[data-mobile-view]').forEach(button => {
+    const active = button.dataset.mobileView === view;
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
   });
   const projectNav = $('project-nav');
   projectNav.replaceChildren();
@@ -172,6 +182,8 @@ function render() {
       render();
     });
     nav.disabled = false;
+    const count = state.tasks.filter(task => !task.completed && task.projectId === project.id).length;
+    nav.replaceChildren(el('span', 'project-dot', '●'), el('span', 'project-name', project.name), el('em', 'project-count', String(count)));
     nav.dataset.view = 'project:' + project.id;
     if (view === nav.dataset.view) nav.classList.add('selected');
     if (view === nav.dataset.view) nav.setAttribute('aria-current', 'page');
@@ -195,6 +207,7 @@ function render() {
   filtered.forEach(record => {
     const task = view === 'trash' ? record.task : record;
     const item = el('li', 'task-row' + (task.completed ? ' is-completed' : ''));
+    item.dataset.priority = String(task.priority);
     if (view === 'trash') {
       const body = el('div', 'task-body');
       body.append(el('strong', 'task-name', task.title));
@@ -279,7 +292,11 @@ $('task-form').addEventListener('submit', event => {
     const task = newTask($('task-title').value, $('task-project').value, $('task-date').value, $('task-priority').value);
     if (mutate(draft => { draft.tasks.push(task); })) {
       $('task-form').reset();
-      $('task-title').focus();
+      if (matchMedia('(max-width:720px)').matches) {
+        $('task-form').classList.remove('is-open');
+        $('mobile-add-task').setAttribute('aria-expanded', 'false');
+        $('mobile-add-task').focus();
+      } else $('task-title').focus();
     }
     render();
   } catch (error) { report(error.message, 'error'); }
@@ -289,6 +306,39 @@ document.querySelectorAll('#primary-nav [data-view]').forEach(button => button.a
   selected.clear();
   render();
 }));
+function focusAddTask() {
+  if (writeLocked || view === 'trash') return;
+  if (matchMedia('(max-width:720px)').matches) {
+    $('task-form').classList.add('is-open');
+    $('mobile-add-task').setAttribute('aria-expanded', 'true');
+  }
+  $('task-title').scrollIntoView({ block: 'center', behavior: 'instant' });
+  $('task-title').focus({ preventScroll: true });
+}
+for (const id of ['sidebar-add-task', 'toolbar-add-task']) {
+  $(id).addEventListener('click', focusAddTask);
+}
+$('mobile-add-task').addEventListener('click', () => {
+  if ($('task-form').classList.contains('is-open')) {
+    $('task-form').classList.remove('is-open');
+    $('mobile-add-task').setAttribute('aria-expanded', 'false');
+  } else focusAddTask();
+});
+for (const button of document.querySelectorAll('[data-mobile-view]')) {
+  button.addEventListener('click', () => {
+    view = button.dataset.mobileView;
+    selected.clear();
+    $('mobile-browse-dialog').close();
+    render();
+    $('page-title').scrollIntoView({ block: 'start', behavior: 'instant' });
+  });
+}
+$('mobile-search').addEventListener('click', () => {
+  $('search').scrollIntoView({ block: 'center', behavior: 'instant' });
+  $('search').focus({ preventScroll: true });
+});
+$('mobile-browse').addEventListener('click', () => $('mobile-browse-dialog').showModal());
+$('mobile-browse-close').addEventListener('click', () => $('mobile-browse-dialog').close());
 $('search').addEventListener('input', event => { search = event.target.value; selected.clear(); render(); });
 $('filter-priority').addEventListener('change', event => { priorityFilter = event.target.value; selected.clear(); render(); });
 $('sort-tasks').addEventListener('change', event => { sortOrder = event.target.value; render(); });
@@ -336,9 +386,17 @@ $('bulk-trash').addEventListener('click', () => {
 const dialog = $('project-dialog');
 $('new-project').addEventListener('click', () => dialog.showModal());
 $('project-cancel').addEventListener('click', () => dialog.close());
-$('mobile-new-project').addEventListener('click', () => $('new-project').click());
+$('mobile-new-project').addEventListener('click', () => {
+  $('mobile-browse-dialog').close();
+  $('new-project').click();
+});
 $('mobile-project-select').addEventListener('change', event => {
-  if (event.target.value) { view = 'project:' + event.target.value; selected.clear(); render(); }
+  if (event.target.value) {
+    $('mobile-browse-dialog').close();
+    view = 'project:' + event.target.value;
+    selected.clear();
+    render();
+  }
 });
 $('project-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -462,7 +520,7 @@ document.addEventListener('keydown', event => {
       document.querySelector('dialog[open]')) return;
   if (event.key === '/') { event.preventDefault(); $('search').focus(); }
   if (event.key.toLowerCase() === 'n' && !writeLocked && view !== 'trash') {
-    event.preventDefault(); $('task-title').focus();
+    event.preventDefault(); focusAddTask();
   }
 });
 window.addEventListener('storage', event => {

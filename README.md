@@ -127,6 +127,7 @@ GitHub Actions builds the Android debug variant separately. A build result does 
 - `docs/NATIVE_BULK_OPERATIONS.md` — native transactional multi-selection and recoverable batch actions.
 - `docs/GC_UI_APPEARANCE_MIGRATION.md` — app-local Light-first GC UI semantic theme integration and acceptance gaps.
 - `docs/BROWSER_RUNTIME_ACCEPTANCE.md` — real Chromium/Firefox synthetic E2E, screenshot/zoom and accessibility checks.
+- `docs/UI_INSPIRATION_DIRECTION.md` — owner-supplied visual references, GC UI adaptation, browser list-first implementation and native follow-ups.
 - `.github/workflows/verify.yml` — model tests, Python checks, Android build.
 
 ## Design, governance, and ownership

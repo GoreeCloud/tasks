@@ -36,6 +36,8 @@
 
 - [x] Browser real-runtime acceptance runner using pinned test-only Playwright and axe-core: Chromium and Firefox synthetic task create/edit/bulk/Trash/backup restore; mobile and effective 200% CSS zoom reflow, semantic feedback and accessible checkbox labels; screenshot evidence produced by QA, with automatic CI execution. Real browser toolbar zoom, human screen-reader, full contrast/RTL/device matrices and full Stable release acceptance remain open. See [browser runtime acceptance](BROWSER_RUNTIME_ACCEPTANCE.md).
 
+- [x] Owner-reference-inspired browser list-first visual pass: compact desktop Inbox/Today/Projects hierarchy, clean task rows and due/priority metadata, accessible mobile bottom tabs, Browse dialog and floating Add composer, with GC UI semantic palettes rather than copied third-party branding. Chromium/Firefox runtime and effective-zoom checks required; real mobile/GTK native acceptance remains open. See [UI inspiration direction](UI_INSPIRATION_DIRECTION.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

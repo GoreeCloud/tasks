@@ -22,3 +22,17 @@ test('bulk actions, filter labels and keyboard skip-link are declared', () => {
   assert.match(html, /data-view="overdue"/);
   assert.match(html, /aria-live="polite"/);
 });
+
+test('owner-inspired list-first controls are real and use GC UI semantic roles', () => {
+  const css = readFileSync(new URL('./list-first.css', import.meta.url), 'utf8');
+  for (const id of ['sidebar-add-task','toolbar-add-task','mobile-add-task','mobile-search',
+    'mobile-browse','mobile-browse-dialog','mobile-browse-close','mobile-project-select']) {
+    assert.ok(ids.includes(id), 'Missing functional task navigation control '+id);
+    assert.ok(app.includes("'"+id+"'"), 'Missing browser control wiring '+id);
+  }
+  assert.match(html,/aria-controls="task-form" aria-expanded="false"/);
+  assert.match(css,/--task-hairline:\s*var\(--gc-v1-color-divider\)/);
+  assert.match(css,/\.mobile-bottom-nav/);
+  assert.match(css,/prefers-reduced-motion|forced-colors/);
+  assert.doesNotMatch(css,/#5145d9|#e04b39/i,'Do not copy non-GC UI reference brand colors');
+});
