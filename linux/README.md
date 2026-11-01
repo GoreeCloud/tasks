@@ -34,7 +34,7 @@ The database at `$XDG_DATA_HOME/goreecloud-tasks/tasks.sqlite3` is intentionally
 
 ## Portable task backups (experimental)
 
-The Linux CLI can export projects and tasks using the **same validated schema-1 JSON format as the browser**. It includes task IDs, priorities, due dates, completion timestamps and project references. A backup file is created with private file permissions and will **not** overwrite an existing file.
+The Linux CLI can export projects and tasks using the **same validated schema-1 or schema-2 JSON format as the browser**. It includes task IDs, priorities, due dates, completion timestamps and project references. A backup file is created with private file permissions and will **not** overwrite an existing file.
 
 ```sh
 # Use the default device-local SQLite store; create a new JSON file:
