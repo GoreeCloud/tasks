@@ -38,31 +38,49 @@ class TasksWindow(Adw.ApplicationWindow):
         self.apply_appearance(self.theme_preferences['appearance'], self.theme_preferences['accent'])
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.set_content(root)
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_keyboard)
+        root.add_controller(keys)
         header = Adw.HeaderBar()
         header.add_css_class("flat")
         root.append(header)
         title = Gtk.Label(label="✦   GoreeCloud Tasks")
         title.add_css_class("title-3")
         header.set_title_widget(title)
-        appearance_button = Gtk.Button(label="Appearance & color")
-        appearance_button.set_tooltip_text("Choose Light/Dark and a GoreeCloud accent")
-        appearance_button.connect("clicked", self.on_appearance)
-        header.pack_end(appearance_button)
+        settings = Gtk.MenuButton(label="⚙")
+        settings.set_tooltip_text("Settings, appearance and private JSON backups")
+        settings.update_property([Gtk.AccessibleProperty.LABEL], ["Settings and backups"])
+        popup = Gtk.Popover()
+        menu_items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        menu_items.set_margin_top(12)
+        menu_items.set_margin_bottom(12)
+        menu_items.set_margin_start(12)
+        menu_items.set_margin_end(12)
+        for label, callback in (("Appearance & color", self.on_appearance),
+                                ("Export private JSON", self.on_export),
+                                ("Import into empty workspace", self.on_import)):
+            item = Gtk.Button(label=label)
+            item.add_css_class("flat")
+            item.connect("clicked", self.on_settings_action, popup, callback)
+            menu_items.append(item)
+        popup.set_child(menu_items)
+        settings.set_popover(popup)
+        header.pack_end(settings)
         self.add_button = Gtk.Button(label="+ Add task", tooltip_text="Show or hide the task composer")
         self.add_button.add_css_class("suggested-action")
         self.add_button.connect("clicked", self.on_toggle_capture)
         header.pack_start(self.add_button)
-        export_button = Gtk.Button(label="Export JSON", tooltip_text="Save a portable task backup")
-        export_button.connect("clicked", self.on_export)
-        header.pack_start(export_button)
-        import_button = Gtk.Button(label="Import JSON", tooltip_text="Restore into an empty local database")
-        import_button.connect("clicked", self.on_import)
-        header.pack_start(import_button)
 
 
         body = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        body.set_position(236)
         body.set_vexpand(True)
-        root.append(body)
+        responsive = Adw.BreakpointBin()
+        # libadwaita BreakpointBin has no implicit minimum; define one explicitly.
+        responsive.set_size_request(320, 260)
+        responsive.set_vexpand(True)
+        responsive.set_child(body)
+        root.append(responsive)
         navigation = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         navigation.set_size_request(174, -1)
         navigation.set_margin_top(16)
@@ -82,12 +100,26 @@ class TasksWindow(Adw.ApplicationWindow):
             button.connect("clicked", self.on_nav_view, name)
             navigation.append(button)
             self.nav_buttons[name] = button
+        navigation.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        project_header = Gtk.Label(label="PROJECTS", xalign=0)
+        project_header.add_css_class("caption-heading")
+        navigation.append(project_header)
+        self.project_nav = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        self.project_nav_scroll = Gtk.ScrolledWindow(vexpand=True)
+        self.project_nav_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.project_nav_scroll.set_child(self.project_nav)
+        navigation.append(self.project_nav_scroll)
+        self.project_buttons = {}
         body.set_start_child(navigation)
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
-        content.set_margin_top(18)
-        content.set_margin_bottom(18)
-        content.set_margin_start(22)
-        content.set_margin_end(18)
+        compact = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 700px"))
+        compact.add_setter(navigation, "visible", False)
+        responsive.add_breakpoint(compact)
+        self.navigation_rail = navigation
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        content.set_margin_top(13)
+        content.set_margin_bottom(13)
+        content.set_margin_start(19)
+        content.set_margin_end(16)
         body.set_end_child(content)
         self.heading = Gtk.Label(label="Inbox", xalign=0)
         self.heading.add_css_class("title-1")
@@ -100,6 +132,7 @@ class TasksWindow(Adw.ApplicationWindow):
         project_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
         project_row.set_margin_top(4)
         content.append(project_row)
+        compact.add_setter(project_row, "visible", False)
         project_pick_row = Gtk.Box(spacing=10)
         project_row.append(project_pick_row)
         project_label = Gtk.Label(label="Project")
@@ -108,8 +141,16 @@ class TasksWindow(Adw.ApplicationWindow):
         self.project_picker.set_hexpand(True)
         project_pick_row.append(self.project_picker)
         self.project_picker.connect("notify::selected", self.on_project_change)
+        project_new_button = Gtk.Button(label="+ New project")
+        project_new_button.set_halign(Gtk.Align.START)
+        project_new_button.connect("clicked", self.on_toggle_project_creation)
+        project_row.append(project_new_button)
+        self.project_new_button = project_new_button
+        self.project_creation = Gtk.Revealer()
+        self.project_creation.set_reveal_child(False)
+        project_row.append(self.project_creation)
         project_create_row = Gtk.Box(spacing=8)
-        project_row.append(project_create_row)
+        self.project_creation.set_child(project_create_row)
         self.project_name = Gtk.Entry(placeholder_text="New project name")
         self.project_name.set_max_length(100)
         self.project_name.set_hexpand(True)
@@ -150,7 +191,9 @@ class TasksWindow(Adw.ApplicationWindow):
         due_row.append(self.due)
         schedule_row = Gtk.Box(spacing=10)
         content.append(schedule_row)
-        schedule_row.append(Gtk.Label(label="View"))
+        view_label = Gtk.Label(label="View")
+        schedule_row.append(view_label)
+        compact.add_setter(view_label, "visible", False)
         self.view_names = (
             "Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority",
             "Completed", "Project", "Trash"
@@ -158,13 +201,41 @@ class TasksWindow(Adw.ApplicationWindow):
         self.view = Gtk.DropDown.new_from_strings(self.view_names)
         self.view.connect("notify::selected", self.on_filter)
         schedule_row.append(self.view)
+        compact.add_setter(self.view, "visible", False)
         self.search = Gtk.SearchEntry(placeholder_text="Search tasks")
         self.search.set_hexpand(True)
         self.search.connect("search-changed", self.on_filter)
         schedule_row.append(self.search)
 
+        browse = Gtk.MenuButton(label="Browse")
+        browse.set_tooltip_text("Choose task views and projects")
+        browse_popup = Gtk.Popover()
+        browse_body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(browse_body, "set_margin_" + side)(12)
+        browse_body.append(Gtk.Label(label="View", xalign=0))
+        self.browse_view = Gtk.DropDown.new_from_strings(self.view_names)
+        browse_body.append(self.browse_view)
+        browse_body.append(Gtk.Label(label="Project", xalign=0))
+        self.browse_project = Gtk.DropDown.new_from_strings(["Inbox"])
+        browse_body.append(self.browse_project)
+        browse_popup.set_child(browse_body)
+        browse.set_popover(browse_popup)
+        header.pack_end(browse)
+        self._updating_browse = False
+        self.browse_view.connect("notify::selected", self.on_browse_view)
+        self.browse_project.connect("notify::selected", self.on_browse_project)
+
+        self.filter_button = Gtk.Button(label="Show filters & sorting")
+        self.filter_button.set_halign(Gtk.Align.START)
+        self.filter_button.add_css_class("flat")
+        self.filter_button.connect("clicked", self.on_toggle_filters)
+        content.append(self.filter_button)
+        self.filter_revealer = Gtk.Revealer()
+        self.filter_revealer.set_reveal_child(False)
+        content.append(self.filter_revealer)
         filter_row = Gtk.Box(spacing=10)
-        content.append(filter_row)
+        self.filter_revealer.set_child(filter_row)
         filter_row.append(Gtk.Label(label="Priority filter"))
         self.priority_filter = Gtk.DropDown.new_from_strings(
             ["All priorities", "P1 · Urgent", "P2 · High", "P3 · Medium", "P4 · Normal"]
@@ -182,18 +253,23 @@ class TasksWindow(Adw.ApplicationWindow):
         # FlowBox wraps at narrow native window widths instead of clipping tools.
         self.selected_task_ids = set()
         self.visible_task_ids = []
-        bulk = Gtk.FlowBox()
-        bulk.set_selection_mode(Gtk.SelectionMode.NONE)
-        bulk.set_row_spacing(5)
-        bulk.set_column_spacing(8)
-        bulk.set_max_children_per_line(6)
-        content.append(bulk)
+        selection_row = Gtk.Box(spacing=10)
+        content.append(selection_row)
         self.selection_count = Gtk.Label(label="0 selected")
-        self.selection_count.add_css_class("bulk-selected")
-        bulk.insert(self.selection_count, -1)
+        self.selection_count.add_css_class("dim-label")
+        selection_row.append(self.selection_count)
         self.select_visible_button = Gtk.Button(label="Select visible", tooltip_text="Select up to 200 visible tasks")
         self.select_visible_button.connect("clicked", self.on_select_visible)
-        bulk.insert(self.select_visible_button, -1)
+        self.select_visible_button.add_css_class("flat")
+        selection_row.append(self.select_visible_button)
+        self.bulk_actions = Gtk.FlowBox()
+        self.bulk_actions.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.bulk_actions.set_row_spacing(5)
+        self.bulk_actions.set_column_spacing(8)
+        self.bulk_actions.set_max_children_per_line(6)
+        self.bulk_actions.set_visible(False)
+        content.append(self.bulk_actions)
+        bulk = self.bulk_actions
         clear = Gtk.Button(label="Clear selection")
         clear.connect("clicked", self.on_clear_selection)
         bulk.insert(clear, -1)
@@ -291,10 +367,30 @@ class TasksWindow(Adw.ApplicationWindow):
         self.projects = self.store.list_projects()
         ids = [None] + [project["id"] for project in self.projects]
         names = ["Inbox"] + [project["name"] for project in self.projects]
+        self._updating_browse = True
         self.project_picker.set_model(Gtk.StringList.new(names))
         self.project_picker.set_selected(ids.index(selected_id) if selected_id in ids else 0)
+        self.browse_project.set_model(Gtk.StringList.new(names))
+        self.browse_project.set_selected(self.project_picker.get_selected())
+        self._updating_browse = False
         self.bulk_project.set_model(Gtk.StringList.new(names))
         self.bulk_project.set_selected(0)
+        while (child := self.project_nav.get_first_child()) is not None:
+            self.project_nav.remove(child)
+        self.project_buttons.clear()
+        counts = {}
+        for task in self.store.list_tasks(view="Open"):
+            counts[task["project_id"]] = counts.get(task["project_id"], 0) + 1
+        for project in self.projects:
+            label = f"{project['name']}  ·  {counts.get(project['id'], 0)}"
+            button = Gtk.Button()
+            button.set_child(Gtk.Label(label=label, xalign=0, ellipsize=3))
+            button.add_css_class("flat")
+            button.add_css_class("task-nav-item")
+            button.set_tooltip_text("Open " + project["name"])
+            button.connect("clicked", self.on_nav_project, project["id"])
+            self.project_nav.append(button)
+            self.project_buttons[project["id"]] = button
 
     def selected_project_id(self):
         position = self.project_picker.get_selected()
@@ -302,10 +398,74 @@ class TasksWindow(Adw.ApplicationWindow):
             return self.projects[position - 1]["id"]
         return None
 
+    def on_keyboard(self, _controller, keyval, _keycode, state):
+        if not state & Gdk.ModifierType.CONTROL_MASK:
+            return False
+        if keyval in (Gdk.KEY_n, Gdk.KEY_N):
+            if self.view_names[self.view.get_selected()] == "Trash":
+                self.message.set_text("Switch out of Trash before creating a task.")
+                return True
+            if not self.capture_revealer.get_reveal_child():
+                self.on_toggle_capture(None)
+            else:
+                self.entry.grab_focus()
+            return True
+        if keyval in (Gdk.KEY_f, Gdk.KEY_F):
+            self.search.grab_focus()
+            return True
+        return False
+
+    def on_settings_action(self, _button, popup, callback):
+        popup.popdown()
+        callback(_button)
+
+    def on_toggle_project_creation(self, _button):
+        show = not self.project_creation.get_reveal_child()
+        self.project_creation.set_reveal_child(show)
+        self.project_new_button.set_label("Cancel new project" if show else "+ New project")
+        if show:
+            self.project_name.grab_focus()
+
+    def on_browse_view(self, dropdown, _property):
+        if self._updating_browse:
+            return
+        index = dropdown.get_selected()
+        if index < len(self.view_names) and index != self.view.get_selected():
+            self.view.set_selected(index)
+            self.selected_task_ids.clear()
+            self.refresh()
+
+    def on_browse_project(self, dropdown, _property):
+        if self._updating_browse:
+            return
+        index = dropdown.get_selected()
+        if index > len(self.projects):
+            return
+        self.project_picker.set_selected(index)
+        target = "Open" if index == 0 else "Project"
+        self.view.set_selected(self.view_names.index(target))
+        self.selected_task_ids.clear()
+        self.refresh()
+
+    def on_nav_project(self, _button, project_id):
+        ids = [None] + [project["id"] for project in self.projects]
+        if project_id not in ids:
+            self.message.set_text("Project is no longer available.")
+            return
+        self.project_picker.set_selected(ids.index(project_id))
+        self.view.set_selected(self.view_names.index("Project"))
+        self.selected_task_ids.clear()
+        self.refresh()
+
     def on_nav_view(self, _button, name):
         self.view.set_selected(self.view_names.index(name))
         self.selected_task_ids.clear()
         self.refresh()
+
+    def on_toggle_filters(self, _button):
+        show = not self.filter_revealer.get_reveal_child()
+        self.filter_revealer.set_reveal_child(show)
+        self.filter_button.set_label("Hide filters & sorting" if show else "Show filters & sorting")
 
     def on_toggle_capture(self, _button):
         show = not self.capture_revealer.get_reveal_child()
@@ -320,6 +480,8 @@ class TasksWindow(Adw.ApplicationWindow):
             project_id = self.store.add_project(name)
             self.update_projects(project_id)
             self.project_name.set_text("")
+            self.project_creation.set_reveal_child(False)
+            self.project_new_button.set_label("+ New project")
             self.message.set_text("Project created locally.")
             self.refresh()
         except (ValueError, OSError, sqlite3.Error) as error:
@@ -401,8 +563,21 @@ class TasksWindow(Adw.ApplicationWindow):
         while (child := self.list_box.get_first_child()) is not None:
             self.list_box.remove(child)
         active = self.view.get_selected()
+        self._updating_browse = True
+        if self.browse_view.get_selected() != active:
+            self.browse_view.set_selected(active)
+        if self.browse_project.get_selected() != self.project_picker.get_selected():
+            self.browse_project.set_selected(self.project_picker.get_selected())
+        self._updating_browse = False
         view = self.view_names[active]
-        self.heading.set_label("Inbox" if view == "Open" else view)
+        current_project = self.selected_project_id()
+        project_name = next((p["name"] for p in self.projects if p["id"] == current_project), "Inbox")
+        self.heading.set_label(project_name if view == "Project" else ("Inbox" if view == "Open" else view))
+        for project_id, button in self.project_buttons.items():
+            if view == "Project" and project_id == current_project:
+                button.add_css_class("task-nav-selected")
+            else:
+                button.remove_css_class("task-nav-selected")
         for name, button in self.nav_buttons.items():
             if name == view:
                 button.add_css_class("task-nav-selected")
@@ -448,6 +623,7 @@ class TasksWindow(Adw.ApplicationWindow):
                 self.list_box.append(row)
                 continue
             selection = Gtk.CheckButton()
+            selection.set_tooltip_text("Select " + task["title"] + " for bulk actions")
             selection.set_active(task["id"] in self.selected_task_ids)
             selection.set_valign(Gtk.Align.CENTER)
             selection.update_property([Gtk.AccessibleProperty.LABEL], [
@@ -456,6 +632,9 @@ class TasksWindow(Adw.ApplicationWindow):
             selection.connect("toggled", self.on_select_task, task["id"])
             row.add_prefix(selection)
             checkbox = Gtk.CheckButton()
+            checkbox.add_css_class("task-completion")
+            checkbox.add_css_class("task-priority-" + str(task["priority"]))
+            checkbox.set_tooltip_text(("Reopen " if task["completed"] else "Complete ") + task["title"])
             checkbox.set_active(bool(task["completed"]))
             checkbox.set_valign(Gtk.Align.CENTER)
             checkbox.update_property([Gtk.AccessibleProperty.LABEL], [
@@ -475,6 +654,15 @@ class TasksWindow(Adw.ApplicationWindow):
             row.add_suffix(delete)
             self.list_box.append(row)
         self.update_selection_ui()
+        project_counts = {}
+        for item in self.store.list_tasks(view="Open"):
+            project_counts[item["project_id"]] = project_counts.get(item["project_id"], 0) + 1
+        for project in self.projects:
+            button = self.project_buttons.get(project["id"])
+            if button is not None:
+                button.get_child().set_label(
+                    f"{project['name']}  ·  {project_counts.get(project['id'], 0)}"
+                )
         count = len(self.store.list_tasks())
         self.footer.set_text(
             f"{count} open task{'s' if count != 1 else ''} · Native Linux · Device-local SQLite · No sync"
@@ -485,6 +673,7 @@ class TasksWindow(Adw.ApplicationWindow):
         self.selection_count.set_text(f"{count} selected")
         active = self.view_names[self.view.get_selected()] != "Trash"
         self.select_visible_button.set_sensitive(active and bool(self.visible_task_ids))
+        self.bulk_actions.set_visible(active and count > 0)
         for button in self.bulk_buttons:
             button.set_sensitive(active and count > 0)
 

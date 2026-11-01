@@ -40,6 +40,8 @@
 
 - [x] Native list-first navigation source for Android Compose (Today/Inbox/Search/Browse bottom dock, FAB capture, settings and context row actions) and Linux GTK4 (native view rail, compact header and collapsible form); storage and portable JSON schema unchanged. Local GTK smoke and Android JVM UI-route tests added. Android CI and physical-device/Orca/large-text acceptance are separate gates. See [native list-first UI](NATIVE_LIST_FIRST_UI.md).
 
+- [x] GTK4 screenshot-led layout correction: view/project Browse popover under 700px, live project counts, hidden idle batch controls, collapsible advanced filters/new-project form, Ctrl+N/Ctrl+F, true mapped 600×480 and 940×760 synthetic CI smoke. Assistant-reviewed Light/Dark screenshots; owner/Orca/large-text and Android physical acceptance remain open. See [native list-first UI](NATIVE_LIST_FIRST_UI.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

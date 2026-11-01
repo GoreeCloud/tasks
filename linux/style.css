@@ -14,3 +14,9 @@ entry { border-radius: 12px; min-height: 44px; }
 button.task-nav-item { min-height:43px; border-radius:10px; margin-top:2px; padding:8px 12px;  }
 button.task-nav-item:not(.task-nav-selected):hover { background-color:alpha(@window_fg_color,0.06); }
 .task-navigation .caption-heading { font-size:11px; font-weight:700; color:@window_fg_color; margin-bottom:10px; }
+
+/* The selection box stays square; completion is a separate circular control. */
+checkbutton.task-completion check { border-radius: 50%; border: 2px solid @accent_color; }
+checkbutton.task-priority-1 check { border-color: @error_color; }
+checkbutton.task-priority-2 check { border-color: @warning_color; }
+checkbutton.task-priority-3 check { border-color: @success_color; }

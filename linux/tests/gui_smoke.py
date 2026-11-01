@@ -28,6 +28,18 @@ def main():
         try:
             # Owner-inspired list-first GTK navigation and task capture behavior.
             assert window.heading.get_text() == "Inbox"
+            assert not window.bulk_actions.get_visible()
+            assert not window.filter_revealer.get_reveal_child()
+            window.on_toggle_filters(None)
+            assert window.filter_revealer.get_reveal_child()
+            window.on_toggle_filters(None)
+            assert not window.filter_revealer.get_reveal_child()
+            from gi.repository import Gdk
+            assert window.on_keyboard(None, Gdk.KEY_n, 0, Gdk.ModifierType.CONTROL_MASK)
+            assert window.capture_revealer.get_reveal_child()
+            assert window.on_keyboard(None, Gdk.KEY_f, 0, Gdk.ModifierType.CONTROL_MASK)
+            assert not window.on_keyboard(None, Gdk.KEY_n, 0, Gdk.ModifierType.SHIFT_MASK)
+            window.on_toggle_capture(None)
             assert not window.capture_revealer.get_reveal_child()
             window.on_toggle_capture(None)
             assert window.capture_revealer.get_reveal_child()
@@ -40,6 +52,16 @@ def main():
             window.on_nav_view(None, "Open")
             assert window.heading.get_text() == "Inbox"
             assert not window.nav_buttons["Today"].has_css_class("task-nav-selected")
+            # The compact Browse dropdown must actually switch views, not only paint labels.
+            window.browse_view.set_selected(window.view_names.index("Upcoming"))
+            assert window.heading.get_text() == "Upcoming"
+            assert window.view.get_selected() == window.browse_view.get_selected()
+            window.browse_view.set_selected(window.view_names.index("Open"))
+            assert window.heading.get_text() == "Inbox"
+            window.on_toggle_project_creation(None)
+            assert window.project_creation.get_reveal_child()
+            window.on_toggle_project_creation(None)
+            assert not window.project_creation.get_reveal_child()
             # Verify theme controls never write task data or source backups.
             from theme import read_preferences
             assert window.theme_preferences == {"appearance": "light", "accent": "neutral"}
@@ -51,6 +73,18 @@ def main():
             assert read_preferences() == {"appearance": "dark", "accent": "lagoon"}
             assert window.theme_preferences == read_preferences()
             project = window.store.add_project("Synthetic project")
+            window.update_projects()
+            assert project in window.project_buttons
+            window.browse_project.set_selected(1)
+            assert window.heading.get_text() == "Synthetic project"
+            assert window.selected_project_id() == project
+            window.browse_project.set_selected(0)
+            assert window.heading.get_text() == "Inbox"
+            window.on_nav_project(None, project)
+            assert window.heading.get_text() == "Synthetic project"
+            assert window.view_names[window.view.get_selected()] == "Project"
+            assert window.project_buttons[project].has_css_class("task-nav-selected")
+            window.on_nav_view(None, "Open")
             task = window.store.add_task("Before", priority=3)
             window.refresh()
             window.on_edit(None, window.store.list_tasks()[0])
@@ -74,6 +108,7 @@ def main():
             assert row["priority"] == 1
             assert row["due_date"] == "2026-11-09"
             assert row["project_id"] == project
+            assert window.project_buttons[project].get_child().get_label().endswith("1")
             created_at = row["created_at"]
             window.on_delete_response(None, "delete", task)
             assert window.store.list_tasks() == []
@@ -91,6 +126,8 @@ def main():
             window.view.set_selected(trash_index)
             window.refresh()
             assert window.view.get_selected() == trash_index
+            assert window.on_keyboard(None, Gdk.KEY_n, 0, Gdk.ModifierType.CONTROL_MASK)
+            assert not window.capture_revealer.get_reveal_child()
             assert window.list_box.get_first_child() is not None
             window.on_restore(None, task)
             restored = window.store.list_tasks()[0]
@@ -104,6 +141,7 @@ def main():
             extra = window.store.add_task("Second synthetic task", priority=4)
             window.refresh()
             window.on_select_visible(None)
+            assert window.bulk_actions.get_visible()
             selected = sorted(window.selected_task_ids)
             assert len(selected) == 2 and extra in selected
             window.bulk_priority.set_selected(1)
@@ -115,6 +153,8 @@ def main():
             assert all(row["project_id"] == project for row in window.store.list_tasks(view="Open"))
             window.on_select_visible(None)
             window.on_bulk_action(None, "complete", None)
+            assert not window.bulk_actions.get_visible()
+            assert window.project_buttons[project].get_child().get_label().endswith("0")
             assert not window.store.list_tasks(view="Open")
             window.view.set_selected(window.view_names.index("Completed"))
             window.on_select_visible(None)

@@ -19,7 +19,7 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | GC UI appearance | Light default, Neutral + 5 accents, local preference | Light default, Neutral + 5 accents, private XDG preference | Light default, Neutral + 5 accents, private preferences |
 | List-first navigation | Desktop project rail + mobile Today/Inbox/Add/Search/Browse | GTK sidebar, compact capture | Compose native bottom tabs, Browse + FAB composer |
 | Bulk actions | Visible-task selection, complete/reopen, priority, project moves, local Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash |
-| Keyboard workflow | / search, N quick add, skip-to-content link | Not part of this change | Not part of this change |
+| Keyboard workflow | / search, N quick add, skip-to-content link | Ctrl+N task capture, Ctrl+F search | Hardware-keyboard acceptance pending |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
 | Search / task editing | Search and dialog for title, priority, due date and project | Native search and task edit dialog | Native search and task editing (device acceptance pending) |
 | JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI + GTK file dialogs, empty-store import (no overwrite) | Native document-picker export, guarded empty-store import |

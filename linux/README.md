@@ -74,6 +74,8 @@ On a Linux machine with GTK4, libadwaita, PyGObject and `xvfb-run` installed:
 
 ```sh
 xvfb-run -a python3 linux/tests/gui_smoke.py
+xvfb-run -a /usr/bin/python3 linux/tests/gui_window_smoke.py 600
+xvfb-run -a /usr/bin/python3 linux/tests/gui_window_smoke.py 940
 ```
 
 This exercises the actual native window, task edit dialog, Trash/Restore actions and SQLite persistence
@@ -87,7 +89,7 @@ not support browser `@media` rules.
 
 **Appearance:** The native header offers Light/Dark and GC UI semantic accent choices (Neutral, Lagoon, Moss, Ember, Ocean and Iris). A new profile defaults to Light/Neutral, regardless of OS theme. The preference is kept outside the task database in `$XDG_CONFIG_HOME/goreecloud-tasks/appearance.json` (or `~/.config/goreecloud-tasks/appearance.json`), in a private user-local file, and is not part of portable JSON backups. See [GC UI appearance notes](../docs/GC_UI_APPEARANCE_MIGRATION.md).
 
-The GTK interface now offers an Inbox/Today/Upcoming/Completed/Trash sidebar, a compact current-view heading and a header Add Task control that expands/collapses the native composer. Its existing task data and JSON backup behavior are unchanged; see [native list-first UI](../docs/NATIVE_LIST_FIRST_UI.md). Native real-display accessibility and varying scale factors still require acceptance.
+The GTK interface now offers Inbox/Today/Upcoming/Completed/Trash sidebar navigation and project shortcuts with live open-task counts. The top-bar Add Task control expands/collapses the composer, Ctrl+N opens capture, and Ctrl+F focuses Search. Settings groups appearance and guarded JSON backup tools; bulk tools appear only after selection. At native widths below 700 pixels, libadwaita collapses the sidebar and places View/Project routing in the Browse menu so tasks remain accessible. Its existing task data and JSON backup behavior are unchanged; see [native list-first UI](../docs/NATIVE_LIST_FIRST_UI.md). Native real-display accessibility and varying scale factors still require acceptance.
 
 ## Known limitations
 
