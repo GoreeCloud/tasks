@@ -198,9 +198,9 @@ class TaskStore:
                 params.append(project_id)
         if query.strip():
             # LIKE escapes user wildcards so the query is a literal substring.
-            clauses.append("title LIKE ? ESCAPE '\\'")
+            clauses.append("(title LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')")
             escaped = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            params.append("%" + escaped + "%")
+            params.extend(("%" + escaped + "%",) * 2)
         where = "WHERE " + " AND ".join(clauses) if clauses else ""
         rows = self.db.execute(
             f"SELECT * FROM tasks {where} ORDER BY {order_options[sort_by]}", params
@@ -313,8 +313,8 @@ class TaskStore:
         where = ""
         if query.strip():
             escaped = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            where = "WHERE title LIKE ? ESCAPE '\\'"
-            params.append("%" + escaped + "%")
+            where = "WHERE (title LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')"
+            params.extend(("%" + escaped + "%",) * 2)
         rows = self.db.execute(
             "SELECT * FROM deleted_tasks " + where +
             " ORDER BY deleted_at DESC, id", params

@@ -8,6 +8,10 @@
 - **Android Compose:** Adds **Next 7 days** and **Overdue** chips, priority-filter and sort controls (Smart, Due date, Title), with state retained while switching views during the current session.
 - **Browser:** The existing feature branch already includes those date views, P1–P4 filtering, Smart/Due date/Newest/Title sorting and bulk actions.
 
+## Search parity — titles and descriptions
+
+The existing search control now finds literal substrings in **either** title or schema-2 task notes on all three clients, including each client's private, recoverable Trash. Search still respects the selected view and priority filter; a completed match is shown only in Completed. Linux uses parameterized SQL and escapes `%`, `_` and backslashes as literal text. Android uses a pure Kotlin `TaskViews.selectTrash` helper rather than duplicating view rules in Compose. No index, schema or network service was added. Basic case-insensitive matching works; Unicode collation across SQLite and JavaScript/Kotlin is not yet fully equivalent. See [schema-2 search contract](PORTABLE_SCHEMA2_DESCRIPTIONS.md).
+
 ## Shared date semantics
 
 - **Today:** Tasks due today or earlier (includes overdue).

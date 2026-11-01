@@ -115,6 +115,23 @@ async function run(engine,port){
     await notesPage.getByText('Private context 🧭').waitFor();
     await notesPage.reload({waitUntil:'networkidle'});
     assert.equal(await notesPage.locator('.task-description').innerText(),'Private context 🧭\nSecond line');
+    // Search uses titles AND notes even after a fresh profile restores v2 JSON.
+    await notesPage.locator('#search').fill('SECOND LINE');
+    assert.equal(await notesPage.locator('.task-row').count(),1);
+    await notesPage.locator('#search').fill('No matching notes');
+    assert.equal(await notesPage.locator('.task-row').count(),0);
+    await notesPage.locator('#search').fill('Private context');
+    assert.equal(await notesPage.locator('.task-row').count(),1);
+    notesPage.once('dialog',dialog=>dialog.accept());
+    await notesPage.getByRole('button',{name:'Delete Edited acceptance task'}).click();
+    await notesPage.locator('[data-view=trash]').first().click();
+    assert.equal(await notesPage.locator('.task-row').count(),1);
+    await notesPage.locator('#search').fill('SECOND LINE');
+    assert.equal(await notesPage.locator('.task-row').count(),1);
+    await notesPage.getByRole('button',{name:'Restore Edited acceptance task'}).click();
+    await notesPage.locator('[data-view=all]').first().click();
+    assert.equal(await notesPage.locator('.task-row').count(),1);
+    note(engine.name()+' notes search and Trash recovery',{matched:true,restored:true});
     note(engine.name()+' notes v2 portable roundtrip',{schema:schemaTwo.schema,notes:schemaTwo.tasks[0].description.length});
     await notesContext.close();
     await context.close();

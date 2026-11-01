@@ -160,9 +160,7 @@ private fun TasksScreen(db: TasksDatabase) {
             selectedTaskIds.clear()
         }
         val visible = if (view == "Trash") {
-            deletedTasks.filter {
-                search.isBlank() || it.title.contains(search.trim(), ignoreCase = true)
-            }
+            TaskViews.selectTrash(deletedTasks, search)
         } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search,
             priorityFilter, sortBy)
         val visibleIds = if (view == "Trash") emptySet() else visible.map { it.id }.toSet()
@@ -371,7 +369,7 @@ private fun TasksScreen(db: TasksDatabase) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = search, onValueChange = { search = it },
-                    singleLine = true, label = { Text("Search tasks") },
+                    singleLine = true, label = { Text("Search task titles and notes") },
                     modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester), shape = RoundedCornerShape(14.dp)
                 )
                 Spacer(Modifier.height(4.dp))

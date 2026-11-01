@@ -130,7 +130,9 @@ function updateSelectionControls(visible) {
 function render() {
   const today = localDate();
   const filtered = view === 'trash'
-    ? deletedTasks.filter(entry => !search.trim() || entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
+    ? deletedTasks.filter(entry => !search.trim() ||
+        entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) ||
+        (entry.task.description || '').toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
     : selectTasks(state.tasks, view, today, search, { priority: priorityFilter, sort: sortOrder });
   if (view === 'trash') selected.clear();
   const visible = view === 'trash' ? [] : filtered;
@@ -267,6 +269,7 @@ function render() {
       }
       render();
     });
+    remove.setAttribute('aria-label', 'Delete ' + task.title);
     const selectLabel = el('label', 'task-check-wrap');
     selectLabel.append(selector, el('span', 'task-check-label', 'Select'));
     const completeLabel = el('label', 'task-check-wrap');

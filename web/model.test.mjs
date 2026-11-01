@@ -183,3 +183,19 @@ test('task descriptions preserve Unicode and editing history', () => {
   assert.throws(()=>newTask('Bad',null,'',4,'x'.repeat(2001)));
   assert.throws(()=>newTask('Bad',null,'',4,String.fromCharCode(0xD800)));
 });
+
+test('search matches plain-text notes in active, completed, and project views without losing view boundaries', () => {
+  const notes = {...newTask('Public title', 'project-a', '2026-11-03', 2, 'Release audit 🧭\nLine two'), id:'n'};
+  const completed = {...newTask('Closed ticket', null, '', 4, 'Release audit 🧭'), id:'c', completed:true, completedAt:'2026-11-01T16:00:00Z'};
+  const unrelated = {...newTask('Other',null,'',4,'Different notes'),id:'u'};
+  const list = [notes, completed, unrelated];
+  const find=(view,query)=>selectTasks(list,view,'2026-11-01',query).map(t=>t.id);
+  assert.deepEqual(find('all','  AUDIT  '),['n']);
+  assert.deepEqual(find('all','🧭'),['n']);
+  assert.deepEqual(find('completed','audit'),['c']);
+  assert.deepEqual(find('inbox','audit'),[]);
+  assert.deepEqual(find('project:project-a','audit'),['n']);
+  assert.deepEqual(find('upcoming','audit'),['n']);
+  assert.deepEqual(find('all','Public title'),['n']);
+  assert.deepEqual(find('all','cannot-match'),[]);
+});

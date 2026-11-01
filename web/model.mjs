@@ -86,7 +86,8 @@ export function selectTasks(tasks, view, today, query = '', options = {}) {
   end.setUTCDate(end.getUTCDate() + 6);
   const nextSevenDays = end.toISOString().slice(0, 10);
   const filtered = tasks.filter(t => {
-    if (term && !t.title.toLocaleLowerCase().includes(term)) return false;
+    if (term && !t.title.toLocaleLowerCase().includes(term) &&
+        !(t.description || '').toLocaleLowerCase().includes(term)) return false;
     if (priority !== 'all' && t.priority !== Number(priority)) return false;
     if (view === 'completed') return !!t.completed;
     if (t.completed) return false;

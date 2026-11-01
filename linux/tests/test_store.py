@@ -17,6 +17,28 @@ class TaskStoreTests(unittest.TestCase):
         self.store.close()
         self.dir.cleanup()
 
+    def test_search_task_titles_and_notes_including_literal_wildcards_and_trash(self):
+        project = self.store.add_project("Research")
+        first = self.store.add_task("Readable title", priority=1, project_id=project,
+                                    due_date="2026-11-08", description="Draft release%_notes 🧭")
+        second = self.store.add_task("Another task", description="Roadmap for November")
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release%_")], [first])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="%")], [first])
+        self.assertEqual(self.store.list_tasks(query="releaseX"), [])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="Readable")], [first])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="roadmap")], [second])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release",
+                                        view="Project", project_id=project)], [first])
+        self.assertEqual(self.store.list_tasks(query="release", view="Project", project_id=None), [])
+        self.assertTrue(self.store.complete_task(first, True))
+        self.assertEqual(self.store.list_tasks(query="release"), [])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release",view="Completed")], [first])
+        self.assertTrue(self.store.delete_task(first))
+        self.assertEqual([row["id"] for row in self.store.list_deleted_tasks(query="release%_")], [first])
+        self.assertEqual(self.store.list_deleted_tasks(query="releaseX"), [])
+        self.assertTrue(self.store.restore_deleted_task(first))
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release",view="Completed")], [first])
+
     def test_create_complete_reopen_delete(self):
         key = self.store.add_task("  Build native apps  ", priority=1, due_date="2026-11-02")
         rows = self.store.list_tasks()

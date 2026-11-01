@@ -96,3 +96,5 @@ The GTK interface now offers Inbox/Today/Upcoming/Completed/Trash sidebar naviga
 The source installer has not undergone multi-distribution packaging tests, release signing, accessibility-device acceptance or update/rollback validation. Full Linux support and Stable acceptance remain pending.
 
 **Task descriptions:** Native capture/edit accepts optional plain-text notes up to 2,000 UTF-16 code units. Active and deleted local SQLite tables gain an additive default-empty column, and recoverable Trash preserves it. JSON schema 2 is used whenever active tasks contain notes; schema-1 import remains supported. Older schema-1-only clients cannot import schema-2 notes; see [versioned compatibility rules](../docs/PORTABLE_SCHEMA2_DESCRIPTIONS.md).
+
+**Search:** The native search field matches task titles or notes in the selected view and local Trash; SQL wildcard characters are treated literally. Search is device-local and cannot discover another client’s data without an explicit restore.

@@ -193,6 +193,9 @@ class TasksWindow(Adw.ApplicationWindow):
         self.description_entry.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         self.description_entry.set_size_request(-1, 70)
         self.description_entry.set_tooltip_text("Optional plain-text task description, maximum 2000 characters")
+        self.description_entry.update_property([Gtk.AccessibleProperty.LABEL], [
+            "Task description and notes (optional, maximum 2000 characters)"
+        ])
         capture_box.append(Gtk.Label(label="Notes (optional)", xalign=0))
         capture_box.append(self.description_entry)
         schedule_row = Gtk.Box(spacing=10)
@@ -208,7 +211,7 @@ class TasksWindow(Adw.ApplicationWindow):
         self.view.connect("notify::selected", self.on_filter)
         schedule_row.append(self.view)
         compact.add_setter(self.view, "visible", False)
-        self.search = Gtk.SearchEntry(placeholder_text="Search tasks")
+        self.search = Gtk.SearchEntry(placeholder_text="Search task titles and notes")
         self.search.set_hexpand(True)
         self.search.connect("search-changed", self.on_filter)
         schedule_row.append(self.search)
@@ -775,6 +778,7 @@ class TasksWindow(Adw.ApplicationWindow):
         description = Gtk.TextView()
         description.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         description.set_size_request(-1, 85)
+        description.update_property([Gtk.AccessibleProperty.LABEL], ["Edit task description and notes"])
         description.get_buffer().set_text(task.get("description") or "")
         form.append(description)
 

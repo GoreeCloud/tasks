@@ -6,6 +6,15 @@ import java.time.LocalDate
 internal object TaskViews {
     val names = listOf("Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority", "Completed", "Project")
 
+    /** Search deleted task titles and notes; leave Trash ordering and recovery untouched. */
+    fun selectTrash(tasks: List<TaskRecord>, search: String = ""): List<TaskRecord> {
+        val query = search.trim()
+        return if (query.isEmpty()) tasks else tasks.filter { task ->
+            task.title.contains(query, ignoreCase = true) ||
+                task.description.contains(query, ignoreCase = true)
+        }
+    }
+
     fun select(
         tasks: List<TaskRecord>,
         view: String,
@@ -35,7 +44,8 @@ internal object TaskViews {
                 else -> !task.completed
             }
             visible && (priorityFilter == null || task.priority == priorityFilter) &&
-                (query.isEmpty() || task.title.contains(query, ignoreCase = true))
+                (query.isEmpty() || task.title.contains(query, ignoreCase = true) ||
+                    task.description.contains(query, ignoreCase = true))
         }
         return when (sortBy) {
             "Due date" -> filtered.sortedWith(compareBy<TaskRecord> { it.dueDate ?: "9999-12-31" }

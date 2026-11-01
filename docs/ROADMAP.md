@@ -44,6 +44,8 @@
 
 - [x] First cross-platform richer task field: validated plain-text task descriptions (max 2,000 UTF-16 units) with backward-compatible schema-1 reads and versioned schema-2 exports, GTK/Compose/browser editor support and additive SQLite migrations. Cross-client fixture, Trash recovery and strict export rules added; Android CI, physical-device, AT and recovery sign-off remain separate. See [portable schema 2](PORTABLE_SCHEMA2_DESCRIPTIONS.md).
 
+- [x] Cross-client local notes discovery: title **or** plain-text description search in browser, native Linux and Android, including device-local Trash. Existing project/priority/completion view boundaries retained, SQLite literal wildcard escaping and UI/regression tests added. See [search parity](NATIVE_VIEW_PARITY.md) and [schema-2 descriptions](PORTABLE_SCHEMA2_DESCRIPTIONS.md). Accessibility and Unicode collation parity require further acceptance.
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

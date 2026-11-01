@@ -16,6 +16,16 @@ The two versioned formats are **not** universally backward-readable: an older sc
 - **Linux:** Additive nullable-free `description TEXT NOT NULL DEFAULT ''` columns on active and deleted SQLite tables; idempotent startup migration without rewriting existing rows. CRUD, atomic Trash and bulk Trash copy all preserve descriptions. Native GTK editor and capture expose plain-text notes. Schema-1 backup imports default to empty notes.
 - **Android:** Additive on-device SQLite database version **6**, carrying descriptions through active rows, Trash, restoration and edits. Jetpack Compose exposes optional notes during capture/edit and a concise list preview. JSON export emits schema 2 only when notes require it; import into a **completely empty** local database remains guarded and transactional. No new permissions, dependency, network access or automatic cloud backup.
 
+## Description search across clients
+
+All three first-party clients now apply the existing local search field to **task titles and descriptions**, with a trimmed, case-insensitive literal-substring query. A hit in either field is enough; existing project, Today, Upcoming, priority and Completed view boundaries remain enforced. Recoverable device-local Trash searches both fields without exporting Trash, changing its order, or modifying task records.
+
+- **Browser:** `selectTasks` and the local Trash view use plain-text matching; escaped HTML and notes remain text, never injected into markup.
+- **Linux:** Parameterized SQLite `LIKE` queries match titles or descriptions and explicitly escape `%`, `_` and backslashes so user-entered characters remain literal rather than SQL wildcards. The GTK search field is labeled for both titles and notes.
+- **Android:** Pure `TaskViews` filtering provides the same behavior for active/completed views and separate recoverable Trash filtering; Compose uses the same view logic.
+
+Matching is local-only; no data is uploaded or indexed by a third party. SQLite's built-in Unicode case folding differs from JavaScript/Kotlin for some non-ASCII scripts, so full multilingual collation parity remains an acceptance item. No schema, backup version, database permission or network behavior changes were needed for search.
+
 **Local Trash remains excluded** from portable JSON, including schema 2. App data, settings, deleted history, account credentials and files are not copied into backups. An end-to-end *full-device* recovery requires a verified SQLite snapshot as well as user-initiated portable export.
 
 ## Tests and acceptance gates

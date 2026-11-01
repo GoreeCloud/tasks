@@ -99,11 +99,21 @@ def main():
                 ["Inbox", "Synthetic project"]
             )
             project_picker.set_selected(1)
+            description = Gtk.TextView()
+            description.get_buffer().set_text("Synthetic release%_notes")
             window.on_edit_response(
                 None, "save", task, title, priority, due,
-                project_picker, [None, project]
+                project_picker, [None, project], description
             )
             row = window.store.list_tasks()[0]
+            assert row["description"] == "Synthetic release%_notes"
+            window.search.set_text("release%_")
+            window.refresh() # SearchEntry notification is debounced by GTK
+            assert window.visible_task_ids == [task]
+            window.search.set_text("releaseZZ")
+            window.refresh()
+            assert window.visible_task_ids == []
+            window.search.set_text("")
             assert row["title"] == "After"
             assert row["priority"] == 1
             assert row["due_date"] == "2026-11-09"
@@ -114,6 +124,12 @@ def main():
             assert window.store.list_tasks() == []
             deleted = window.store.list_deleted_tasks()
             assert len(deleted) == 1 and deleted[0]["id"] == task
+            assert deleted[0]["description"] == "Synthetic release%_notes"
+            window.on_nav_view(None, "Trash")
+            window.search.set_text("release%_")
+            assert window.list_box.get_first_child() is not None
+            assert len(window.store.list_deleted_tasks(query="release%_")) == 1
+            window.search.set_text("")
             window.on_import(None)
             assert "including Trash" in window.message.get_text()
             assert "Next 7 days" in window.view_names
