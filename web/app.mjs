@@ -5,6 +5,7 @@ const $ = id => document.getElementById(id);
 let state = EMPTY();
 let lastSavedRaw = null;
 let writeLocked = false;
+let unreadableStore = false;
 let view = 'inbox';
 let search = '';
 const views = {
@@ -29,7 +30,8 @@ try {
   lastSavedRaw = localStorage.getItem(STORAGE_KEY);
   if (lastSavedRaw !== null) state = validateBackupText(lastSavedRaw);
 } catch {
-  locked('Local task data could not be read safely. Editing is disabled to prevent overwriting it. Export or restore a backup.');
+  unreadableStore = true;
+  locked('Stored task data is unreadable. Editing and exporting are disabled to prevent a misleading empty backup; restore a valid backup to recover.');
 }
 function mutate(change) {
   if (writeLocked) return false;
@@ -195,6 +197,7 @@ try {
   if (saved === 'light' || saved === 'dark') document.documentElement.dataset.mode = saved;
 } catch { /* theme remains available for this session */ }
 $('export-data').addEventListener('click', () => {
+  if (unreadableStore) { report('Cannot export unreadable task data. Restore a valid backup first.'); return; }
   try {
     const data = exportBackup(state);
     const blob = new Blob([data], { type: 'application/json' });
@@ -228,6 +231,7 @@ $('import-file').addEventListener('change', async event => {
     lastSavedRaw = raw;
     state = candidate;
     writeLocked = false;
+    unreadableStore = false;
     ['task-form', 'project-form'].forEach(id => $(id).querySelectorAll('input, select, button').forEach(control => { control.disabled = false; }));
     $('new-project').disabled = false;
     $('mobile-new-project').disabled = false;
