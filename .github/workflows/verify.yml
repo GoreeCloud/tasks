@@ -22,7 +22,13 @@ jobs:
       - name: Python store tests
         run: python3 -m unittest discover -s linux/tests -v
       - name: Compile Python syntax
-        run: python3 -m py_compile linux/app.py linux/store.py linux/backup.py
+        run: python3 -m py_compile linux/app.py linux/store.py linux/backup.py linux/tests/gui_smoke.py
+      - name: Install native GTK test libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 xvfb xauth
+      - name: Native GTK4/libadwaita runtime smoke
+        run: xvfb-run -a /usr/bin/python3 linux/tests/gui_smoke.py
       - name: Isolated Linux user install/uninstall smoke
         run: sh -n linux/install.sh && sh -n linux/uninstall.sh && sh linux/tests/test_install.sh
   api:

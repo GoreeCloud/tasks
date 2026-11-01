@@ -55,7 +55,9 @@ xvfb-run -a python3 linux/tests/gui_smoke.py
 ```
 
 This exercises the actual native window, task edit dialog and SQLite persistence
-using a **temporary XDG_DATA_HOME**. It never reads or writes the user's normal
+using a **temporary XDG_DATA_HOME**. The same headless GTK4 test is run in
+GitHub Actions on Ubuntu 24.04 so source commits cannot silently break GTK
+startup or the tested edit flow. It never reads or writes the user's normal
 Tasks database. The smoke test does not replace visual, keyboard-navigation,
 accessibility or multi-distribution acceptance. The GC UI stylesheet uses
 libadwaita's adaptive palette variables for light/dark themes; GTK CSS does
