@@ -62,6 +62,8 @@ def normalize_task_fields(body: object, *, create: bool) -> dict:
         title = body["title"]
         if not isinstance(title, str) or not 1 <= len(title.strip()) <= 240:
             raise ApiError(422, "title must be 1–240 characters")
+        if any(0xD800 <= ord(char) <= 0xDFFF for char in title):
+            raise ApiError(422, "title contains an invalid Unicode surrogate")
         fields["title"] = title.strip()
     if "priority" in body or create:
         priority = body.get("priority", 4)
