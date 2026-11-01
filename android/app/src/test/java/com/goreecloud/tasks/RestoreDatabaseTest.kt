@@ -118,8 +118,19 @@ class RestoreDatabaseTest {
         db.setCompleted("task-2", true)
         parsed = PortableRestore.parse(db.exportPortableBackup())
         assertTrue(parsed.tasks[1].completed)
-        assertTrue(requireNotNull(parsed.tasks[1].completedAt) > 0L)
-        assertEquals(null, parsed.tasks[1].completedAtExact)
+        val newCompletion = requireNotNull(parsed.tasks[1].completedAt)
+        assertTrue(newCompletion > 0L)
+        assertEquals(PortableBackup.timestamp(newCompletion), parsed.tasks[1].completedAtExact)
+        // The original imported microsecond timestamp must not survive a new
+        // local completion. Only the fresh millisecond timestamp is exported.
+        assertFalse(parsed.tasks[1].completedAtExact ==
+            "2026-10-31T12:10:11.654321+00:00")
+        db.readableDatabase.rawQuery(
+            "SELECT completed_at_exact FROM tasks WHERE id='task-2'", null
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(cursor.isNull(0))
+        }
     }
 
     @Test fun versionThreeUpgradeRetainsExistingTaskAndAddsExactColumns() {
