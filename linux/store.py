@@ -56,11 +56,17 @@ class TaskStore:
 
     def add_task(self, title: str, *, priority: int = 4,
                  due_date: str | None = None, project_id: str | None = None) -> str:
+        if not isinstance(title, str):
+            raise ValueError("Task title must be text")
         title = title.strip()
+        if any(0xD800 <= ord(char) <= 0xDFFF for char in title):
+            raise ValueError("Task title contains invalid Unicode")
         if not 1 <= len(title) <= 240:
             raise ValueError("Task title must be 1–240 characters")
-        if priority not in PRIORITIES:
+        if type(priority) is not int or priority not in PRIORITIES:
             raise ValueError("Priority must be 1–4")
+        if due_date is not None and not isinstance(due_date, str):
+            raise ValueError("Due date must be text or None")
         if due_date:
             try:
                 parsed = datetime.strptime(due_date, "%Y-%m-%d")
@@ -123,7 +129,11 @@ class TaskStore:
         return cur.rowcount > 0
 
     def rename_task(self, task_id: str, title: str) -> bool:
+        if not isinstance(title, str):
+            raise ValueError("Task title must be text")
         title = title.strip()
+        if any(0xD800 <= ord(char) <= 0xDFFF for char in title):
+            raise ValueError("Task title contains invalid Unicode")
         if not 1 <= len(title) <= 240:
             raise ValueError("Task title must be 1–240 characters")
         with self.db:
@@ -136,7 +146,11 @@ class TaskStore:
         return cur.rowcount > 0
 
     def add_project(self, name: str) -> str:
+        if not isinstance(name, str):
+            raise ValueError("Project name must be text")
         name = name.strip()
+        if any(0xD800 <= ord(char) <= 0xDFFF for char in name):
+            raise ValueError("Project name contains invalid Unicode")
         if not 1 <= len(name) <= 100:
             raise ValueError("Project name must be 1–100 characters")
         project_id = str(uuid4())

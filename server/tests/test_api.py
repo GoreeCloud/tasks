@@ -125,6 +125,23 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(self.request("GET", "/v1/changes?after=-1")[0], 400)
         self.assertEqual(self.request("GET", "/v1/tasks")[1]["tasks"], [])
 
+    def test_unpaired_unicode_rejected_without_persisting_changes(self):
+        malformed = "Malformed " + chr(0xD800)
+        status, response, _ = self.create(malformed, key="invalid-unicode-0001")
+        self.assertEqual(status, 422)
+        self.assertIn("Unicode", response["error"])
+        self.assertEqual(self.request("GET", "/v1/tasks")[1]["tasks"], [])
+        self.assertEqual(self.request("GET", "/v1/changes")[1]["changes"], [])
+        status, valid, _ = self.create("Working", key="valid-unicode-0002")
+        self.assertEqual(status, 201)
+        path = "/v1/tasks/" + valid["id"]
+        status, _, _ = self.request(
+            "PATCH", path, {"title": malformed}, headers={"If-Match": "1"}
+        )
+        self.assertEqual(status, 422)
+        self.assertEqual(self.request("GET", path)[1]["revision"], 1)
+        self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 1)
+
     def test_concurrent_replay_creates_one_task(self):
         def attempt(_):
             return self.create("One copy only", key="concurrent-key-0001")

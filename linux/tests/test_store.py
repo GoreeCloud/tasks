@@ -47,6 +47,29 @@ class TaskStoreTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self.store.add_task("Invalid project", project_id="missing")
 
+    def test_rejects_invalid_field_types_and_unpaired_unicode(self):
+        bad_cases = [
+            {"title": None},
+            {"title": 4},
+            {"title": "safe", "priority": True},
+            {"title": "safe", "priority": 1.0},
+            {"title": "safe", "due_date": 20261031},
+            {"title": "broken " + chr(0xD800)},
+        ]
+        for case in bad_cases:
+            with self.subTest(case=repr(case)):
+                with self.assertRaises(ValueError):
+                    self.store.add_task(**case)
+        for name in (None, 4, "bad " + chr(0xD800)):
+            with self.subTest(name=repr(name)):
+                with self.assertRaises(ValueError):
+                    self.store.add_project(name)
+        task_id = self.store.add_task("safe")
+        with self.assertRaises(ValueError):
+            self.store.rename_task(task_id, "bad " + chr(0xD800))
+        self.assertEqual(self.store.list_tasks()[0]["title"], "safe")
+        self.assertEqual(len(self.store.list_tasks()), 1)
+
     def test_views_and_literal_search(self):
         project = self.store.add_project("Launch")
         self.store.add_task("Overdue % report", priority=1, due_date="2026-10-30")
