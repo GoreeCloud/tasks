@@ -44,6 +44,25 @@ export function editTask(task, { title, projectId, due, priority }, projects) {
   }
   return { ...task, ...fields };
 }
+/** Remove exactly one task from a draft; caller persists it only after validation. */
+export function deleteTask(draft, id) {
+  if (!draft || !Array.isArray(draft.tasks)) throw new Error('Invalid task workspace.');
+  const index = draft.tasks.findIndex(task => task.id === id);
+  if (index < 0) throw new Error('Task no longer exists.');
+  return draft.tasks.splice(index, 1)[0];
+}
+/** Reinsert an in-session deleted task without fabricating completion history. */
+export function undoTaskDelete(draft, task) {
+  if (!draft || !Array.isArray(draft.tasks) || !Array.isArray(draft.projects) ||
+      !task || typeof task.id !== 'string') throw new Error('Invalid undo state.');
+  if (draft.tasks.some(entry => entry.id === task.id)) throw new Error('Task already exists.');
+  if (task.projectId !== null &&
+      !draft.projects.some(project => project.id === task.projectId)) {
+    throw new Error('The original project no longer exists.');
+  }
+  // The enclosing exportBackup() also validates the complete portable schema.
+  draft.tasks.push(structuredClone(task));
+}
 export function selectTasks(tasks, view, today, query = '') {
   const term = query.trim().toLocaleLowerCase();
   return tasks.filter(t => {

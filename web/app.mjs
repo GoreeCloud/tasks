@@ -1,4 +1,4 @@
-import { EMPTY, editTask, localDate, newTask, selectTasks, STORAGE_KEY } from './model.mjs';
+import { EMPTY, deleteTask, editTask, localDate, newTask, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
 import { exportBackup, MAX_BACKUP_BYTES, validateBackupText } from './backup.mjs';
 
 const $ = id => document.getElementById(id);
@@ -8,6 +8,14 @@ let writeLocked = false;
 let unreadableStore = false;
 let view = 'inbox';
 let search = '';
+// Session-only, bounded recovery history; never misrepresented as a backup.
+const deletedTasks = [];
+const MAX_UNDO_TASKS = 20;
+function showUndo() {
+  const button = $('undo-task-delete');
+  button.hidden = writeLocked || deletedTasks.length === 0;
+  button.disabled = writeLocked || deletedTasks.length === 0;
+}
 const views = {
   inbox: ['Inbox', 'A calm place to capture what matters and make progress.'],
   today: ['Today', 'Make room for your most important next steps.'],
@@ -25,6 +33,7 @@ function locked(message) {
   });
   $('new-project').disabled = true;
   $('mobile-new-project').disabled = true;
+  showUndo();
 }
 try {
   lastSavedRaw = localStorage.getItem(STORAGE_KEY);
@@ -152,14 +161,29 @@ function render() {
     const edit = makeButton('Edit', 'row-button', () => openTaskEditor(task));
     edit.setAttribute('aria-label', 'Edit ' + task.title);
     const remove = makeButton('Delete', 'row-button danger', () => {
-      if (!confirm('Delete this task permanently? Export a backup first if needed.')) return;
-      mutate(draft => { draft.tasks = draft.tasks.filter(entry => entry.id !== task.id); });
+      if (!confirm('Delete this task? You can undo it until the page is reloaded.')) return;
+      let deleted;
+      if (mutate(draft => { deleted = deleteTask(draft, task.id); })) {
+        deletedTasks.push(deleted);
+        if (deletedTasks.length > MAX_UNDO_TASKS) deletedTasks.shift();
+        report('Task deleted. Undo is available until you reload or close this page.');
+      }
       render();
     });
     item.append(checkbox, body, edit, remove);
     list.append(item);
   });
+  showUndo();
 }
+$('undo-task-delete').addEventListener('click', () => {
+  if (writeLocked || deletedTasks.length === 0) return;
+  const task = deletedTasks[deletedTasks.length - 1];
+  if (mutate(draft => undoTaskDelete(draft, task))) {
+    deletedTasks.pop();
+    report('Restored task: ' + task.title);
+  }
+  render();
+});
 $('task-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
@@ -274,6 +298,8 @@ $('import-file').addEventListener('change', async event => {
     localStorage.setItem(STORAGE_KEY, raw);
     lastSavedRaw = raw;
     state = candidate;
+    // A wholesale restore invalidates any in-session task deletion history.
+    deletedTasks.length = 0;
     writeLocked = false;
     unreadableStore = false;
     ['task-form', 'project-form'].forEach(id => $(id).querySelectorAll('input, select, button').forEach(control => { control.disabled = false; }));

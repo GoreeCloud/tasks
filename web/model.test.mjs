@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY, editTask, hydrate, localDate, newTask, selectTasks } from './model.mjs';
+import { EMPTY, deleteTask, editTask, hydrate, localDate, newTask, selectTasks, undoTaskDelete } from './model.mjs';
 test('bad persistence recovers safely', () => { assert.deepEqual(hydrate('{'), EMPTY()); assert.deepEqual(hydrate('{"schema":2}'), EMPTY()); });
 test('title and priority validation', () => { assert.throws(() => newTask('  ')); assert.throws(() => newTask('ok', null, '', 0)); assert.equal(newTask('  Plan  ').title, 'Plan'); });
 test('inbox, project, today, completed and priority filtering', () => {
@@ -72,4 +72,41 @@ test('web edit refuses invalid titles, dates, priorities and missing projects', 
   assert.throws(() => editTask(null, fields, []));
   assert.throws(() => editTask(original, fields, null));
   assert.equal(newTask('Inbox', '').projectId, null);
+});
+
+test('deletion undo restores full task identity, project and historical completion', () => {
+  const project = { id: 'p1', name: 'Roadmap' };
+  const completed = {
+    ...newTask('Review 🚀', 'p1', '2026-11-10', 1),
+    completed: true, completedAt: '2026-11-10T19:20:21.123Z'
+  };
+  const other = newTask('Keep me');
+  const draft = { schema: 1, projects: [project], tasks: [completed, other] };
+  const original = structuredClone(draft);
+  const deleted = deleteTask(draft, completed.id);
+  assert.deepEqual(deleted, completed);
+  assert.deepEqual(draft.tasks, [other]);
+  undoTaskDelete(draft, deleted);
+  assert.deepEqual(draft.tasks, [other, completed]);
+  assert.deepEqual(deleted, original.tasks[0]);
+  assert.equal(draft.tasks[1].completedAt, '2026-11-10T19:20:21.123Z');
+  // Changes to the reinserted task cannot corrupt the retained undo snapshot.
+  draft.tasks[1].title = 'Changed afterward';
+  assert.equal(deleted.title, 'Review 🚀');
+});
+
+test('undo rejects duplicate IDs, missing projects and invalid workspace state', () => {
+  const task = newTask('Private task', 'p', '', 4);
+  const draft = { schema: 1, projects: [{ id: 'p', name: 'Workspace' }], tasks: [task] };
+  assert.throws(() => deleteTask(draft, 'missing'));
+  assert.throws(() => undoTaskDelete(draft, task));
+  const deleted = deleteTask(draft, task.id);
+  draft.projects = [];
+  assert.throws(() => undoTaskDelete(draft, deleted));
+  assert.deepEqual(draft.tasks, []);
+  draft.projects = [{ id: 'p', name: 'Workspace' }];
+  undoTaskDelete(draft, deleted);
+  assert.equal(draft.tasks.length, 1);
+  assert.throws(() => undoTaskDelete(null, deleted));
+  assert.throws(() => undoTaskDelete(draft, null));
 });
