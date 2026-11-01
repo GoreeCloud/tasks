@@ -20,8 +20,20 @@ function isObject(value) {
 function validId(value) {
   return validUnicodeText(value) && value.length > 0 && value.length <= MAX_ID_LENGTH && !/[\u0000-\u001f\u007f]/.test(value);
 }
-function isoTimestamp(value) {
-  return typeof value === 'string' && value.length <= 40 && !Number.isNaN(Date.parse(value)) && /^\d{4}-\d\d-\d\dT/.test(value);
+// Parse only the ISO-8601 subset Android OffsetDateTime accepts; Date.parse
+// otherwise normalizes impossible days and the 24:00 hour instead of failing.
+export function isoTimestamp(value) {
+  if (typeof value !== 'string' || value.length > 40) return false;
+  const parts = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):([0-5]\d))$/.exec(value);
+  if (!parts || !validDate(parts[1])) return false;
+  if (parts[7]) {
+    const hours = Number(parts[8]);
+    const minutes = Number(parts[9]);
+    if (hours > 18 || (hours === 18 && minutes !== 0)) return false;
+  }
+  // Android's portable format requires a positive, representable epoch ms.
+  const millis = Date.parse(value);
+  return Number.isFinite(millis) && millis > 0;
 }
 export function validateBackupText(raw) {
   if (typeof raw !== 'string' || new TextEncoder().encode(raw).length > MAX_BACKUP_BYTES) {

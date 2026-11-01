@@ -29,6 +29,25 @@ class PortableBackupTests(unittest.TestCase):
         completed = self.source.add_task("Validated backup", priority=4)
         self.source.complete_task(completed, True)
 
+    def test_strict_timestamp_contract_prevents_cross_platform_restore_failure(self):
+        matrix = json.loads((Path(__file__).resolve().parents[2] /
+                             "fixtures/portable/timestamp-contract.json").read_text(encoding="utf-8"))
+        fixture = json.loads((Path(__file__).resolve().parents[2] /
+                              "fixtures/portable/schema1-synthetic.json").read_text(encoding="utf-8"))
+        for timestamp in matrix["valid"]:
+            with self.subTest(valid=timestamp):
+                snapshot = json.loads(json.dumps(fixture))
+                snapshot["tasks"][0]["createdAt"] = timestamp
+                self.assertEqual(validate(snapshot)["tasks"][0]["createdAt"], timestamp)
+        for timestamp in matrix["invalid"]:
+            with self.subTest(invalid=timestamp):
+                snapshot = json.loads(json.dumps(fixture))
+                snapshot["tasks"][0]["createdAt"] = timestamp
+                with self.assertRaises(BackupError):
+                    import_data(self.target, snapshot)
+                self.assertEqual(self.target.list_tasks(include_completed=True), [])
+                self.assertEqual(self.target.list_projects(), [])
+
     def test_shared_portable_fixture_and_fail_closed_variants(self):
         fixture = Path(__file__).resolve().parents[2] / "fixtures/portable/schema1-synthetic.json"
         original = json.loads(fixture.read_text(encoding="utf-8"))

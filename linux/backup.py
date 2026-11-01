@@ -21,7 +21,12 @@ MAX_BYTES = 2 * 1024 * 1024
 MAX_RECORDS = 10_000
 ID_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,128}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-TIME_RE = re.compile(r"^\d{4}-\d\d-\d\dT")
+TIME_RE = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2})T"
+    r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})"
+    r"(?:\.(?P<fraction>\d{1,9}))?"
+    r"(?P<zone>Z|(?P<sign>[+-])(?P<offset_hour>\d{2}):(?P<offset_minute>\d{2}))$"
+)
 
 
 class BackupError(ValueError):
@@ -40,12 +45,25 @@ def _date(value):
 
 
 def _timestamp(value):
-    if not isinstance(value, str) or len(value) > 40 or not TIME_RE.match(value):
+    """Accept the strict ISO-8601 subset used by the Android backup reader."""
+    if not isinstance(value, str) or len(value) > 40:
         return False
+    fields = TIME_RE.fullmatch(value)
+    if fields is None or not _date(fields["date"]):
+        return False
+    if (int(fields["hour"]) > 23 or int(fields["minute"]) > 59
+            or int(fields["second"]) > 59):
+        return False
+    if fields["sign"]:
+        hours = int(fields["offset_hour"])
+        minutes = int(fields["offset_minute"])
+        if hours > 18 or minutes > 59 or (hours == 18 and minutes != 0):
+            return False
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return parsed.tzinfo is not None
-    except ValueError:
+        # The Android portable parser requires a positive epoch millisecond.
+        return parsed.tzinfo is not None and int(parsed.timestamp() * 1000) > 0
+    except (ValueError, OverflowError, OSError):
         return False
 
 

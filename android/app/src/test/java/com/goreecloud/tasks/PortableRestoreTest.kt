@@ -1,6 +1,7 @@
 package com.goreecloud.tasks
 
 import java.io.ByteArrayInputStream
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -29,6 +30,22 @@ class PortableRestoreTest {
     """.trimIndent()
 
     private fun parse(text: String = fixture()) = PortableRestore.parse(text.toByteArray(Charsets.UTF_8))
+
+    @Test fun sharedTimestampContractRejectsImpossibleAndNonportableDates() {
+        val contract = JSONObject(String(PortableFixture.read("timestamp-contract.json"), Charsets.UTF_8))
+        val base = "2026-10-31T18:00:00.000Z"
+        val accepted = contract.getJSONArray("valid")
+        for (index in 0 until accepted.length()) {
+            val timestamp = accepted.getString(index)
+            val parsed = parse(fixture().replace(base, timestamp))
+            assertEquals(timestamp, parsed.tasks[0].createdAtExact)
+        }
+        val rejected = contract.getJSONArray("invalid")
+        for (index in 0 until rejected.length()) {
+            val timestamp = rejected.getString(index)
+            rejects(fixture().replace(base, timestamp))
+        }
+    }
 
     @Test fun sharedPortableContractIsLosslessIncludingUnicodeAndOffsets() {
         val bytes = PortableFixture.read()

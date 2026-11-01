@@ -12,6 +12,12 @@ The same file is consumed by **all three** platform test suites:
 - Android/Kotlin: `PortableRestoreTest` validates the same file, while
   `RestoreDatabaseTest` runs a Robolectric SQLite restore and re-export
 
+`timestamp-contract.json` is the shared positive/negative timestamp validation matrix
+used by the browser, Linux and Android tests. It refuses impossible calendar
+days, 24:00, bad offsets, seconds/minutes outside 00–59, missing time zones,
+overlong fractional seconds and timestamps unsupported by Android SQLite.
+All three platforms must agree before a backup is considered portable.
+
 The fixture covers multi-project assignments, an inbox task, Unicode titles,
 a completed task, a future due date, ISO-8601 timestamps with microseconds,
 explicit UTC and negative timezone offsets, and null completion metadata.
