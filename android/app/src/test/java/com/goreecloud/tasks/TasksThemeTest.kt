@@ -34,7 +34,7 @@ class TasksThemeTest {
         for (accent in TasksTheme.accents) {
             assertEquals(Color(0xFFECF0F8), TasksTheme.scheme("light", accent).background)
             assertEquals(Color(0xFF10131E), TasksTheme.scheme("dark", accent).background)
-            assertEquals(Color.White, TasksTheme.scheme("light", accent).onPrimary))
+            assertEquals(Color.White, TasksTheme.scheme("light", accent).onPrimary)
         }
     }
 }
