@@ -97,6 +97,23 @@ if (data.tasks.length !== 2 || data.projects.length !== 1) process.exit(3);"""
                 self.assertEqual(self.target.list_tasks(include_completed=True), [])
                 self.assertEqual(self.target.list_projects(), [])
 
+    def test_invalid_unicode_and_unhashable_project_ids_do_not_import(self):
+        self.create_fixture()
+        original = export_data(self.source)
+        broken = "bad " + chr(0xD800)
+        cases = [
+            dict(original, tasks=[dict(original["tasks"][0], title=broken)]),
+            dict(original, tasks=[dict(original["tasks"][0], id=broken)]),
+            dict(original, projects=[dict(original["projects"][0], name=broken)]),
+            dict(original, tasks=[dict(original["tasks"][0], projectId=["invalid"])]),
+        ]
+        for case in cases:
+            with self.subTest(case=repr(case)):
+                with self.assertRaises(BackupError):
+                    import_data(self.target, case)
+                self.assertEqual(self.target.list_tasks(include_completed=True), [])
+                self.assertEqual(self.target.list_projects(), [])
+
     def test_oversize_truncated_or_non_utf8_rejected(self):
         path = self.folder / "bad.json"
         for body in (b"{" + b" " * (2 * 1024 * 1024), b"\xff", b"{"):

@@ -49,3 +49,16 @@ test('ignores unknown properties on validated records', () => {
   assert.equal(safe.tasks[0].secret, undefined);
   assert.equal(safe.projects[0].extra, undefined);
 });
+
+test('preserves emoji but refuses unpaired Unicode in backups', () => {
+  const input = valid();
+  input.tasks[0].title = 'Plan 🚀';
+  input.projects[0].name = 'Projects 🎯';
+  assert.equal(validateBackup(input).tasks[0].title, 'Plan 🚀');
+  const invalid = String.fromCharCode(0xD800);
+  input.tasks[0].title = 'bad ' + invalid;
+  assert.throws(() => validateBackup(input));
+  input.tasks[0].title = 'valid';
+  input.projects[0].name = 'bad ' + invalid;
+  assert.throws(() => validateBackup(input));
+});

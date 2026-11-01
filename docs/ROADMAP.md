@@ -13,6 +13,7 @@
 - [x] Browser-compatible schema-1 Linux JSON export and guarded empty-store import via CLI and native GTK file dialogs, with round-trip tests; full native recovery acceptance pending.
 - [x] Android native project creation/assignment, due-date picker, Today/Upcoming/Project filters and non-destructive schema v2 migration (source; device verification pending).
 - [x] Android task-editing dialog for title, priority, due date and project with pure validation unit tests (source; device verification pending).
+- [x] Hardened text/priority validation and portable backup boundary cases across native clients; Android verification relies on CI/device tests.
 - [ ] Verify all platform builds and runtime operation, fix defects, audit accessibility and GC UI appearance.
 - [ ] Desktop packaging, Android device validation, and standalone APK handoff if requested.
 

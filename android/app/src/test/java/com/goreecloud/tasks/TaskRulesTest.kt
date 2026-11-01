@@ -11,6 +11,21 @@ class TaskRulesTest {
         assertEquals(null, TaskRules.due(null))
     }
 
+    @Test fun preservesEmojiInNativeNames() {
+        assertEquals("Plan 🚀", TaskRules.title("  Plan 🚀  "))
+        assertEquals("Launch 🎯", TaskRules.projectName(" Launch 🎯 "))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsUnpairedTaskSurrogate() {
+        TaskRules.title("bad " + 0xD800.toChar())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsUnpairedProjectSurrogate() {
+        TaskRules.projectName("bad " + 0xDC00.toChar())
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejectsEmptyTitle() { TaskRules.title("  ") }
 

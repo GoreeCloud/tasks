@@ -27,6 +27,15 @@ A future GoreeCloud Tasks backend should expose versioned HTTPS APIs for authent
 
 Separate secrets from source and public CI. Use short-lived access tokens, revocation, encrypted transport, rate limits, request validation, audit events, and safe file handling. Do not enable cross-origin public APIs or unprotected network endpoints by default.
 
+## Shared text validation boundary
+
+Task and project names in the web, Linux and Android foundations must contain
+valid Unicode scalar values. Paired UTF-16 surrogates forming emoji are accepted;
+unpaired surrogates are rejected before persistence or portable backup import.
+Priorities must be integers from 1 to 4 rather than booleans or silent numeric
+coercions. These are local model protections, not a substitute for validation
+and permission checks on an eventual multi-user API.
+
 ## Offline-first synchronization acceptance gate
 
 Before connecting clients, define and test:

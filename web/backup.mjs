@@ -1,3 +1,4 @@
+import { validUnicodeText } from './model.mjs';
 /**
  * Browser-local GoreeCloud Tasks backup contract. Pure functions for testability.
  * Deliberately preserves only documented fields; no HTML, keys or credentials.
@@ -17,7 +18,7 @@ function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 function validId(value) {
-  return typeof value === 'string' && value.length > 0 && value.length <= MAX_ID_LENGTH && !/[\u0000-\u001f\u007f]/.test(value);
+  return validUnicodeText(value) && value.length > 0 && value.length <= MAX_ID_LENGTH && !/[\u0000-\u001f\u007f]/.test(value);
 }
 function isoTimestamp(value) {
   return typeof value === 'string' && value.length <= 40 && !Number.isNaN(Date.parse(value)) && /^\d{4}-\d\d-\d\dT/.test(value);
@@ -39,7 +40,7 @@ export function validateBackup(value) {
   }
   const projectIds = new Set();
   const projects = value.projects.map(project => {
-    if (!isObject(project) || !validId(project.id) || typeof project.name !== 'string' ||
+    if (!isObject(project) || !validId(project.id) || !validUnicodeText(project.name) ||
         project.name.trim().length < 1 || project.name.trim().length > 100 || projectIds.has(project.id)) {
       throw new Error('Backup contains an invalid or duplicate project.');
     }
@@ -49,7 +50,7 @@ export function validateBackup(value) {
   const taskIds = new Set();
   const tasks = value.tasks.map(task => {
     if (!isObject(task) || !validId(task.id) || taskIds.has(task.id) ||
-        typeof task.title !== 'string' || task.title.trim().length < 1 || task.title.trim().length > 240 ||
+        !validUnicodeText(task.title) || task.title.trim().length < 1 || task.title.trim().length > 240 ||
         !Number.isInteger(task.priority) || task.priority < 1 || task.priority > 4 ||
         typeof task.completed !== 'boolean' || !validDate(task.due) ||
         (task.projectId !== null && (!validId(task.projectId) || !projectIds.has(task.projectId))) ||

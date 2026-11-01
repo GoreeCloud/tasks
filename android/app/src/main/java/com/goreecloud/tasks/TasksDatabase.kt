@@ -82,10 +82,7 @@ internal class TasksDatabase(context: Context) :
     }
 
     fun addProject(name: String): String {
-        val normalized = name.trim()
-        require(normalized.isNotEmpty() && normalized.length <= 100) {
-            "Project name must be 1–100 characters"
-        }
+        val normalized = TaskRules.projectName(name)
         val id = UUID.randomUUID().toString()
         val record = ContentValues().apply { put("id", id); put("name", normalized) }
         writableDatabase.insertOrThrow("projects", null, record)

@@ -53,6 +53,12 @@ def _object(value):
     return type(value) is dict
 
 
+def _scalar(value):
+    return isinstance(value, str) and all(
+        not 0xD800 <= ord(character) <= 0xDFFF for character in value
+    )
+
+
 def validate(data):
     if not _object(data) or type(data.get("schema")) is not int or data["schema"] != 1:
         raise BackupError("Unsupported backup version (expected schema 1)")
@@ -66,9 +72,9 @@ def validate(data):
         if not _object(project):
             raise BackupError("Invalid project")
         pid, name = project.get("id"), project.get("name")
-        if not isinstance(pid, str) or not ID_RE.fullmatch(pid) or pid in ids:
+        if not _scalar(pid) or not ID_RE.fullmatch(pid) or pid in ids:
             raise BackupError("Invalid or duplicate project ID")
-        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 100:
+        if not _scalar(name) or not 1 <= len(name.strip()) <= 100:
             raise BackupError("Invalid project name")
         ids.add(pid)
         projects.append({"id": pid, "name": name.strip()})
@@ -84,10 +90,10 @@ def validate(data):
         created = task.get("createdAt")
         completed_at = task.get("completedAt")
         project_id = task.get("projectId")
-        if (not isinstance(tid, str) or not ID_RE.fullmatch(tid)
+        if (not _scalar(tid) or not ID_RE.fullmatch(tid)
                 or tid in task_ids):
             raise BackupError("Invalid or duplicate task ID")
-        if not isinstance(title, str) or not 1 <= len(title.strip()) <= 240:
+        if not _scalar(title) or not 1 <= len(title.strip()) <= 240:
             raise BackupError("Invalid task title")
         if type(priority) is not int or not 1 <= priority <= 4:
             raise BackupError("Invalid task priority")
@@ -97,7 +103,7 @@ def validate(data):
             raise BackupError("Invalid task completion or creation timestamp")
         if (completed_at is not None and not _timestamp(completed_at)) or completed != (completed_at is not None):
             raise BackupError("Inconsistent completion metadata")
-        if project_id is not None and project_id not in ids:
+        if project_id is not None and (not _scalar(project_id) or project_id not in ids):
             raise BackupError("Task references a missing project")
         task_ids.add(tid)
         tasks.append({

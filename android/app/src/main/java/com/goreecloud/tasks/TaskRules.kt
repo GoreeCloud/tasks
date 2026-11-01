@@ -4,9 +4,35 @@ import java.time.LocalDate
 
 /** Shared pure validation for Android task creation and editing. */
 internal object TaskRules {
+    private fun hasValidSurrogates(value: String): Boolean {
+        var index = 0
+        while (index < value.length) {
+            val current = value[index]
+            if (Character.isHighSurrogate(current)) {
+                if (index + 1 >= value.length || !Character.isLowSurrogate(value[index + 1])) {
+                    return false
+                }
+                index += 2
+            } else if (Character.isLowSurrogate(current)) {
+                return false
+            } else {
+                index++
+            }
+        }
+        return true
+    }
+
+    fun projectName(value: String): String {
+        val cleaned = value.trim()
+        require(cleaned.isNotEmpty() && cleaned.length <= 100 && hasValidSurrogates(cleaned)) {
+            "Project name must be 1–100 valid Unicode characters"
+        }
+        return cleaned
+    }
+
     fun title(value: String): String {
         val cleaned = value.trim()
-        require(cleaned.isNotEmpty() && cleaned.length <= 240) {
+        require(cleaned.isNotEmpty() && cleaned.length <= 240 && hasValidSurrogates(cleaned)) {
             "Task title must be 1–240 characters"
         }
         return cleaned
