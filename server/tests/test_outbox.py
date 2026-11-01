@@ -210,6 +210,35 @@ class OfflineOutboxTests(unittest.TestCase):
             self.store.apply_change_page(self.page(invalid), 0)
         self.assertEqual(self.store.cursor(), 0)
 
+    def test_origin_payload_mismatch_rolls_back_entire_page(self):
+        self.store.queue(self.mutation_id, self.task_id, "update",
+                         {"title": "Local edit", "priority": 2}, 1)
+        bad = {**self.change(seq=1, revision=2, title="Other edit"),
+               "mutationId": self.mutation_id}
+        with self.assertRaisesRegex(OutboxError, "disagrees"):
+            self.store.apply_change_page(self.page(bad), 0)
+        self.assertEqual(self.store.cursor(), 0)
+        self.assertIsNone(self.store.remote_task(self.task_id))
+        self.assertEqual(self.store.pending()[0]["id"], self.mutation_id)
+        self.assertIsNone(self.store.conflict(self.mutation_id))
+
+        good = {**self.change(seq=1, revision=2, title="Local edit"),
+                "mutationId": self.mutation_id}
+        self.assertEqual(self.store.apply_change_page(self.page(good), 0), 1)
+        self.assertEqual(self.store.pending(), [])
+        self.assertIsNone(self.store.conflict(self.mutation_id))
+        self.assertFalse(self.store.acknowledge(self.mutation_id))
+
+    def test_origin_field_type_mismatch_never_acknowledges(self):
+        self.store.queue(self.mutation_id, self.task_id, "update",
+                         {"priority": 2}, 1)
+        wrong = {**self.change(seq=1, revision=2), "mutationId": self.mutation_id}
+        wrong["task"] = {**wrong["task"], "priority": 2.0}
+        with self.assertRaisesRegex(OutboxError, "disagrees"):
+            self.store.apply_change_page(self.page(wrong), 0)
+        self.assertEqual(self.store.cursor(), 0)
+        self.assertEqual(len(self.store.pending()), 1)
+
     def test_symlinked_database_is_rejected(self):
         alias = Path(self.temp.name) / "alias.sqlite3"
         alias.symlink_to(self.path)

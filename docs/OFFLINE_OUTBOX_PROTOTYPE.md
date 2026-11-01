@@ -12,6 +12,7 @@ The accompanying `server/outbox.py` is an isolated reference component for a fut
 - A remote server projection that does **not** overwrite local user edits.
 - A change-feed cursor persisted in the same transaction as the applied page, with rejection of gaps, duplicate sequences and stale cursors.
 - Conditional origin-mutation acknowledgement for matching single-user edit/delete events; rejection of forged or inconsistent operation/revision metadata.
+- Verifies every locally queued normalized field against the immutable remote event before acknowledging it; mismatched task content, field types or revisions roll back the entire incoming page.
 - One-time initial snapshot seeding, with atomic checkpoint and refusal to overwrite queued local work.
 - Validation for canonical UUIDs, UTF-8 JSON payloads, 64 KiB mutation bounds, task revisions, tombstones, and page lengths.
 - Synthetic tests for persistence, idempotency, malformed mutations, conflict retention, cursor rollback, snapshot isolation, symlink safety, and compatibility with the current persisted single-user API feed.

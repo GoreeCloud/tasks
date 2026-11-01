@@ -34,6 +34,7 @@
 - [x] Experimental authenticated single-user bootstrap endpoint with consistent snapshot/cursor and fail-closed 100-task cap, plus guarded outbox initialization and regression tests; not deployed or connected.
 - [x] Experimental optional PATCH/DELETE idempotency receipts with atomic success replay, concurrent retry and rollback tests; native client integration and multi-tenant isolation pending.
 - [x] Non-destructive experimental mutation-origin event metadata and outbox acknowledgement-before/after-pull contract tests; still no native client transport or workspace authorization.
+- [x] Fail-closed queued-mutation payload verification before origin acknowledgement, with page-level rollback and strict type comparison tests.
 
 - [ ] Secure API and PostgreSQL migrations with per-tenant access controls.
 - [ ] Authentication, device sessions, invitation and role policies.

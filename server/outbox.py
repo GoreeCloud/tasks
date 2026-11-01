@@ -324,7 +324,7 @@ class OfflineOutbox:
                 )
                 if mutation_id is not None:
                     local = db.execute(
-                        "SELECT operation,expected_revision FROM mutations "
+                        "SELECT operation,expected_revision,payload_json FROM mutations "
                         "WHERE id=? AND task_id=? AND state='pending'",
                         (mutation_id, task_id)
                     ).fetchone()
@@ -335,6 +335,16 @@ class OfflineOutbox:
                                             local["expected_revision"] == revision - 1)
                         if local["operation"] != expected_operation or not correct_revision:
                             raise OutboxError("Origin mutation does not match remote revision")
+                        # An authenticated event's origin key alone must never
+                        # acknowledge a mutation with different task content.
+                        # The queue stores canonical field values, so every
+                        # requested field must agree with the event snapshot.
+                        requested = json.loads(local["payload_json"])
+                        observed = json.loads(raw)
+                        if any(type(observed.get(field)) is not type(value) or
+                               observed.get(field) != value
+                               for field, value in requested.items()):
+                            raise OutboxError("Origin event disagrees with queued mutation")
                         db.execute(
                             "UPDATE mutations SET state='acknowledged' "
                             "WHERE id=? AND task_id=? AND state='pending'",
