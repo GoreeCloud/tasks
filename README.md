@@ -64,7 +64,7 @@ lossy export until those tasks are reopened and completed again. Android import 
 requires a second confirmation, and restores only into an empty database
 using an all-or-nothing SQLite transaction. SQLite transaction recovery is now covered by Robolectric JVM tests on a
 synthetic Android context: round trips, protected existing rows, upgrade and
-mid-transaction rollback. Physical device/file-provider acceptance remains pending. These JSON
+mid-transaction rollback. A guarded physical-device smoke on a OnePlus (Android 16) verified native launch, schema-1 document-picker export, populated-workspace import blocking and one synthetic task restore. Full device, accessibility, other-provider and release acceptance remain pending; see [Android physical-device test evidence](docs/ANDROID_DEVICE_ACCEPTANCE.md). These JSON
 files are unencrypted: store them privately and verify restoration elsewhere.
 
 The CI build verifies the debug APK signature and SHA-256 and temporarily stores the

@@ -13,9 +13,10 @@
 - [x] Linux user-local desktop integration scripts and icon, with isolated install/uninstall test preserving local task data; distro acceptance pending.
 - [x] Browser-compatible schema-1 Linux JSON export and guarded empty-store import via CLI and native GTK file dialogs, with round-trip tests; full native recovery acceptance pending.
 - [x] Android native project creation/assignment, due-date picker, Today/Upcoming/Project filters and non-destructive schema v2 migration (source; device verification pending).
-- [x] Android non-destructive schema-v4 completion metadata and exact Linux-compatible timestamp preservation, native JSON export and guarded schema-1 empty-store import with confirmation and atomic rollback; real-device recovery validation pending.
+- [x] Android non-destructive schema-v4 completion metadata and exact Linux-compatible timestamp preservation, native JSON export and guarded schema-1 empty-store import with confirmation and atomic rollback; broader real-device recovery validation pending.
 - [x] CI verifies the native Android debug APK signature and SHA-256, and retains a short-lived internal build artifact; governed standalone Drive APK delivery and physical-device sign-off remain pending.
-- [x] Android Robolectric SQLiteOpenHelper recovery regression tests: complete synthetic export/import round trip, non-overwrite for existing data, rollback on mid-import failure, completion metadata, and v3-to-v4 preservation (physical-device file providers pending).
+- [x] Limited Android 16 physical-device acceptance: native launch, Android picker JSON export, guarded import rejection, and a synthetic one-task save/restore passed; temporary test app and files removed. See [evidence](ANDROID_DEVICE_ACCEPTANCE.md); full device sign-off and standalone Drive APK handoff pending.
+- [x] Android Robolectric SQLiteOpenHelper recovery regression tests: complete synthetic export/import round trip, non-overwrite for existing data, rollback on mid-import failure, completion metadata, and v3-to-v4 preservation (other provider/device combinations pending).
 - [x] Android task-editing dialog for title, priority, due date and project with pure validation unit tests (source; device verification pending).
 - [x] Hardened text/priority validation and portable backup boundary cases across native clients; Android verification relies on CI/device tests.
 - [ ] Verify all platform builds and runtime operation, fix defects, audit accessibility and GC UI appearance.
