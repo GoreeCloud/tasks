@@ -17,7 +17,7 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
 | Search / edit title | Yes | Search and store-level title edit | Native search and task editing (build pending) |
-| JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI export and empty-store import (no overwrite) | Pending |
+| JSON export / restore | Validated local export and explicit replacement restore | Compatible CLI + GTK file dialogs, empty-store import (no overwrite) | Pending |
 | Accessibility and GC UI alignment | Initial design only | Initial native design only | Initial native design only |
 | Multi-device synchronization | Not implemented | Not implemented | Not implemented |
 

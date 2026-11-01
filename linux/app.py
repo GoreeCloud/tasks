@@ -7,8 +7,9 @@ from pathlib import Path
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, Gtk
+from gi.repository import Adw, Gdk, Gio, Gtk, GLib
 
+from backup import BackupError, export_file, import_data, read_backup
 from store import TaskStore
 
 Adw.init()
@@ -36,6 +37,13 @@ class TasksWindow(Adw.ApplicationWindow):
         title = Gtk.Label(label="✦   GoreeCloud Tasks")
         title.add_css_class("title-3")
         header.set_title_widget(title)
+        export_button = Gtk.Button(label="Export JSON", tooltip_text="Save a portable task backup")
+        export_button.connect("clicked", self.on_export)
+        header.pack_start(export_button)
+        import_button = Gtk.Button(label="Import JSON", tooltip_text="Restore into an empty local database")
+        import_button.connect("clicked", self.on_import)
+        header.pack_start(import_button)
+
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=13)
         content.set_margin_top(22)
@@ -146,6 +154,48 @@ class TasksWindow(Adw.ApplicationWindow):
             self.refresh()
         except (ValueError, OSError, sqlite3.Error) as error:
             self.message.set_text(str(error))
+
+    def on_export(self, _button):
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Export GoreeCloud Tasks backup")
+        dialog.set_initial_name("goreecloud-tasks-backup.json")
+        dialog.save(self, None, self.on_export_selected)
+
+    def on_export_selected(self, dialog, result):
+        try:
+            file = dialog.save_finish(result)
+            if not file or not file.get_path():
+                raise BackupError("Please select a local file path")
+            bytes_saved = export_file(self.store, Path(file.get_path()))
+            self.message.set_text(f"Saved {bytes_saved} bytes. Verify the backup before relying on it.")
+        except GLib.Error as error:
+            if not error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                self.message.set_text(f"File selection failed: {error.message}")
+        except (BackupError, OSError, ValueError) as error:
+            self.message.set_text(f"Export failed: {error}")
+
+    def on_import(self, _button):
+        if self.store.list_tasks(include_completed=True) or self.store.list_projects():
+            self.message.set_text("Import requires an empty local database. Export current tasks first.")
+            return
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Import GoreeCloud Tasks JSON backup")
+        dialog.open(self, None, self.on_import_selected)
+
+    def on_import_selected(self, dialog, result):
+        try:
+            file = dialog.open_finish(result)
+            if not file or not file.get_path():
+                raise BackupError("Please select a local JSON file")
+            tasks, projects = import_data(self.store, read_backup(Path(file.get_path())))
+            self.update_projects()
+            self.refresh()
+            self.message.set_text(f"Imported {tasks} tasks and {projects} projects into the empty database.")
+        except GLib.Error as error:
+            if not error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                self.message.set_text(f"File selection failed: {error.message}")
+        except (BackupError, OSError, ValueError, sqlite3.Error) as error:
+            self.message.set_text(f"Import failed: {error}")
 
     def on_add(self, _widget):
         try:
