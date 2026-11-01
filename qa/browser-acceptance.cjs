@@ -162,8 +162,11 @@ async function run(engine,port){
     await labelPage.goto(url,{waitUntil:'networkidle'});
     labelPage.once('dialog',dialog=>dialog.accept());
     await labelPage.locator('#import-file').setInputFiles({name:'labels.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(schemaThree))});
+    // Document-provider handlers finish asynchronously, particularly in Firefox CI.
+    await labelPage.locator('.task-labels').first().waitFor({state:'visible',timeout:15000});
     assert.equal(await labelPage.locator('.task-labels').count(),1);
     await labelPage.reload({waitUntil:'networkidle'});
+    await labelPage.locator('.task-labels').first().waitFor({state:'visible',timeout:15000});
     assert.equal(await labelPage.locator('.task-labels').count(),1);
     note(engine.name()+' schema3 labels portable roundtrip',{schema:3,labels:2});
     await labelContext.close();
