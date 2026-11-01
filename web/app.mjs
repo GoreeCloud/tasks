@@ -1,4 +1,4 @@
-import { batchEditTasks, EMPTY, deleteTask, editTask, localDate, newTask, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
+import { batchEditTasks, duplicateTask, EMPTY, deleteTask, editTask, localDate, newTask, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
 import { exportBackup, MAX_BACKUP_BYTES, validateBackupText } from './backup.mjs';
 import { moveToTrash, readLocalSnapshot, restoreFromTrash, serializeLocalSnapshot } from './local-store.mjs';
 
@@ -260,6 +260,15 @@ function render() {
     body.append(details);
     const edit = makeButton('Edit', 'row-button', () => openTaskEditor(task));
     edit.setAttribute('aria-label', 'Edit ' + task.title);
+    const duplicate = makeButton('Copy', 'row-button', () => {
+      if (mutate(draft => {
+        const original = draft.tasks.find(entry => entry.id === task.id);
+        if (!original) throw new Error('Task no longer exists.');
+        draft.tasks.push(duplicateTask(original, draft.projects));
+      })) report('Duplicated as a new open task. Your original remains unchanged.');
+      render();
+    });
+    duplicate.setAttribute('aria-label', 'Duplicate ' + task.title);
     const remove = makeButton('Delete', 'row-button danger', () => {
       if (!confirm('Move this task to local Trash? You can restore it after reloading.')) return;
       if (mutate((draft, trash) => {
@@ -274,7 +283,7 @@ function render() {
     selectLabel.append(selector, el('span', 'task-check-label', 'Select'));
     const completeLabel = el('label', 'task-check-wrap');
     completeLabel.append(checkbox, el('span', 'task-check-label', 'Done'));
-    item.append(selectLabel, completeLabel, body, edit, remove);
+    item.append(selectLabel, completeLabel, body, edit, duplicate, remove);
     list.append(item);
   });
   updateSelectionControls(visible);

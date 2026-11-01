@@ -61,6 +61,38 @@ class RestoreDatabaseTest {
     }
 
 
+    @Test fun duplicateCompletedSchemaTwoTaskPreservesFieldsButClearsHistory() {
+        db.restorePortableBackup(PortableRestore.parse(PortableFixture.read("schema2-synthetic.json")))
+        val source = db.listTasks().single { it.id == "task-notes" }
+        assertTrue(source.completed)
+        val copiedId = db.duplicateTask(source.id)
+        val copy = db.listTasks().single { it.id == copiedId }
+        assertEquals(source.title,copy.title)
+        assertEquals(source.priority,copy.priority)
+        assertEquals(source.dueDate,copy.dueDate)
+        assertEquals(source.projectId,copy.projectId)
+        assertEquals(source.description,copy.description)
+        assertFalse(copy.completed)
+        assertTrue(copiedId != source.id)
+        val exported = PortableRestore.parse(db.exportPortableBackup()).tasks
+        assertEquals(3,exported.size)
+        val newRecord = exported.single { it.id == copiedId }
+        val original = exported.single { it.id == source.id }
+        assertFalse(newRecord.completed)
+        assertEquals(null,newRecord.completedAtExact)
+        assertEquals(null,newRecord.completedAt)
+        assertEquals("2026-11-01T01:23:45.654321Z",original.completedAtExact)
+        assertEquals(source.description,newRecord.description)
+        val before = db.listTasks().size
+        try {
+            db.duplicateTask("not-found")
+            throw AssertionError("Missing source duplicated")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(before,db.listTasks().size)
+        db.close(); db = TasksDatabase(context)
+        assertEquals(source.description,db.listTasks().single { it.id == copiedId }.description)
+    }
+
     @Test fun schemaTwoDescriptionSurvivesImportUpdateBulkTrashAndExport() {
         val source = PortableRestore.parse(PortableFixture.read("schema2-synthetic.json"))
         db.restorePortableBackup(source)

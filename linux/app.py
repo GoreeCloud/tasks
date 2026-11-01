@@ -542,6 +542,14 @@ class TasksWindow(Adw.ApplicationWindow):
         except (BackupError, OSError, ValueError, sqlite3.Error) as error:
             self.message.set_text(f"Import failed: {error}")
 
+    def on_duplicate(self, _button, task_id):
+        try:
+            self.store.duplicate_task(task_id)
+            self.message.set_text("Duplicated as a new open task. Original unchanged.")
+            self.refresh()
+        except (ValueError, sqlite3.Error) as error:
+            self.message.set_text(str(error))
+
     def on_add(self, _widget):
         try:
             self.store.add_task(
@@ -657,6 +665,15 @@ class TasksWindow(Adw.ApplicationWindow):
             ])
             checkbox.connect("toggled", self.on_toggle, task["id"])
             row.add_prefix(checkbox)
+            duplicate = Gtk.Button(icon_name="edit-copy-symbolic")
+            duplicate.set_tooltip_text("Duplicate " + task["title"] + " as an open task")
+            duplicate.update_property([Gtk.AccessibleProperty.LABEL], [
+                "Duplicate " + task["title"]
+            ])
+            duplicate.set_valign(Gtk.Align.CENTER)
+            duplicate.add_css_class("flat")
+            duplicate.connect("clicked", self.on_duplicate, task["id"])
+            row.add_suffix(duplicate)
             edit = Gtk.Button(label="Edit", tooltip_text="Edit " + task["title"])
             edit.set_valign(Gtk.Align.CENTER)
             edit.add_css_class("flat")

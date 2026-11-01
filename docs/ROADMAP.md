@@ -46,6 +46,8 @@
 
 - [x] Cross-client local notes discovery: title **or** plain-text description search in browser, native Linux and Android, including device-local Trash. Existing project/priority/completion view boundaries retained, SQLite literal wildcard escaping and UI/regression tests added. See [search parity](NATIVE_VIEW_PARITY.md) and [schema-2 descriptions](PORTABLE_SCHEMA2_DESCRIPTIONS.md). Accessibility and Unicode collation parity require further acceptance.
 
+- [x] Manual task duplication: browser, Linux GTK4 and Android Compose create a fresh open task with copied title/notes/priority/date/project but unique ID and no original completion history. No new SQLite migration, permissions, backup schema or automatic recurrence. See [task duplication](TASK_DUPLICATION.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

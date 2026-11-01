@@ -575,6 +575,17 @@ private fun TasksScreen(db: TasksDatabase) {
                                                     editDueDate = task.dueDate
                                                     editProjectId = task.projectId
                                                 })
+                                                DropdownMenuItem(text = { Text("Duplicate as open task") }, onClick = {
+                                                    actionsOpen = false
+                                                    try {
+                                                        db.duplicateTask(task.id)
+                                                        backupNotice = "Duplicated task locally. Original unchanged."
+                                                        error = ""
+                                                        reload()
+                                                    } catch (failure: Exception) {
+                                                        error = failure.message ?: "Could not duplicate task."
+                                                    }
+                                                })
                                                 DropdownMenuItem(text = { Text("Move to Trash") }, onClick = {
                                                     actionsOpen = false
                                                     deletion = task

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { batchEditTasks, EMPTY, deleteTask, editTask, hydrate, localDate, newTask, selectTasks, undoTaskDelete } from './model.mjs';
+import { batchEditTasks, duplicateTask, EMPTY, deleteTask, editTask, hydrate, localDate, newTask, selectTasks, undoTaskDelete } from './model.mjs';
 import { exportBackup, validateBackupText } from './backup.mjs';
 test('bad persistence recovers safely', () => { assert.deepEqual(hydrate('{'), EMPTY()); assert.deepEqual(hydrate('{"schema":2}'), EMPTY()); });
 test('title and priority validation', () => { assert.throws(() => newTask('  ')); assert.throws(() => newTask('ok', null, '', 0)); assert.equal(newTask('  Plan  ').title, 'Plan'); });
@@ -198,4 +198,25 @@ test('search matches plain-text notes in active, completed, and project views wi
   assert.deepEqual(find('upcoming','audit'),['n']);
   assert.deepEqual(find('all','Public title'),['n']);
   assert.deepEqual(find('all','cannot-match'),[]);
+});
+
+test('duplicate completed schema-2 task creates a distinct open copy without historical timestamps', () => {
+  const completed = {
+    ...newTask('Ship 🚀', 'team', '2026-11-19', 2, 'Release checklist\n🧭'),
+    id: 'original', completed: true, createdAt: '2026-10-20T10:20:30.123456Z',
+    completedAt: '2026-11-01T15:44:20.56789Z'
+  };
+  const project = [{id:'team',name:'Team'}];
+  const duplicated = duplicateTask(completed, project);
+  assert.notEqual(duplicated.id, completed.id);
+  assert.deepEqual(
+    [duplicated.title,duplicated.projectId,duplicated.due,duplicated.priority,duplicated.description],
+    [completed.title,completed.projectId,completed.due,completed.priority,completed.description]
+  );
+  assert.equal(duplicated.completed,false);
+  assert.equal(duplicated.completedAt,null);
+  assert.notEqual(duplicated.createdAt,completed.createdAt);
+  assert.equal(exportBackup({schema:2,projects:project,tasks:[completed,duplicated]}).includes('Release checklist'),true);
+  assert.throws(()=>duplicateTask(completed,[]),/project/);
+  assert.throws(()=>duplicateTask(null,project),/Task/);
 });

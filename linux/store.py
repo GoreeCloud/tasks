@@ -111,6 +111,23 @@ class TaskStore:
                  datetime.now(timezone.utc).isoformat(), description))
         return task_id
 
+    def duplicate_task(self, task_id: str) -> str:
+        """Atomically copy active task fields with a fresh ID and open history."""
+        if type(task_id) is not str or not task_id:
+            raise ValueError("Task ID must be a nonempty string")
+        copied_id = str(uuid4())
+        with self.db:
+            result = self.db.execute(
+                "INSERT INTO tasks "
+                "(id,title,priority,due_date,project_id,completed,created_at,completed_at,description) "
+                "SELECT ?,title,priority,due_date,project_id,0,?,NULL,description "
+                "FROM tasks WHERE id=?",
+                (copied_id, datetime.now(timezone.utc).isoformat(), task_id)
+            )
+            if result.rowcount != 1:
+                raise ValueError("Task no longer exists")
+        return copied_id
+
     def update_task(self, task_id: str, *, title: str, priority: int = 4,
                     due_date: str | None = None, project_id: str | None = None,
                     description: str | None = None) -> bool:

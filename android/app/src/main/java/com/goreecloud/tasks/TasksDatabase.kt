@@ -170,6 +170,32 @@ internal class TasksDatabase(context: Context) :
         writableDatabase.insertOrThrow("tasks", null, record)
     }
 
+    /** One SQLite transaction creates a new open task; the source remains untouched. */
+    fun duplicateTask(id: String): String {
+        require(id.isNotBlank()) { "Task ID must not be blank" }
+        val duplicateId = UUID.randomUUID().toString()
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL(
+                "INSERT INTO tasks " +
+                    "(id,title,priority,completed,created_at,completed_at," +
+                    "created_at_exact,completed_at_exact,due_date,project_id,description) " +
+                    "SELECT ?,title,priority,0,?,NULL,NULL,NULL,due_date,project_id,description " +
+                    "FROM tasks WHERE id=?",
+                arrayOf(duplicateId, System.currentTimeMillis(), id)
+            )
+            val copied = android.database.DatabaseUtils.longForQuery(
+                db, "SELECT changes()", null
+            )
+            require(copied == 1L) { "Task no longer exists" }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return duplicateId
+    }
+
     /** Edits are guarded by field validation; no schema replacement or row deletion. */
     fun update(id: String, title: String, priority: Int, dueDate: String?, projectId: String?,
                description: String? = null) {

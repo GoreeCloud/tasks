@@ -56,6 +56,13 @@ export function editTask(task, { title, projectId, due, priority, description },
   }
   return edited;
 }
+/** Create a fresh open task without importing the source's identity or completion history. */
+export function duplicateTask(task, projects) {
+  if (!task || !Array.isArray(projects)) throw new Error('Task no longer exists.');
+  if (task.projectId != null && !projects.some(project => project.id === task.projectId))
+    throw new Error('The original project no longer exists.');
+  return newTask(task.title, task.projectId, task.due, task.priority, task.description ?? '');
+}
 /** Remove exactly one task from a draft; caller persists it only after validation. */
 export function deleteTask(draft, id) {
   if (!draft || !Array.isArray(draft.tasks)) throw new Error('Invalid task workspace.');

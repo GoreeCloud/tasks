@@ -39,6 +39,36 @@ class TaskStoreTests(unittest.TestCase):
         self.assertTrue(self.store.restore_deleted_task(first))
         self.assertEqual([row["id"] for row in self.store.list_tasks(query="release",view="Completed")], [first])
 
+    def test_duplicate_completed_task_copies_fields_but_not_identity_or_completion_history(self):
+        project = self.store.add_project("Team")
+        source = self.store.add_task("Ship 🚀", priority=2,
+                                     due_date="2026-11-19", project_id=project,
+                                     description="Release checklist\n🧭")
+        self.assertTrue(self.store.complete_task(source, True))
+        original = next(t for t in self.store.list_tasks(include_completed=True) if t["id"] == source)
+        copy = self.store.duplicate_task(source)
+        self.assertNotEqual(copy, source)
+        duplicated = next(t for t in self.store.list_tasks(include_completed=True) if t["id"] == copy)
+        for field in ("title", "priority", "due_date", "project_id", "description"):
+            self.assertEqual(duplicated[field], original[field])
+        self.assertEqual(duplicated["completed"], 0)
+        self.assertIsNone(duplicated["completed_at"])
+        self.assertNotEqual(duplicated["created_at"], original["created_at"])
+        self.assertEqual(self.store.list_tasks()[0]["id"], copy)
+        self.assertEqual(self.store.list_tasks(view="Completed")[0]["id"], source)
+        self.assertEqual(self.store.duplicate_task(copy) != copy, True)
+        with self.assertRaises(ValueError):
+            self.store.duplicate_task("nonexistent")
+        with self.assertRaises(ValueError):
+            self.store.duplicate_task(None)
+        self.store.delete_task(source)
+        with self.assertRaises(ValueError):
+            self.store.duplicate_task(source)
+        self.store.close()
+        self.store = TaskStore(Path(self.dir.name) / "tasks.db")
+        self.assertEqual(next(t for t in self.store.list_tasks() if t["id"] == copy)["description"],
+                         "Release checklist\n🧭")
+
     def test_create_complete_reopen_delete(self):
         key = self.store.add_task("  Build native apps  ", priority=1, due_date="2026-11-02")
         rows = self.store.list_tasks()

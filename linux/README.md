@@ -98,3 +98,5 @@ The source installer has not undergone multi-distribution packaging tests, relea
 **Task descriptions:** Native capture/edit accepts optional plain-text notes up to 2,000 UTF-16 code units. Active and deleted local SQLite tables gain an additive default-empty column, and recoverable Trash preserves it. JSON schema 2 is used whenever active tasks contain notes; schema-1 import remains supported. Older schema-1-only clients cannot import schema-2 notes; see [versioned compatibility rules](../docs/PORTABLE_SCHEMA2_DESCRIPTIONS.md).
 
 **Search:** The native search field matches task titles or notes in the selected view and local Trash; SQL wildcard characters are treated literally. Search is device-local and cannot discover another client’s data without an explicit restore.
+
+**Duplicate Task:** Use the Copy icon beside an active or completed task to create a new open task with a new UUID/timestamp and the same title, notes, due date, priority and project. This is a manual copy, not a recurring schedule; it leaves the original unchanged. See [task duplication](../docs/TASK_DUPLICATION.md).

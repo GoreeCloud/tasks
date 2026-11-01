@@ -182,6 +182,18 @@ def main():
             window.on_bulk_trash_response(None, "trash", to_trash)
             assert not window.store.list_tasks(view="All")
             assert len(window.store.list_deleted_tasks()) == 2
+            # Native Duplicate action must leave a new open task with notes.
+            original = window.store.add_task("Reusable task", priority=2,
+                                             description="Review checklist 🧭")
+            window.store.complete_task(original, True)
+            window.refresh()
+            window.on_duplicate(None, original)
+            created = [t for t in window.store.list_tasks() if t["title"] == "Reusable task"]
+            assert len(created) == 1 and created[0]["id"] != original
+            assert created[0]["description"] == "Review checklist 🧭"
+            assert created[0]["completed"] == 0 and created[0]["completed_at"] is None
+            assert window.store.list_tasks(view="Completed")[0]["id"] == original
+            print("GTK4_LIBADWAITA_DUPLICATE_TASK_SMOKE_PASS")
             print("GTK4_LIBADWAITA_BULK_TASK_OPERATIONS_SMOKE_PASS")
             print("GTK4_LIBADWAITA_TASK_EDIT_AND_TRASH_RECOVERY_SMOKE_PASS")
         finally:

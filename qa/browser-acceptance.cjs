@@ -131,6 +131,19 @@ async function run(engine,port){
     await notesPage.getByRole('button',{name:'Restore Edited acceptance task'}).click();
     await notesPage.locator('[data-view=all]').first().click();
     assert.equal(await notesPage.locator('.task-row').count(),1);
+    // Explicit user action duplicates a task, without losing the original or notes.
+    await notesPage.getByRole('button',{name:'Duplicate Edited acceptance task'}).click();
+    assert.equal(await notesPage.locator('.task-row').count(),2);
+    const [copyDownload]=await Promise.all([
+      notesPage.waitForEvent('download'),notesPage.locator('#export-data').click()
+    ]);
+    const copyChunks=[];for await(const chunk of await copyDownload.createReadStream())copyChunks.push(chunk);
+    const duplicates=JSON.parse(Buffer.concat(copyChunks).toString('utf8')).tasks;
+    assert.equal(duplicates.length,2);
+    assert.notEqual(duplicates[0].id,duplicates[1].id);
+    assert.ok(duplicates.every(t=>t.description==='Private context 🧭\nSecond line'));
+    assert.ok(duplicates.every(t=>!t.completed && t.completedAt===null));
+    note(engine.name()+' duplicate notes',{count:duplicates.length,distinctIds:true});
     note(engine.name()+' notes search and Trash recovery',{matched:true,restored:true});
     note(engine.name()+' notes v2 portable roundtrip',{schema:schemaTwo.schema,notes:schemaTwo.tasks[0].description.length});
     await notesContext.close();
