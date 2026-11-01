@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "projects": [
+    { "id": "project-alpha", "name": "Roadmap 🚀" },
+    { "id": "project-beta", "name": "Personal" }
+  ],
+  "tasks": [
+    {
+      "id": "task-completed",
+      "title": "Review release ✅",
+      "projectId": "project-alpha",
+      "due": "2026-11-03",
+      "priority": 1,
+      "completed": true,
+      "createdAt": "2026-10-31T20:15:42.123456-05:00",
+      "completedAt": "2026-11-01T01:23:45.654321Z"
+    },
+    {
+      "id": "task-pending",
+      "title": "Buy groceries 🥦",
+      "projectId": "project-beta",
+      "due": "2026-11-12",
+      "priority": 3,
+      "completed": false,
+      "createdAt": "2026-10-30T10:05:00.001+00:00",
+      "completedAt": null
+    },
+    {
+      "id": "task-inbox",
+      "title": "File notes",
+      "projectId": null,
+      "due": "",
+      "priority": 4,
+      "completed": false,
+      "createdAt": "2026-10-29T09:00:00Z",
+      "completedAt": null
+    }
+  ]
+}

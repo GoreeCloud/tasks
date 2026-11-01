@@ -29,6 +29,32 @@ class PortableBackupTests(unittest.TestCase):
         completed = self.source.add_task("Validated backup", priority=4)
         self.source.complete_task(completed, True)
 
+    def test_shared_portable_fixture_and_fail_closed_variants(self):
+        fixture = Path(__file__).resolve().parents[2] / "fixtures/portable/schema1-synthetic.json"
+        original = json.loads(fixture.read_text(encoding="utf-8"))
+        verified = read_backup(fixture)
+        self.assertEqual(verified, original)
+        self.assertEqual(import_data(self.target, verified), (3, 2))
+        restored = export_data(self.target)
+        self.assertEqual(sorted(restored["tasks"], key=lambda t: t["id"]),
+                         sorted(original["tasks"], key=lambda t: t["id"]))
+        self.assertEqual(sorted(restored["projects"], key=lambda t: t["id"]),
+                         sorted(original["projects"], key=lambda t: t["id"]))
+        self.assertEqual(validate(json.loads(serialized(restored))), restored)
+        completed = next(task for task in restored["tasks"] if task["id"] == "task-completed")
+        self.assertEqual(completed["completedAt"], "2026-11-01T01:23:45.654321Z")
+        self.assertEqual(completed["createdAt"], "2026-10-31T20:15:42.123456-05:00")
+
+        rejected = [
+            {**original, "projects": []},
+            {**original, "tasks": [{**original["tasks"][0], "completedAt": None}]},
+            {**original, "tasks": [{**original["tasks"][0], "priority": True}]},
+            {**original, "tasks": [{**original["tasks"][0], "due": "2026-02-30"}]},
+        ]
+        for invalid in rejected:
+            with self.subTest(invalid=invalid), self.assertRaises(BackupError):
+                validate(invalid)
+
     def test_roundtrip_without_data_loss(self):
         self.create_fixture()
         path = self.folder / "portable.json"

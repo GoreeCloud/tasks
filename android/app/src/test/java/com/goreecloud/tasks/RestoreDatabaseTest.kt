@@ -59,6 +59,19 @@ class RestoreDatabaseTest {
             android.database.DatabaseUtils.queryNumEntries(database, "projects")
     }
 
+    @Test fun sharedPortableFixtureRestoresAndExportsExactSourceMetadata() {
+        val source = PortableRestore.parse(PortableFixture.read())
+        db.restorePortableBackup(source)
+        assertEquals(3L to 2L, counts())
+        val exported = PortableRestore.parse(db.exportPortableBackup())
+        assertEquals(source.projects, exported.projects)
+        assertEquals(source.tasks, exported.tasks)
+        assertEquals("2026-11-01T01:23:45.654321Z",
+                     exported.tasks[0].completedAtExact)
+        assertEquals("2026-10-31T20:15:42.123456-05:00",
+                     exported.tasks[0].createdAtExact)
+    }
+
     @Test fun emptyStoreRestoreThenExportRetainsExactPortableFields() {
         assertTrue(db.isEmptyForRestore())
         db.restorePortableBackup(snapshot())

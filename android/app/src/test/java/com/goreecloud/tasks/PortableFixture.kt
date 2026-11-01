@@ -1,0 +1,20 @@
+package com.goreecloud.tasks
+
+import java.io.File
+
+/** One synthetic fixture shared by native Android, Linux and browser tests. */
+internal object PortableFixture {
+    fun read(): ByteArray {
+        val candidates = listOf(
+            "fixtures/portable/schema1-synthetic.json",
+            "../fixtures/portable/schema1-synthetic.json",
+            "../../fixtures/portable/schema1-synthetic.json"
+        )
+        val file = candidates.map(::File).firstOrNull { it.isFile }
+            ?: throw AssertionError(
+                "Shared portable backup test fixture unavailable (working directory: " +
+                    System.getProperty("user.dir") + ")"
+            )
+        return file.readBytes()
+    }
+}

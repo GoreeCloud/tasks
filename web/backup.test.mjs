@@ -1,11 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { exportBackup, validateBackup, validateBackupText, validDate } from './backup.mjs';
+import { readFileSync } from 'node:fs';
 
 const valid = () => ({ schema: 1, projects: [{ id: 'p', name: ' Home ' }], tasks: [
   { id: 't', title: ' Task ', projectId: 'p', priority: 1, due: '2028-02-29',
     completed: false, createdAt: '2026-10-31T21:00:00Z', completedAt: null }
 ] });
+
+test('shared schema-1 synthetic fixture round-trips with full field precision', () => {
+  const raw = readFileSync(new URL('../fixtures/portable/schema1-synthetic.json', import.meta.url), 'utf8');
+  const original = JSON.parse(raw);
+  const accepted = validateBackupText(raw);
+  assert.equal(accepted.projects.length, 2);
+  assert.equal(accepted.tasks.length, 3);
+  assert.deepEqual(accepted, original);
+  assert.deepEqual(validateBackupText(exportBackup(accepted)), original);
+  assert.equal(accepted.tasks[0].completedAt, '2026-11-01T01:23:45.654321Z');
+  assert.equal(accepted.tasks[0].createdAt, '2026-10-31T20:15:42.123456-05:00');
+  for (const invalid of [
+    { ...original, projects: [] },
+    { ...original, tasks: [{ ...original.tasks[0], completedAt: null }] },
+    { ...original, tasks: [{ ...original.tasks[0], priority: true }] },
+    { ...original, tasks: [{ ...original.tasks[0], due: '2026-02-30' }] }
+  ]) assert.throws(() => validateBackup(invalid));
+});
 
 test('strict lossless backup roundtrip except whitespace trimming', () => {
   const snapshot = validateBackupText(exportBackup(valid()));

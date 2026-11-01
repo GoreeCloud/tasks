@@ -30,6 +30,20 @@ class PortableRestoreTest {
 
     private fun parse(text: String = fixture()) = PortableRestore.parse(text.toByteArray(Charsets.UTF_8))
 
+    @Test fun sharedPortableContractIsLosslessIncludingUnicodeAndOffsets() {
+        val bytes = PortableFixture.read()
+        val parsed = PortableRestore.parse(bytes)
+        assertEquals(2, parsed.projects.size)
+        assertEquals(3, parsed.tasks.size)
+        assertEquals("Roadmap 🚀", parsed.projects[0].name)
+        assertEquals("Review release ✅", parsed.tasks[0].title)
+        assertEquals("2026-10-31T20:15:42.123456-05:00", parsed.tasks[0].createdAtExact)
+        assertEquals("2026-11-01T01:23:45.654321Z", parsed.tasks[0].completedAtExact)
+        assertEquals("Buy groceries 🥦", parsed.tasks[1].title)
+        assertEquals("2026-11-12", parsed.tasks[1].dueDate)
+        assertNull(parsed.tasks[2].projectId)
+    }
+
     @Test fun validBrowserLinuxSchemaPreservesTaskMetadata() {
         val snapshot = parse()
         assertEquals(1, snapshot.projects.size)
