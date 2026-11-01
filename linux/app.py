@@ -175,8 +175,12 @@ class TasksWindow(Adw.ApplicationWindow):
             self.message.set_text(f"Export failed: {error}")
 
     def on_import(self, _button):
-        if self.store.list_tasks(include_completed=True) or self.store.list_projects():
-            self.message.set_text("Import requires an empty local database. Export current tasks first.")
+        if (self.store.list_tasks(include_completed=True) or
+                self.store.list_projects() or self.store.list_deleted_tasks()):
+            self.message.set_text(
+                "Import requires an empty local database, including Trash. "
+                "Use a new database to protect existing recovery history."
+            )
             return
         dialog = Gtk.FileDialog()
         dialog.set_title("Import GoreeCloud Tasks JSON backup")

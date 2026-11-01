@@ -54,6 +54,8 @@ def main():
             assert window.store.list_tasks() == []
             deleted = window.store.list_deleted_tasks()
             assert len(deleted) == 1 and deleted[0]["id"] == task
+            window.on_import(None)
+            assert "including Trash" in window.message.get_text()
             window.view.set_selected(6)
             window.refresh()
             assert window.view.get_selected() == 6

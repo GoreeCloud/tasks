@@ -190,10 +190,13 @@ def import_data(store: TaskStore, data):
     """Load schema-1 into an empty database in one transaction; never replace."""
     validated = validate(data)
     with store.db:
-        if store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] or store.db.execute(
-            "SELECT COUNT(*) FROM projects"
-        ).fetchone()[0]:
-            raise BackupError("Destination database is not empty; existing work is preserved")
+        if (store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+                or store.db.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+                or store.db.execute("SELECT COUNT(*) FROM deleted_tasks").fetchone()[0]):
+            raise BackupError(
+                "Destination database is not empty (including local Trash); "
+                "existing work is preserved"
+            )
         for project in validated["projects"]:
             store.db.execute("INSERT INTO projects(id,name) VALUES (?,?)", (project["id"], project["name"]))
         for task in validated["tasks"]:

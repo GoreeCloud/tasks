@@ -12,7 +12,7 @@
 - [x] Linux GTK and Android Compose projects (source).
 - [x] Linux project creation/assignment, task view filters, due date capture and local search (source; GUI and device validation pending).
 - [x] Native Linux task edit dialog for title, priority, due date and project with atomic store update and negative validation tests; GUI acceptance pending.
-- [x] Linux durable SQLite Trash and GTK Restore view: additive non-destructive schema, atomic delete/recovery, exact task history retention, restart and conflict rollback tests, native GTK recovery smoke. Local Trash is explicitly excluded from portable JSON; cross-device Trash recovery and formal GUI acceptance pending.
+- [x] Linux durable SQLite Trash and GTK Restore view: additive non-destructive schema, atomic delete/recovery, exact task history retention, restart and conflict rollback tests, native GTK recovery smoke, and guarded backup import when local Trash is nonempty. Local Trash is explicitly excluded from portable JSON; cross-device Trash recovery and formal GUI acceptance pending.
 - [x] Linux user-local desktop integration scripts and icon, with isolated install/uninstall test preserving local task data; distro acceptance pending.
 - [x] Browser-compatible schema-1 Linux JSON export and guarded empty-store import via CLI and native GTK file dialogs, with round-trip tests; full native recovery acceptance pending.
 - [x] Android native project creation/assignment, due-date picker, Today/Upcoming/Project filters and non-destructive schema v2 migration (source; device verification pending).

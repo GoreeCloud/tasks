@@ -88,6 +88,23 @@ class PortableBackupTests(unittest.TestCase):
         self.assertTrue(self.source.restore_deleted_task(deleted_id))
         self.assertEqual([task["id"] for task in exported["tasks"]], [active_id])
 
+    def test_empty_active_workspace_with_trash_cannot_accept_restore(self):
+        gone_id = self.source.add_task("Recoverable history")
+        self.assertTrue(self.source.delete_task(gone_id))
+        self.assertEqual(self.source.list_tasks(include_completed=True), [])
+        self.assertEqual(self.source.list_projects(), [])
+        backup = {
+            "schema": 1, "projects": [], "tasks": [{
+                "id": gone_id, "title": "Potential collision",
+                "projectId": None, "due": "", "priority": 4, "completed": False,
+                "createdAt": "2026-11-01T12:00:00Z", "completedAt": None
+            }]
+        }
+        with self.assertRaisesRegex(BackupError, "including local Trash"):
+            import_data(self.source, backup)
+        self.assertEqual(self.source.list_tasks(include_completed=True), [])
+        self.assertEqual(self.source.list_deleted_tasks()[0]["id"], gone_id)
+
     def test_roundtrip_without_data_loss(self):
         self.create_fixture()
         path = self.folder / "portable.json"
