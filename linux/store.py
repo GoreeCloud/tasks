@@ -199,6 +199,58 @@ class TaskStore:
                  task_id, flag))
         return cur.rowcount > 0
 
+    def bulk_edit_tasks(self, ids: list[str], action: str, value=None) -> int:
+        """Apply one validated action to at most 200 task IDs in a single transaction.
+
+        Unknown/stale IDs, invalid values and Trash collisions roll back all rows.
+        Completion timestamps are preserved on redundant completion requests.
+        """
+        if (type(ids) is not list or not 1 <= len(ids) <= 200 or
+                any(type(item) is not str or not item for item in ids) or
+                len(set(ids)) != len(ids)):
+            raise ValueError("Select 1–200 unique task IDs")
+        if action not in ("complete", "reopen", "priority", "project", "trash"):
+            raise ValueError("Unsupported bulk action")
+        if action == "priority":
+            if type(value) is not int or value not in PRIORITIES:
+                raise ValueError("Priority must be P1–P4")
+        elif action == "project":
+            if value is not None and (type(value) is not str or not value):
+                raise ValueError("Project ID must be valid or Inbox")
+        elif value is not None:
+            raise ValueError("Unexpected bulk action value")
+
+        with self.db:
+            for task_id in ids:
+                if self.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone() is None:
+                    raise ValueError("A selected task no longer exists")
+            if action == "project" and value is not None:
+                if self.db.execute("SELECT 1 FROM projects WHERE id=?", (value,)).fetchone() is None:
+                    raise ValueError("The selected project no longer exists")
+            when = datetime.now(timezone.utc).isoformat()
+            for task_id in ids:
+                if action in ("complete", "reopen"):
+                    state = int(action == "complete")
+                    self.db.execute(
+                        "UPDATE tasks SET completed=?,completed_at=? WHERE id=? AND completed<>?",
+                        (state, when if state else None, task_id, state)
+                    )
+                elif action == "priority":
+                    self.db.execute("UPDATE tasks SET priority=? WHERE id=?", (value, task_id))
+                elif action == "project":
+                    self.db.execute("UPDATE tasks SET project_id=? WHERE id=?", (value, task_id))
+                else:
+                    self.db.execute(
+                        "INSERT INTO deleted_tasks "
+                        "(id,title,priority,due_date,project_id,completed,created_at,completed_at,deleted_at) "
+                        "SELECT id,title,priority,due_date,project_id,completed,created_at,completed_at,? "
+                        "FROM tasks WHERE id=?",
+                        (when, task_id)
+                    )
+                    if self.db.execute("DELETE FROM tasks WHERE id=?", (task_id,)).rowcount != 1:
+                        raise sqlite3.IntegrityError("Task changed during bulk deletion")
+        return len(ids)
+
     def rename_task(self, task_id: str, title: str) -> bool:
         if not isinstance(title, str):
             raise ValueError("Task title must be text")

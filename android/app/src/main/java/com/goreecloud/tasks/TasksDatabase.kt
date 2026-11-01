@@ -179,6 +179,78 @@ internal class TasksDatabase(context: Context) :
                                 arrayOf(id, flag.toString()))
     }
 
+    /**
+     * Atomic edit of 1–200 selected task IDs. Validation and all writes share
+     * one SQLite transaction, including recoverable local Trash transfers.
+     */
+    fun bulkEdit(ids: List<String>, action: String, value: String? = null): Int {
+        require(ids.size in 1..200 && ids.none { it.isBlank() } && ids.toSet().size == ids.size) {
+            "Select 1–200 unique tasks"
+        }
+        require(action in listOf("complete", "reopen", "priority", "project", "trash")) {
+            "Unsupported bulk action"
+        }
+        val priority = if (action == "priority") {
+            require(value in listOf("1", "2", "3", "4")) { "Priority must be P1–P4" }
+            value!!.toInt()
+        } else {
+            require(action == "project" || value == null) { "Unexpected bulk action value" }
+            null
+        }
+
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (id in ids) {
+                require(db.rawQuery("SELECT 1 FROM tasks WHERE id=?", arrayOf(id))
+                    .use { it.moveToFirst() }) { "A selected task no longer exists" }
+            }
+            if (action == "project" && value != null) {
+                require(db.rawQuery("SELECT 1 FROM projects WHERE id=?", arrayOf(value))
+                    .use { it.moveToFirst() }) { "Selected project no longer exists" }
+            }
+            val whenMillis = System.currentTimeMillis()
+            for (id in ids) {
+                when (action) {
+                    "complete", "reopen" -> {
+                        val flag = if (action == "complete") 1 else 0
+                        val fields = ContentValues().apply {
+                            put("completed", flag)
+                            if (flag == 1) put("completed_at", whenMillis)
+                            else putNull("completed_at")
+                            putNull("completed_at_exact")
+                        }
+                        // Idempotent: do not erase exact imported completion time.
+                        db.update("tasks", fields, "id=? AND completed<>?",
+                            arrayOf(id, flag.toString()))
+                    }
+                    "priority" -> db.update("tasks",
+                        ContentValues().apply { put("priority", priority!!) }, "id=?", arrayOf(id))
+                    "project" -> db.update("tasks",
+                        ContentValues().apply { put("project_id", value) }, "id=?", arrayOf(id))
+                    else -> {
+                        db.execSQL(
+                            "INSERT INTO deleted_tasks (" +
+                                "id,title,priority,completed,created_at,completed_at," +
+                                "created_at_exact,completed_at_exact,due_date,project_id,deleted_at) " +
+                                "SELECT id,title,priority,completed,created_at,completed_at," +
+                                "created_at_exact,completed_at_exact,due_date,project_id,? " +
+                                "FROM tasks WHERE id=?",
+                            arrayOf(whenMillis, id)
+                        )
+                        require(db.delete("tasks", "id=?", arrayOf(id)) == 1) {
+                            "Task changed during bulk deletion"
+                        }
+                    }
+                }
+            }
+            db.setTransactionSuccessful()
+            return ids.size
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     /** Explicit user-controlled, local document export; never uploads task data. */
     fun exportPortableBackup(): ByteArray = PortableBackup.encode(readableDatabase)
 

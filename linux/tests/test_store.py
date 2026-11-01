@@ -263,6 +263,59 @@ class TaskStoreTests(unittest.TestCase):
         )}
         self.assertEqual(titles, {"December", "January"})
 
+    def test_atomic_bulk_edits_and_original_completion_history(self):
+        project = self.store.add_project("Move here")
+        first = self.store.add_task("First", priority=4)
+        second = self.store.add_task("Second", priority=2)
+        self.assertEqual(self.store.bulk_edit_tasks([first, second], "complete"), 2)
+        originals = {row["id"]: row for row in self.store.list_tasks(view="All")}
+        self.assertTrue(all(row["completed_at"] for row in originals.values()))
+        self.store.bulk_edit_tasks([first, second], "complete")
+        self.assertEqual(originals, {row["id"]: row for row in self.store.list_tasks(view="All")})
+        self.store.bulk_edit_tasks([first, second], "priority", 1)
+        self.store.bulk_edit_tasks([first, second], "project", project)
+        edited = self.store.list_tasks(view="All")
+        self.assertTrue(all(row["priority"] == 1 and row["project_id"] == project for row in edited))
+        self.store.bulk_edit_tasks([first, second], "project", None)
+        self.store.bulk_edit_tasks([first, second], "reopen")
+        reopened = self.store.list_tasks(view="All")
+        self.assertTrue(all(row["completed"] == 0 and row["completed_at"] is None and row["project_id"] is None for row in reopened))
+        self.assertEqual(self.store.bulk_edit_tasks([first, second], "trash"), 2)
+        self.assertEqual(self.store.list_tasks(view="All"), [])
+        self.assertEqual({row["id"] for row in self.store.list_deleted_tasks()}, {first, second})
+        self.store.close()
+        self.store = TaskStore(Path(self.dir.name) / "tasks.db")
+        self.assertEqual({row["id"] for row in self.store.list_deleted_tasks()}, {first, second})
+
+    def test_bulk_edits_reject_invalid_selection_and_rollback_trash_collisions(self):
+        first = self.store.add_task("First")
+        second = self.store.add_task("Second")
+        before = self.store.list_tasks(view="All")
+        cases = [
+            ([], "complete", None), ([first, first], "complete", None),
+            ([first, "missing"], "complete", None),
+            ([first, second], "priority", True), ([first, second], "priority", 5),
+            ([first, second], "project", "missing"),
+            ([first, second], "delete permanently", None),
+            ([first, second], "complete", "unexpected"),
+            ([first] * 201, "complete", None),
+        ]
+        for ids, action, value in cases:
+            with self.subTest(action=action, ids=len(ids)), self.assertRaises(ValueError):
+                self.store.bulk_edit_tasks(ids, action, value)
+            self.assertEqual(self.store.list_tasks(view="All"), before)
+        # Produce a collision for the second ID after the first would be moved.
+        with self.store.db:
+            self.store.db.execute(
+                "INSERT INTO deleted_tasks "
+                "(id,title,priority,completed,created_at,deleted_at) VALUES (?,?,?,?,?,?)",
+                (second, "Older Trash", 4, 0, before[0]["created_at"], before[0]["created_at"])
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.store.bulk_edit_tasks([first, second], "trash")
+        self.assertEqual(self.store.list_tasks(view="All"), before)
+        self.assertEqual({row["id"] for row in self.store.list_deleted_tasks()}, {second})
+
     def test_private_database_file_and_symlink_guard(self):
         self.assertEqual(self.store.path.stat().st_mode & 0o777, 0o600)
         linked = Path(self.dir.name) / "alias.sqlite3"

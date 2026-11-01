@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -16,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,6 +77,12 @@ private fun TasksScreen(db: TasksDatabase) {
         var priorityFilterMenu by remember { mutableStateOf(false) }
         var sortBy by remember { mutableStateOf("Smart") }
         var sortMenu by remember { mutableStateOf(false) }
+        val selectedTaskIds = remember { mutableStateListOf<String>() }
+        var bulkPriority by remember { mutableIntStateOf(4) }
+        var bulkPriorityMenu by remember { mutableStateOf(false) }
+        var bulkProjectId by remember { mutableStateOf<String?>(null) }
+        var bulkProjectMenu by remember { mutableStateOf(false) }
+        var pendingBulkTrash by remember { mutableStateOf<List<String>?>(null) }
         var error by remember { mutableStateOf("") }
         var backupNotice by remember { mutableStateOf("") }
         var preparedBackup by remember { mutableStateOf<ByteArray?>(null) }
@@ -131,12 +141,28 @@ private fun TasksScreen(db: TasksDatabase) {
             deletedTasks.clear()
             deletedTasks.addAll(db.listDeletedTasks())
         }
+        LaunchedEffect(view, search, selectedProjectId, priorityFilter, sortBy) {
+            selectedTaskIds.clear()
+        }
         val visible = if (view == "Trash") {
             deletedTasks.filter {
                 search.isBlank() || it.title.contains(search.trim(), ignoreCase = true)
             }
         } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search,
             priorityFilter, sortBy)
+        val visibleIds = if (view == "Trash") emptySet() else visible.map { it.id }.toSet()
+        val batchIds = selectedTaskIds.filter { it in visibleIds }
+        fun applyBulk(action: String, value: String? = null) {
+            try {
+                val count = db.bulkEdit(batchIds, action, value)
+                selectedTaskIds.clear()
+                error = ""
+                backupNotice = "Updated $count tasks on this device."
+                reload()
+            } catch (failure: Exception) {
+                error = failure.message ?: "Bulk action failed; nothing was saved."
+            }
+        }
         val activeProjectName = projects.find { it.id == selectedProjectId }?.name ?: "Inbox"
         val chooseDate = {
             val initial = dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
@@ -319,6 +345,68 @@ private fun TasksScreen(db: TasksDatabase) {
                         }
                     }
                 }
+                if (view != "Trash") {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${batchIds.size} selected", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = {
+                            if (visible.size <= 200) {
+                                selectedTaskIds.clear()
+                                selectedTaskIds.addAll(visible.map { it.id })
+                            } else error = "Select at most 200 tasks; narrow the view first."
+                        }) { Text("Select visible") }
+                        TextButton(onClick = { selectedTaskIds.clear() },
+                            enabled = batchIds.isNotEmpty()) { Text("Clear") }
+                    }
+                    if (batchIds.isNotEmpty()) {
+                        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { applyBulk("complete") }) { Text("Complete") }
+                            OutlinedButton(onClick = { applyBulk("reopen") }) { Text("Reopen") }
+                            Box {
+                                OutlinedButton(onClick = { bulkPriorityMenu = true }) {
+                                    Text("P$bulkPriority ▾")
+                                }
+                                DropdownMenu(expanded = bulkPriorityMenu,
+                                    onDismissRequest = { bulkPriorityMenu = false }) {
+                                    (1..4).forEach { level ->
+                                        DropdownMenuItem(text = { Text("P$level") }, onClick = {
+                                            bulkPriority = level
+                                            bulkPriorityMenu = false
+                                        })
+                                    }
+                                }
+                            }
+                            OutlinedButton(onClick = {
+                                applyBulk("priority", bulkPriority.toString())
+                            }) { Text("Apply priority") }
+                            Box {
+                                OutlinedButton(onClick = { bulkProjectMenu = true }) {
+                                    Text(projects.find { it.id == bulkProjectId }?.name ?: "Inbox",
+                                        maxLines = 1)
+                                }
+                                DropdownMenu(expanded = bulkProjectMenu,
+                                    onDismissRequest = { bulkProjectMenu = false }) {
+                                    DropdownMenuItem(text = { Text("Inbox") }, onClick = {
+                                        bulkProjectId = null; bulkProjectMenu = false
+                                    })
+                                    projects.forEach { project ->
+                                        DropdownMenuItem(text = { Text(project.name) }, onClick = {
+                                            bulkProjectId = project.id; bulkProjectMenu = false
+                                        })
+                                    }
+                                }
+                            }
+                            OutlinedButton(onClick = { applyBulk("project", bulkProjectId) }) {
+                                Text("Move to project")
+                            }
+                            OutlinedButton(onClick = { pendingBulkTrash = batchIds.toList() }) {
+                                Text("Move to Trash")
+                            }
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 if (visible.isEmpty()) {
                     Card(
@@ -348,11 +436,25 @@ private fun TasksScreen(db: TasksDatabase) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     if (view != "Trash") {
+                                        Checkbox(
+                                            checked = task.id in batchIds,
+                                            onCheckedChange = { checked ->
+                                                if (checked && task.id !in selectedTaskIds) {
+                                                    if (selectedTaskIds.size < 200) selectedTaskIds.add(task.id)
+                                                    else error = "Selection is limited to 200 tasks."
+                                                } else if (!checked) selectedTaskIds.remove(task.id)
+                                            },
+                                            modifier = Modifier.semantics {
+                                                contentDescription = "Select ${task.title} for bulk actions"
+                                            }
+                                        )
                                         Checkbox(checked = task.completed, onCheckedChange = {
                                             try { db.setCompleted(task.id, it); reload() }
                                             catch (failure: Exception) {
                                                 error = failure.message ?: "Unable to save task."
                                             }
+                                        }, modifier = Modifier.semantics {
+                                            contentDescription = if (task.completed) "Reopen ${task.title}" else "Complete ${task.title}"
                                         })
                                     }
                                     Column(Modifier.weight(1f).padding(start = 5.dp)) {
@@ -397,6 +499,27 @@ private fun TasksScreen(db: TasksDatabase) {
                     }
                 }
             }
+        }
+
+        pendingBulkTrash?.let { original ->
+            AlertDialog(
+                onDismissRequest = { pendingBulkTrash = null },
+                title = { Text("Move ${original.size} tasks to Trash?") },
+                text = { Text("These tasks can be restored individually from local Trash.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (batchIds != original) {
+                            error = "Selection changed; review the tasks and try again."
+                        } else {
+                            applyBulk("trash")
+                        }
+                        pendingBulkTrash = null
+                    }) { Text("Move to Trash") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingBulkTrash = null }) { Text("Cancel") }
+                }
+            )
         }
 
         pendingRestore?.let { snapshot ->

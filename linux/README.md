@@ -60,7 +60,7 @@ across device moves. There is currently no permanent-delete/empty-trash command;
 this is a conservative recovery-first foundation, not a complete lifecycle
 policy. Test the restore operation with synthetic data before relying on it.
 
-The GTK task list also exposes **Overdue** and **Next 7 days** calendar views, an All/P1–P4 priority filter and Smart/Due date/Title sorting. These operate on read-only SQLite queries rather than modifying tasks. The seven-day range means today through day six and works across daylight-saving and year boundaries. See [native parity notes](../docs/NATIVE_VIEW_PARITY.md).
+The GTK task list also exposes **Overdue** and **Next 7 days** calendar views, an All/P1–P4 priority filter, Smart/Due date/Title sorting, and multi-selection with atomic batch complete/reopen/priority/project moves and recoverable Trash transfers. See [native bulk-edit safety](../docs/NATIVE_BULK_OPERATIONS.md). These operate on read-only SQLite queries rather than modifying tasks. The seven-day range means today through day six and works across daylight-saving and year boundaries. See [native parity notes](../docs/NATIVE_VIEW_PARITY.md).
 
 The native GTK interface also exposes **Export JSON** and **Import JSON** file dialogs using the same guarded implementation. It also provides a native **Edit** dialog for task title, priority, due date and project; changes are validated and applied together without clearing completion history. Completion toggles are idempotent: repeating an already-completed state does not rewrite the original completion timestamp stored in portable backups.
 

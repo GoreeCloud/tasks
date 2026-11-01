@@ -130,6 +130,50 @@ class TasksWindow(Adw.ApplicationWindow):
         self.sort_picker.connect("notify::selected", self.on_filter)
         filter_row.append(self.sort_picker)
 
+        # Multi-select actions are intentionally separate from task completion.
+        # FlowBox wraps at narrow native window widths instead of clipping tools.
+        self.selected_task_ids = set()
+        self.visible_task_ids = []
+        bulk = Gtk.FlowBox()
+        bulk.set_selection_mode(Gtk.SelectionMode.NONE)
+        bulk.set_row_spacing(5)
+        bulk.set_column_spacing(8)
+        bulk.set_max_children_per_line(6)
+        content.append(bulk)
+        self.selection_count = Gtk.Label(label="0 selected")
+        bulk.insert(self.selection_count, -1)
+        self.select_visible_button = Gtk.Button(label="Select visible", tooltip_text="Select up to 200 visible tasks")
+        self.select_visible_button.connect("clicked", self.on_select_visible)
+        bulk.insert(self.select_visible_button, -1)
+        clear = Gtk.Button(label="Clear selection")
+        clear.connect("clicked", self.on_clear_selection)
+        bulk.insert(clear, -1)
+        self.bulk_buttons = []
+        for action, label in (("complete", "Complete"), ("reopen", "Reopen")):
+            button = Gtk.Button(label=label)
+            button.connect("clicked", self.on_bulk_action, action, None)
+            self.bulk_buttons.append(button)
+            bulk.insert(button, -1)
+        self.bulk_priority = Gtk.DropDown.new_from_strings(["P1", "P2", "P3", "P4"])
+        self.bulk_priority.set_tooltip_text("Bulk priority destination")
+        bulk.insert(self.bulk_priority, -1)
+        set_priority = Gtk.Button(label="Apply priority")
+        set_priority.connect("clicked", self.on_bulk_priority)
+        self.bulk_buttons.append(set_priority)
+        bulk.insert(set_priority, -1)
+        self.bulk_project = Gtk.DropDown.new_from_strings(["Inbox"])
+        self.bulk_project.set_tooltip_text("Bulk project destination")
+        bulk.insert(self.bulk_project, -1)
+        move = Gtk.Button(label="Move to project")
+        move.connect("clicked", self.on_bulk_project)
+        self.bulk_buttons.append(move)
+        bulk.insert(move, -1)
+        trash = Gtk.Button(label="Move to Trash")
+        trash.add_css_class("destructive-action")
+        trash.connect("clicked", self.on_bulk_trash)
+        self.bulk_buttons.append(trash)
+        bulk.insert(trash, -1)
+
         self.message = Gtk.Label(xalign=0)
         self.message.add_css_class("dim-label")
         self.message.set_wrap(True)
@@ -154,6 +198,8 @@ class TasksWindow(Adw.ApplicationWindow):
         names = ["Inbox"] + [project["name"] for project in self.projects]
         self.project_picker.set_model(Gtk.StringList.new(names))
         self.project_picker.set_selected(ids.index(selected_id) if selected_id in ids else 0)
+        self.bulk_project.set_model(Gtk.StringList.new(names))
+        self.bulk_project.set_selected(0)
 
     def selected_project_id(self):
         position = self.project_picker.get_selected()
@@ -234,10 +280,12 @@ class TasksWindow(Adw.ApplicationWindow):
             self.message.set_text(str(error))
 
     def on_filter(self, *args):
+        self.selected_task_ids.clear()
         self.refresh()
 
     def on_project_change(self, *args):
         if self.view_names[self.view.get_selected()] == "Project":
+            self.selected_task_ids.clear()
             self.refresh()
 
     def refresh(self):
@@ -256,6 +304,8 @@ class TasksWindow(Adw.ApplicationWindow):
                 priority_filter=(None, 1, 2, 3, 4)[self.priority_filter.get_selected()],
                 sort_by=("Smart", "Due date", "Title")[self.sort_picker.get_selected()]
             )
+        self.visible_task_ids = [task["id"] for task in tasks] if view != "Trash" else []
+        self.selected_task_ids.intersection_update(self.visible_task_ids)
         if not tasks:
             empty = Adw.ActionRow(
                 title="Trash is empty" if view == "Trash" else "All clear here",
@@ -278,6 +328,14 @@ class TasksWindow(Adw.ApplicationWindow):
                 row.add_suffix(restore)
                 self.list_box.append(row)
                 continue
+            selection = Gtk.CheckButton()
+            selection.set_active(task["id"] in self.selected_task_ids)
+            selection.set_valign(Gtk.Align.CENTER)
+            selection.update_property([Gtk.AccessibleProperty.LABEL], [
+                "Select " + task["title"] + " for bulk actions"
+            ])
+            selection.connect("toggled", self.on_select_task, task["id"])
+            row.add_prefix(selection)
             checkbox = Gtk.CheckButton()
             checkbox.set_active(bool(task["completed"]))
             checkbox.set_valign(Gtk.Align.CENTER)
@@ -297,10 +355,85 @@ class TasksWindow(Adw.ApplicationWindow):
             delete.connect("clicked", self.on_delete, task["id"])
             row.add_suffix(delete)
             self.list_box.append(row)
+        self.update_selection_ui()
         count = len(self.store.list_tasks())
         self.footer.set_text(
             f"{count} open task{'s' if count != 1 else ''} · Native Linux · Device-local SQLite · No sync"
         )
+
+    def update_selection_ui(self):
+        count = len(self.selected_task_ids)
+        self.selection_count.set_text(f"{count} selected")
+        active = self.view_names[self.view.get_selected()] != "Trash"
+        self.select_visible_button.set_sensitive(active and bool(self.visible_task_ids))
+        for button in self.bulk_buttons:
+            button.set_sensitive(active and count > 0)
+
+    def on_select_task(self, checkbox, task_id):
+        if checkbox.get_active():
+            if len(self.selected_task_ids) >= 200:
+                checkbox.set_active(False)
+                self.message.set_text("A bulk selection is limited to 200 tasks.")
+                return
+            self.selected_task_ids.add(task_id)
+        else:
+            self.selected_task_ids.discard(task_id)
+        self.update_selection_ui()
+
+    def on_select_visible(self, _button):
+        if len(self.visible_task_ids) > 200:
+            self.message.set_text("Select at most 200 tasks; narrow the view first.")
+            return
+        self.selected_task_ids = set(self.visible_task_ids)
+        self.refresh()
+
+    def on_clear_selection(self, _button):
+        self.selected_task_ids.clear()
+        self.refresh()
+
+    def on_bulk_action(self, _button, action, value):
+        try:
+            # The SQLite layer checks the selection again within one transaction.
+            count = self.store.bulk_edit_tasks(sorted(self.selected_task_ids), action, value)
+            self.selected_task_ids.clear()
+            self.message.set_text(f"Updated {count} tasks locally.")
+            self.refresh()
+        except (ValueError, sqlite3.Error, OSError) as error:
+            self.message.set_text(f"Bulk action failed; no changes committed: {error}")
+
+    def on_bulk_priority(self, button):
+        self.on_bulk_action(button, "priority", self.bulk_priority.get_selected() + 1)
+
+    def on_bulk_project(self, button):
+        choices = [None] + [item["id"] for item in self.projects]
+        selected = self.bulk_project.get_selected()
+        if selected >= len(choices):
+            self.message.set_text("Project list changed; reselect a destination.")
+            return
+        self.on_bulk_action(button, "project", choices[selected])
+
+    def on_bulk_trash(self, _button):
+        if not self.selected_task_ids:
+            return
+        dialog = Adw.AlertDialog.new(
+            f"Move {len(self.selected_task_ids)} selected tasks to Trash?",
+            "The entire selection can be restored individually from local Trash."
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("trash", "Move to Trash")
+        dialog.set_response_appearance("trash", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", self.on_bulk_trash_response, sorted(self.selected_task_ids))
+        dialog.present(self)
+
+    def on_bulk_trash_response(self, _dialog, response, original_ids):
+        if response != "trash":
+            return
+        if set(original_ids) != self.selected_task_ids:
+            self.message.set_text("Selection changed; please review it and retry.")
+            return
+        self.on_bulk_action(None, "trash", None)
 
     def on_toggle(self, checkbox, task_id):
         try:

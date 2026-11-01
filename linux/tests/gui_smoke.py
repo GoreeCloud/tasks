@@ -73,6 +73,35 @@ def main():
             assert restored["project_id"] == project
             assert restored["created_at"] == created_at
             assert window.store.list_deleted_tasks() == []
+            # Exercise real GTK multi-selection and SQLite-backed actions.
+            window.update_projects()
+            window.view.set_selected(window.view_names.index("Open"))
+            extra = window.store.add_task("Second synthetic task", priority=4)
+            window.refresh()
+            window.on_select_visible(None)
+            selected = sorted(window.selected_task_ids)
+            assert len(selected) == 2 and extra in selected
+            window.bulk_priority.set_selected(1)
+            window.on_bulk_priority(None)
+            assert all(row["priority"] == 2 for row in window.store.list_tasks(view="Open"))
+            window.on_select_visible(None)
+            window.bulk_project.set_selected(1)
+            window.on_bulk_project(None)
+            assert all(row["project_id"] == project for row in window.store.list_tasks(view="Open"))
+            window.on_select_visible(None)
+            window.on_bulk_action(None, "complete", None)
+            assert not window.store.list_tasks(view="Open")
+            window.view.set_selected(window.view_names.index("Completed"))
+            window.on_select_visible(None)
+            assert len(window.selected_task_ids) == 2
+            window.on_bulk_action(None, "reopen", None)
+            window.view.set_selected(window.view_names.index("Open"))
+            window.on_select_visible(None)
+            to_trash = sorted(window.selected_task_ids)
+            window.on_bulk_trash_response(None, "trash", to_trash)
+            assert not window.store.list_tasks(view="All")
+            assert len(window.store.list_deleted_tasks()) == 2
+            print("GTK4_LIBADWAITA_BULK_TASK_OPERATIONS_SMOKE_PASS")
             print("GTK4_LIBADWAITA_TASK_EDIT_AND_TRASH_RECOVERY_SMOKE_PASS")
         finally:
             window.close()

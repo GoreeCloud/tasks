@@ -59,6 +59,71 @@ class RestoreDatabaseTest {
             android.database.DatabaseUtils.queryNumEntries(database, "projects")
     }
 
+
+    @Test fun atomicBulkActionsPreserveMetadataAndMoveToRecoverableTrash() {
+        val source = snapshot()
+        db.restorePortableBackup(source)
+        assertEquals(2, db.bulkEdit(listOf("task-1", "task-2"), "complete"))
+        val completed = PortableRestore.parse(db.exportPortableBackup()).tasks
+        assertTrue(completed.all { it.completed })
+        val existingTimestamp = completed.single { it.id == "task-2" }.completedAtExact
+        db.bulkEdit(listOf("task-1", "task-2"), "complete")
+        assertEquals(existingTimestamp, PortableRestore.parse(db.exportPortableBackup())
+            .tasks.single { it.id == "task-2" }.completedAtExact)
+        assertEquals(2, db.bulkEdit(listOf("task-1", "task-2"), "priority", "1"))
+        assertTrue(db.listTasks().all { it.priority == 1 })
+        db.bulkEdit(listOf("task-1", "task-2"), "project", "project-1")
+        assertTrue(db.listTasks().all { it.projectId == "project-1" })
+        db.bulkEdit(listOf("task-1", "task-2"), "project", null)
+        db.bulkEdit(listOf("task-1", "task-2"), "reopen")
+        assertTrue(db.listTasks().all { !it.completed && it.projectId == null })
+        db.bulkEdit(listOf("task-1", "task-2"), "trash")
+        assertTrue(db.listTasks().isEmpty())
+        assertEquals(setOf("task-1", "task-2"), db.listDeletedTasks().map { it.id }.toSet())
+        db.close()
+        db = TasksDatabase(context)
+        assertEquals(2, db.listDeletedTasks().size)
+        assertTrue(db.restoreDeletedTask("task-1"))
+        assertTrue(db.restoreDeletedTask("task-2"))
+        assertEquals(2, db.listTasks().size)
+    }
+
+    @Test fun invalidBulkActionsAndCollisionsRollbackEveryRow() {
+        db.restorePortableBackup(snapshot())
+        val source = PortableRestore.parse(db.exportPortableBackup())
+        val invalid = listOf(
+            Triple(emptyList<String>(), "complete", null),
+            Triple(listOf("task-1", "task-1"), "complete", null),
+            Triple(listOf("task-1", "absent"), "complete", null),
+            Triple(listOf("task-1", "task-2"), "priority", "9"),
+            Triple(listOf("task-1", "task-2"), "project", "absent"),
+            Triple(listOf("task-1", "task-2"), "unknown", null),
+            Triple(listOf("task-1", "task-2"), "complete", "extra"),
+            Triple(List(201) { "synthetic-$it" }, "complete", null)
+        )
+        for ((ids, action, value) in invalid) {
+            try {
+                db.bulkEdit(ids, action, value)
+                throw AssertionError("Invalid batch was accepted: $action")
+            } catch (_: IllegalArgumentException) { }
+            assertEquals(source, PortableRestore.parse(db.exportPortableBackup()))
+        }
+        // An existing Trash ID for the second item triggers a mid-batch SQL
+        // exception. The earlier transfer must be rolled back.
+        db.writableDatabase.execSQL(
+            "INSERT INTO deleted_tasks (id,title,priority,completed,created_at,deleted_at) " +
+                "VALUES (?,?,?,?,?,?)",
+            arrayOf("task-2", "Older Trash", 4, 0, System.currentTimeMillis(),
+                System.currentTimeMillis())
+        )
+        try {
+            db.bulkEdit(listOf("task-1", "task-2"), "trash")
+            throw AssertionError("Trash collision was not detected")
+        } catch (_: SQLiteConstraintException) { }
+        assertEquals(source, PortableRestore.parse(db.exportPortableBackup()))
+        assertEquals(listOf("task-2"), db.listDeletedTasks().map { it.id })
+    }
+
     @Test fun sharedPortableFixtureRestoresAndExportsExactSourceMetadata() {
         val source = PortableRestore.parse(PortableFixture.read())
         db.restorePortableBackup(source)

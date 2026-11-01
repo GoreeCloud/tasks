@@ -29,4 +29,4 @@ git diff --check
 
 New regression coverage exercises date-boundary views, priority/sort combinations, all-or-nothing edits, stale IDs, completion history and portable backup round trips. Static UI contract tests verify required element IDs, uniqueness and shortcut controls.
 
-**Pending for acceptance:** real browser interaction and keyboard/screen-reader checks, responsive zoom/RTL/contrast evaluation, native client feature parity and Android physical-device acceptance. Main-branch CI was green at last review; the feature-branch CI must still run. Avoid claiming release readiness based on source/test results alone.
+**Pending for acceptance:** real browser interaction and keyboard/screen-reader checks, responsive zoom/RTL/contrast evaluation, comprehensive native client feature parity and Android physical-device acceptance. Initial browser and date-view parity passed CI in [run 41338368516](https://github.com/GoreeCloud/tasks/actions/runs/41338368516); additional native bulk actions require their own CI run. No release assertion follows from these tests. Avoid claiming release readiness based on source/test results alone.

@@ -25,7 +25,7 @@ The native Trash screens deliberately ignore task priority/sort filters and pres
 ## Verification
 
 - Linux: `python3 -m unittest discover -s linux/tests -q`, Python syntax compilation, and `xvfb-run -a /usr/bin/python3 linux/tests/gui_smoke.py`.
-- Android: pure Kotlin regression tests in `TaskViewsTest.kt`; run `gradle -p android :app:testDebugUnitTest :app:assembleDebug --no-daemon` in GitHub Actions. The development laptop has no Gradle executable, so successful CI is required before considering Android compiled.
+- Android: pure Kotlin regression tests in `TaskViewsTest.kt`; Android Gradle unit tests and debug APK verification passed in [run 41338368516](https://github.com/GoreeCloud/tasks/actions/runs/41338368516) for the view parity commit. The development laptop has no Gradle executable; newer changes require fresh CI.
 - Browser regression suite continues to run in GitHub Actions. Native and browser accessibility, zoom and physical-device acceptance remain pending.
 
 No Stable release assertion or Todoist migration is permitted from these changes alone.

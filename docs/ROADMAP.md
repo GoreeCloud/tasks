@@ -8,7 +8,7 @@
 - [x] Device-local task creation, completion, reopening, deletion, and P1–P4 priorities in all three clients (source implemented; verification tracked separately).
 - [x] Web inbox/project creation, date entry, search, completed history, themes, validated JSON export/restore and stale-tab write protection (source; comprehensive recovery validation pending).
 - [x] Web native HTML edit dialog for title, priority, due date and project using shared create/edit validation, preserved completion metadata and stale-tab write gate; pure field and backup round-trip tests (browser visual acceptance pending).
-- [x] Web productivity dashboard: source for Overdue and Next 7 days views, priority filter, sorting, selected-visible-task bulk complete/reopen/priority/project/Trash operations, completion-rate metric, keyboard shortcuts and responsive GC UI controls; browser model and static UI tests added. No schema changes or new cross-client capabilities; human browser/AT acceptance pending.
+- [x] Web productivity dashboard: Overdue and Next 7 days views, priority filtering, sorting, bulk complete/reopen/priority/project/Trash operations, completion-rate metric, keyboard shortcuts and responsive GC UI controls; browser model and static UI tests added. Schema 1 retained; human browser/AT acceptance pending.
 - [x] Web durable local Trash with native browser Restore view and latest-deletion shortcut: backward-compatible legacy schema-1 read, atomic same-key active/Trash updates, strict persisted record validation and 1,000-record/3 MiB limits, exact completion history, orphan-reference/ID-collision protections, and restart/regression tests. Portable JSON exports exclude Trash. True concurrent-tab transactional writes remain pending.
 - [x] Linux GTK and Android Compose projects (source).
 - [x] Linux project creation/assignment, task view filters, due date capture and local search (source; GUI and device validation pending).
@@ -29,7 +29,8 @@
 - [ ] Verify all platform builds and runtime operation, fix defects, audit accessibility and GC UI appearance.
 - [ ] Desktop packaging, Android device validation, and standalone APK handoff if requested.
 
-- [x] Additional native Linux and Android UI source for Overdue/Next 7 days views, P1–P4 priority filtering, and Smart/Due date/Title sorting. Existing native data schema and backups unchanged. Linux unit and GTK runtime smoke covered; Android JVM/CI compilation and real-device UI acceptance remain separate gates. See [native view parity](NATIVE_VIEW_PARITY.md).
+- [x] Additional native Linux and Android UI source for Overdue/Next 7 days views, P1–P4 priority filtering, and Smart/Due date/Title sorting. Existing native data schema and backups unchanged. Linux unit and GTK runtime smoke covered and previous Android CI succeeded; real-device UI acceptance remains pending. See [native view parity](NATIVE_VIEW_PARITY.md).
+- [x] Native Linux and Android batch-edit source: select visible tasks and apply complete/reopen, P1–P4, project/Inbox move or confirmed recoverable Trash in a single validated SQLite transaction; rejects stale/duplicate IDs and rolls back on Trash collisions. Linux unit and GTK smoke validation added; Android Robolectric/CI must pass at this commit, device accessibility pending. See [native bulk operations](NATIVE_BULK_OPERATIONS.md).
 
 ## B. Personal productivity
 

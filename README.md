@@ -16,7 +16,7 @@ GoreeCloud Tasks is a privacy-minded, original task-management product for perso
 | Views and task filters | Inbox, Today, Next 7 days, Overdue, Upcoming, Priority, All, Completed | Open, Today, Next 7 days, Overdue, Upcoming, Priority, Completed, Project | Open, Today, Next 7 days, Overdue, Upcoming, Priority, Completed, Project |
 | Projects | Create and assign tasks | Create and assign tasks | Create and assign tasks |
 | Priority filter / sorting | All/P1–P4; Smart/Due date/Newest/Title | All/P1–P4; Smart/Due date/Title | All/P1–P4; Smart/Due date/Title |
-| Bulk actions | Visible-task selection, complete/reopen, priority, project moves, local Trash | Not implemented | Not implemented |
+| Bulk actions | Visible-task selection, complete/reopen, priority, project moves, local Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash | Native visible-task multi-select; complete/reopen/priority/project/Trash |
 | Keyboard workflow | / search, N quick add, skip-to-content link | Not part of this change | Not part of this change |
 | Due dates | Date entry and views | Date entry and filtered views | Native date picker and filtered views |
 | Search / task editing | Search and dialog for title, priority, due date and project | Native search and task edit dialog | Native search and task editing (device acceptance pending) |
@@ -46,7 +46,7 @@ Install Python 3 with PyGObject, GTK4 and libadwaita from the Linux distribution
 python3 linux/app.py
 ```
 
-Linux now supports native Overdue and Next 7 days views, a priority filter and sort options without changing its SQLite schema. These are local-only view changes, not shared-device state. See [native view parity and remaining acceptance](docs/NATIVE_VIEW_PARITY.md).
+Linux now supports native Overdue and Next 7 days views, priority and sorting filters, plus atomic multi-select bulk completion, reopening, reprioritization, project moves and recoverable Trash transfers. The native SQLite schema remains unchanged. See [native view parity and remaining acceptance](docs/NATIVE_VIEW_PARITY.md).
 
 For user-local desktop integration without sudo, see [Linux install/uninstall](linux/README.md). The source installer preserves device data on uninstall and has an isolated installation smoke test.
 
@@ -83,7 +83,7 @@ or end-user delivery. Artifact retention is seven days.
 
 An Android APK is **not considered delivered** by its appearance in local build output or GitHub Actions artifacts. Any actual APK delivered to the owner must be inspected, extracted as a standalone `.apk`, and uploaded to the existing Google Drive `GoreeCloud/Artifacts` folder, with provenance and readback, as required by GoreeCloud governance.
 
-The Android Compose client now exposes Overdue, Next 7 days, priority filtering and sorting, using native task filtering without changing stored tasks. These additions require successful Android CI compilation and device acceptance; see [native view parity](docs/NATIVE_VIEW_PARITY.md).
+The Android Compose client exposes Overdue, Next 7 days, priority filters, sorting, and selected-visible-task bulk completion/reopening, reprioritization, project/Inbox moves and confirmed recoverable Trash. These changes preserve the existing SQLite schema and portable JSON. The date-view/filter upgrade passed Android CI; the new native bulk operations require their own CI and physical-device acceptance. See [native views](docs/NATIVE_VIEW_PARITY.md) and [native bulk operations](docs/NATIVE_BULK_OPERATIONS.md).
 
 ## Experimental local API
 
@@ -123,6 +123,7 @@ GitHub Actions builds the Android debug variant separately. A build result does 
 - `docs/ROADMAP.md` — staged path to the requested capability catalog.
 - `docs/WEB_PRODUCTIVITY_UPGRADE.md` — browser-only productivity controls and acceptance gaps.
 - `docs/NATIVE_VIEW_PARITY.md` — native due-date views and priority/sort UI with verification boundaries.
+- `docs/NATIVE_BULK_OPERATIONS.md` — native transactional multi-selection and recoverable batch actions.
 - `.github/workflows/verify.yml` — model tests, Python checks, Android build.
 
 ## Design, governance, and ownership
