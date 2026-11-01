@@ -24,6 +24,8 @@ sh linux/uninstall.sh
 sh linux/tests/test_install.sh
 ```
 
+The installer includes the native `theme.py` appearance module alongside the GTK application. The isolated installation test checks its presence and checks removal when uninstalling; appearance preferences live separately in the private XDG config location and remain preserved when application files are uninstalled.
+
 The installer copies the native application into `$XDG_DATA_HOME/goreecloud-tasks/application` (or `~/.local/share/goreecloud-tasks/application`), creates a launcher under `~/.local/bin` and a desktop entry and icon in XDG user-local locations. It does not require sudo or install dependencies.
 
 The application creates task database files with private permissions (0600) and rejects symlinked database paths. The default XDG task directory is restricted to the owner (0700).

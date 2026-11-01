@@ -8,6 +8,8 @@ The default is **Light + Neutral** rather than OS-Dark or Iris violet. Each of t
 
 **Android:** `TasksTheme.kt` maps the same GC UI role pairs to Compose. Explicit choices live in device-private SharedPreferences, not task SQLite. **Linux:** `theme.py` stores validated preferences in a private, atomically written XDG config file and applies libadwaita Light/Dark schemes with theme-specific GTK CSS.
 
+**Linux packaging:** The user-local installer now copies `theme.py` alongside the native GTK code, and the uninstall flow removes only application source files while retaining local data/preferences. CI's isolated install/uninstall smoke checks the included module.
+
 **Verification:** Run `node --test web/*.test.mjs`, `python3 -m unittest discover -s linux/tests -q`, `xvfb-run -a /usr/bin/python3 linux/tests/gui_smoke.py`, and GitHub Actions Android Gradle tests/build. Theme-specific tests cover defaults, valid choices, persistence, invalid preferences and refusal of symlinked Linux configuration. The GTK smoke uses a disposable data/config profile.
 
 **Boundaries:** No new task fields, portable backup schema, storage migration, network permissions, synchronization or deployment. Visual, high-contrast, zoom/reflow, keyboard, screen-reader, Android-device theme persistence and all-platform preference acceptance remain open. Native accent preferences are device-local and do not sync.

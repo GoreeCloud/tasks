@@ -18,11 +18,11 @@ jobs:
         with:
           node-version: '24'
       - name: Web model tests
-        run: node --check web/app.mjs && node --test web/*.test.mjs
+        run: node --check web/app.mjs && node --check web/theme-bootstrap.js && node --test web/*.test.mjs
       - name: Python store tests
         run: python3 -m unittest discover -s linux/tests -v
       - name: Compile Python syntax
-        run: python3 -m py_compile linux/app.py linux/store.py linux/backup.py linux/tests/gui_smoke.py
+        run: python3 -m py_compile linux/app.py linux/store.py linux/theme.py linux/backup.py linux/tests/gui_smoke.py linux/tests/test_theme.py
       - name: Install native GTK test libraries
         run: |
           sudo apt-get update -qq
