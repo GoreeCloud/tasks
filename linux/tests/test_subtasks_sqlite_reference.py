@@ -30,7 +30,9 @@ class TransactionReferenceTests(unittest.TestCase):
         self.assertEqual(len(ids), 3)
         self.assertEqual(self.repository.workspace()["tasks"], [])
         self.assertEqual(len(self.repository.trash()), 3)
+        self.assertEqual(len(self.repository.manifests()["whole"]["memberIds"]), 3)
         self.repository.restore_group("whole")
+        self.assertEqual(self.repository.manifests(), {})
         self.assertEqual(self.repository.workspace(), self.fixture)
         self.assertEqual(self.repository.trash(), [])
 
@@ -54,6 +56,7 @@ class TransactionReferenceTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.repository.delete_subtree("task-notes", WHEN, "whole")
         self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
+        self.assertEqual(self.repository.manifests(), {})
 
     def test_mid_restore_sqlite_fault_rolls_back_all_rows(self):
         self.repository.delete_subtree("task-notes", WHEN, "whole")
@@ -66,6 +69,86 @@ class TransactionReferenceTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.repository.restore_group("whole")
         self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
+        self.assertIn("whole", self.repository.manifests())
+
+    def test_missing_leaf_with_forged_group_counts_cannot_restore(self):
+        self.repository.delete_subtree("task-notes", WHEN, "whole")
+        manifest = deepcopy(self.repository.manifests()["whole"])
+        self.db.execute("DELETE FROM proposed_trash WHERE id='task-grandchild'")
+        self.db.execute("UPDATE proposed_trash SET group_size=2 WHERE group_id='whole'")
+        self.db.commit()
+        before = deepcopy((self.repository.workspace(), self.repository.trash()))
+        with self.assertRaises(BackupError):
+            self.repository.restore_group("whole")
+        self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
+        self.assertEqual(self.repository.manifests()["whole"], manifest)
+
+    def test_interdependent_groups_restore_only_after_missing_parent_returns(self):
+        self.repository.delete_subtree("task-empty-notes", WHEN, "child")
+        self.repository.delete_subtree("task-notes", WHEN, "root")
+        self.assertEqual(set(self.repository.manifests()), {"child", "root"})
+        before = deepcopy((self.repository.workspace(), self.repository.trash(),
+                           self.repository.manifests()))
+        with self.assertRaises(BackupError):
+            self.repository.restore_group("child")
+        self.assertEqual((self.repository.workspace(), self.repository.trash(),
+                          self.repository.manifests()), before)
+        self.repository.restore_group("root")
+        self.repository.restore_group("child")
+        self.assertEqual(self.repository.workspace(), self.fixture)
+        self.assertEqual(self.repository.trash(), [])
+        self.assertEqual(self.repository.manifests(), {})
+
+    def test_missing_independent_group_manifest_refuses_restore(self):
+        self.repository.delete_subtree("task-notes", WHEN, "whole")
+        before = deepcopy((self.repository.workspace(), self.repository.trash()))
+        from unittest.mock import patch
+        with patch.object(self.repository, "manifests", return_value={}):
+            with self.assertRaises(BackupError):
+                self.repository.restore_group("whole")
+        self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
+
+    def test_corrupted_independent_manifest_cannot_change_restore_state(self):
+        self.repository.delete_subtree("task-notes", WHEN, "whole")
+        before = deepcopy((self.repository.workspace(), self.repository.trash(), self.repository.manifests()))
+        tampered = deepcopy(self.repository.manifests())
+        tampered["whole"]["groupRootId"] = "different-root"
+        from unittest.mock import patch
+        with patch.object(self.repository, "manifests", return_value=tampered):
+            with self.assertRaises(BackupError):
+                self.repository.restore_group("whole")
+        self.assertEqual((self.repository.workspace(), self.repository.trash(), self.repository.manifests()), before)
+
+    def test_manifest_finalization_failure_rolls_back_entire_restore(self):
+        self.repository.delete_subtree("task-notes", WHEN, "whole")
+        self.db.execute("""
+            CREATE TRIGGER reject_manifest_cleanup BEFORE DELETE ON proposed_manifests
+            BEGIN SELECT RAISE(ABORT,'simulated recovery metadata failure'); END
+        """)
+        before = deepcopy((self.repository.workspace(), self.repository.trash(),
+                           self.repository.manifests()))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.repository.restore_group("whole")
+        self.assertEqual((self.repository.workspace(), self.repository.trash(),
+                          self.repository.manifests()), before)
+
+    def test_sqlite_snapshot_copy_retains_independent_group_manifest(self):
+        self.repository.delete_subtree("task-notes", WHEN, "whole")
+        snapshot = sqlite3.connect(":memory:")
+        try:
+            self.db.backup(snapshot)
+            recovered = InMemorySubtreeReference(snapshot)
+            self.assertEqual(recovered.manifests(), self.repository.manifests())
+            self.assertEqual(recovered.trash(), self.repository.trash())
+            recovered.restore_group("whole")
+            self.assertEqual(recovered.workspace(), self.fixture)
+            self.assertEqual(recovered.trash(), [])
+            self.assertEqual(recovered.manifests(), {})
+            # An independent snapshot must not mutate the source connection.
+            self.assertEqual(len(self.repository.trash()), 3)
+            self.assertIn("whole", self.repository.manifests())
+        finally:
+            snapshot.close()
 
     def test_rejects_disk_database_before_creating_any_tables(self):
         with tempfile.TemporaryDirectory() as folder:
