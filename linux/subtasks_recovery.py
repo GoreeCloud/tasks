@@ -85,6 +85,25 @@ def plan_subtree_restore(workspace, trash, group_id):
     ids = [entry["task"].get("id") for entry in group]
     if len(set(ids)) != len(ids) or first.get("groupRootId") not in ids:
         raise BackupError("Recovery group has duplicate or missing roots")
+    # A complete recovery group must be one connected subtree of its declared
+    # root. Count parity alone could otherwise hide a swapped unrelated task.
+    group_ids = set(ids)
+    root_id = first["groupRootId"]
+    if any(entry["deletedAt"] != first["deletedAt"] for entry in group) or any(
+        entry["task"]["parentId"] not in group_ids
+        for entry in group if entry["task"]["id"] != root_id
+    ):
+        raise BackupError("Recovery group is not one intact subtree")
+    parents = {entry["task"]["id"]: entry["task"]["parentId"] for entry in group}
+    for tid in group_ids - {root_id}:
+        seen = set()
+        current = tid
+        while current != root_id:
+            if current in seen or current not in parents:
+                raise BackupError("Recovery group contains an unrelated task or cycle")
+            seen.add(current)
+            current = parents[current]
+
     active = {task["id"] for task in workspace["tasks"]}
     if any(tid in active for tid in ids) or any(
         type(entry) is dict and entry.get("groupId") != group_id and

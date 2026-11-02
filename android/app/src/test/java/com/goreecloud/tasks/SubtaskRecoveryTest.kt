@@ -57,6 +57,28 @@ class SubtaskRecoveryTest {
         } catch (_: IllegalArgumentException) { }
     }
 
+    @Test fun matchingGroupCountsCannotHideUnrelatedTaskOrMixedTimestamps() {
+        val plan = SubtaskRecovery.planDelete(fixture(), emptyList(),
+            "task-notes", deletionTime, "group-integrity")
+        val swapped = plan.trash.map { JSONObject(it.toString()) }
+        val foreign = swapped.single { it.getJSONObject("task").getString("id") == "task-grandchild" }
+            .getJSONObject("task")
+        foreign.put("id", "unrelated-root")
+        foreign.put("parentId", JSONObject.NULL)
+        try {
+            SubtaskRecovery.planRestore(plan.workspace, swapped, "group-integrity")
+            fail("Substituted unrelated task was accepted")
+        } catch (_: IllegalArgumentException) { }
+        val mixed = plan.trash.map { JSONObject(it.toString()) }
+        mixed[1].put("deletedAt", "2026-11-03T14:00:00Z")
+        try {
+            SubtaskRecovery.planRestore(plan.workspace, mixed, "group-integrity")
+            fail("Mismatched deletion times were accepted")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(3, SubtaskRecovery.planRestore(
+            plan.workspace, plan.trash, "group-integrity").workspace.getJSONArray("tasks").length())
+    }
+
     @Test fun duplicateGroupMissingRootAndInvalidDatesRefuseDeletion() {
         val source=fixture()
         fun refuses(root: String, whenDate: String, group: String, trash: List<JSONObject>) {

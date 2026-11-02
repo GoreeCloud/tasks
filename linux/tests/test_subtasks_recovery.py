@@ -58,6 +58,20 @@ class PreviewRecoveryTests(unittest.TestCase):
                     plan_subtree_restore(workspace, trash, "child")
                 self.assertEqual((workspace, trash), before)
 
+    def test_equal_size_group_cannot_contain_unrelated_root_or_mixed_times(self):
+        planned = plan_subtree_trash(self.original, [], "task-notes", WHEN, "guard")
+        swapped = deepcopy(planned["trash"])
+        unrelated = next(entry for entry in swapped if entry["task"]["id"] == "task-grandchild")
+        unrelated["task"]["id"] = "unrelated-root"
+        unrelated["task"]["parentId"] = None
+        with self.assertRaises(BackupError):
+            plan_subtree_restore(planned["workspace"], swapped, "guard")
+        mixed = deepcopy(planned["trash"])
+        mixed[1]["deletedAt"] = "2026-11-03T14:00:00Z"
+        with self.assertRaises(BackupError):
+            plan_subtree_restore(planned["workspace"], mixed, "guard")
+        self.assertEqual(len(plan_subtree_restore(planned["workspace"], planned["trash"], "guard")["workspace"]["tasks"]), 3)
+
     def test_bad_timestamp_group_capacity_and_stale_id_rejected(self):
         for root, when, group, trash in (
             ("missing", WHEN, "new", []),

@@ -56,6 +56,8 @@
 
 - [ ] Schema-4 subtask preflight: pure graph validators for browser/Linux/Android and browser, Linux and Android pure atomic subtree Trash/restore planning tests added. **Not integrated into client storage or UI.** Native group transaction and release validation remain open; [design and guards](SUBTASKS_SCHEMA4_DESIGN.md).
 
+- [x] Offline subtask recovery preflight: proposed v4 graph validators, browser/Linux/Android pure subtree Trash plans, **structural group-integrity rejection**, and isolated disposable SQLite fault-injection tests. These are not connected to native storage or task UI. See [subtask design](SUBTASKS_SCHEMA4_DESIGN.md) and [issue #6](https://github.com/GoreeCloud/tasks/issues/6).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

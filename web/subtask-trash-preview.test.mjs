@@ -67,3 +67,17 @@ test('invalid or reused group IDs, capacity, tampered graph and stale IDs abort 
     'task-notes',date,'new');
   assert.equal(JSON.stringify(original),before);
 });
+
+test('recovery rejects substituted unrelated roots and mixed deletion times despite matching group size',()=>{
+  const moved=planSubtreeTrash(fixture(),[],'task-notes',date,'group-integrity');
+  const unrelated=structuredClone(moved.trash);
+  const swapped=unrelated.find(entry=>entry.task.id==='task-grandchild');
+  swapped.task.id='unrelated-root';
+  swapped.task.parentId=null;
+  assert.equal(unrelated.length,3);
+  assert.throws(()=>planSubtreeRestore(moved.workspace,unrelated,'group-integrity'),/intact subtree|unrelated/);
+  const mixed=structuredClone(moved.trash);
+  mixed[1].deletedAt='2026-11-03T14:00:00Z';
+  assert.throws(()=>planSubtreeRestore(moved.workspace,mixed,'group-integrity'),/intact subtree/);
+  assert.equal(planSubtreeRestore(moved.workspace,moved.trash,'group-integrity').workspace.tasks.length,3);
+});

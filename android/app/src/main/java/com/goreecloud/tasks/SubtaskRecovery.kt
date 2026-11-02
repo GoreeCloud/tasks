@@ -123,6 +123,28 @@ internal object SubtaskRecovery {
         require(distinct.size == ids.size && root in distinct) {
             "Duplicate or missing recovery roots"
         }
+        // Group metadata must describe one connected subtree, not just N rows.
+        val groupIds = distinct
+        val parents = group.associate { entry ->
+            val task = entry.getJSONObject("task")
+            task.getString("id") to (task.opt("parentId") as? String)
+        }
+        require(group.all { entry ->
+            val task = entry.getJSONObject("task")
+            entry.getString("deletedAt") == first.getString("deletedAt") &&
+                (task.getString("id") == root ||
+                    (task.opt("parentId") as? String) in groupIds)
+        }) { "Recovery group is not one intact subtree" }
+        for (id in groupIds) {
+            if (id == root) continue
+            var current = id
+            val seen = mutableSetOf<String>()
+            while (current != root) {
+                require(seen.add(current)) { "Recovery group contains a cycle" }
+                current = parents[current]
+                    ?: throw IllegalArgumentException("Recovery group includes an unrelated task")
+            }
+        }
         val active = tasks(workspace).mapTo(HashSet()) { it.getString("id") }
         require(distinct.none { it in active } &&
             trash.none { entry -> entry.optString("groupId") != groupId &&

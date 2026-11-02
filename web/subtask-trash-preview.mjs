@@ -72,6 +72,26 @@ export function planSubtreeRestore(workspace, trash, groupId) {
   if (ids.size !== group.length || !ids.has(first.groupRootId)) {
     throw new Error('Recovery group has duplicate or missing roots.');
   }
+  // A declared group must be exactly one connected subtree; matching counts
+  // alone must not permit a substituted unrelated task or mismatched dates.
+  const root = first.groupRootId;
+  const parents = new Map(group.map(entry => [entry.task.id, entry.task.parentId]));
+  if (group.some(entry => entry.deletedAt !== first.deletedAt ||
+      (entry.task.id !== root && !ids.has(entry.task.parentId)))) {
+    throw new Error('Recovery group is not one intact subtree.');
+  }
+  for (const id of ids) {
+    if (id === root) continue;
+    let current = id;
+    const seen = new Set();
+    while (current !== root) {
+      if (seen.has(current) || !parents.has(current)) {
+        throw new Error('Recovery group includes an unrelated task or cycle.');
+      }
+      seen.add(current);
+      current = parents.get(current);
+    }
+  }
   const active = new Set(workspace.tasks.map(task => task.id));
   if (group.some(entry => active.has(entry.task.id)) ||
       trash.some(entry => entry.groupId !== groupId && ids.has(entry?.task?.id))) {
