@@ -52,6 +52,8 @@
 
 - [x] Exact single-label filtering across browser, native Linux and Android, including recoverable Trash; intersects search, project, priority and completion state without touching persisted schema 3. See [schema-3 label filtering](PORTABLE_SCHEMA3_LABELS.md). CI and physical accessibility acceptance remain separate.
 
+- [ ] First-class hierarchical subtasks: design and failure-mode review started. A proposed schema-4 parent graph, atomic subtree Trash/restore invariants, migration and cross-client acceptance are documented in [subtask schema-4 design](SUBTASKS_SCHEMA4_DESIGN.md). **No schema-4 runtime or UI is implemented.**
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.
