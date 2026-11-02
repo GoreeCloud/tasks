@@ -1,4 +1,4 @@
-import { validUnicodeText } from './model.mjs';
+import { validUnicodeText, checkedDescription, checkedLabels } from './model.mjs';
 /**
  * Browser-local GoreeCloud Tasks backup contract. Pure functions for testability.
  * Deliberately preserves only documented fields; no HTML, keys or credentials.
@@ -44,7 +44,7 @@ export function validateBackupText(raw) {
   return validateBackup(value);
 }
 export function validateBackup(value) {
-  if (!isObject(value) || value.schema !== 1 || !Array.isArray(value.projects) || !Array.isArray(value.tasks)) {
+  if (!isObject(value) || ![1, 2, 3].includes(value.schema) || !Array.isArray(value.projects) || !Array.isArray(value.tasks)) {
     throw new Error('Unsupported or incomplete GoreeCloud Tasks backup schema.');
   }
   if (value.tasks.length > MAX_RECORDS || value.projects.length > MAX_RECORDS) {
@@ -71,17 +71,33 @@ export function validateBackup(value) {
         (task.completed !== (task.completedAt !== null))) {
       throw new Error('Backup contains an invalid, duplicate or unlinked task.');
     }
+    // Schema 1 has no description field: reject nonempty notes instead of losing them.
+    if (value.schema === 1 && Object.hasOwn(task, 'description'))
+      throw new Error('Descriptions require schema 2; export must not drop notes.');
+    if (value.schema < 3 && Object.hasOwn(task, 'labels'))
+      throw new Error('Labels require schema 3; export must not drop labels.');
+    const description = value.schema >= 2 ? checkedDescription(task.description) : undefined;
+    const labels = value.schema === 3 ? checkedLabels(task.labels) : undefined;
     taskIds.add(task.id);
     return {
+      ...(value.schema >= 2 ? { description } : {}),
+      ...(value.schema === 3 ? { labels } : {}),
       id: task.id, title: task.title.trim(), projectId: task.projectId,
       due: task.due, priority: task.priority, completed: task.completed,
       createdAt: task.createdAt, completedAt: task.completedAt
     };
   });
-  return { schema: 1, projects, tasks };
+  return { schema: value.schema, projects, tasks };
 }
 export function exportBackup(state) {
-  const json = JSON.stringify(validateBackup(state), null, 2);
+  const version = state.schema === 3 || state.tasks?.some(t => t.labels?.length) ? 3 :
+    state.schema === 2 || state.tasks?.some(t => t.description !== undefined && t.description !== '') ? 2 : 1;
+  const compatible = { ...state, schema: version, tasks: state.tasks.map(task => ({
+    ...task,
+    ...(version >= 2 ? { description: task.description ?? '' } : {}),
+    ...(version === 3 ? { labels: task.labels ?? [] } : {})
+  })) };
+  const json = JSON.stringify(validateBackup(compatible), null, 2);
   if (new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) {
     throw new Error('Workspace exceeds the 2 MiB JSON export limit.');
   }

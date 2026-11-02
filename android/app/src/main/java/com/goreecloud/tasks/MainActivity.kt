@@ -1,21 +1,29 @@
 package com.goreecloud.tasks
 
 import android.app.DatePickerDialog
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,26 +48,24 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val Iris = Color(0xFF5145D9)
-private val Ink = Color(0xFF20243A)
-private val Canvas = Color(0xFFECF0F8)
-
 @Composable
 private fun TasksScreen(db: TasksDatabase) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    val colors = if (dark) darkColorScheme(
-        primary = Color(0xFFC5BFFF), onPrimary = Color(0xFF241B66),
-        background = Color(0xFF10131E), surface = Color(0xFF1D2231)
-    ) else lightColorScheme(
-        primary = Iris, onPrimary = Color.White,
-        background = Canvas, surface = Color(0xFFF9FAFD), onSurface = Ink
-    )
-    MaterialTheme(colorScheme = colors) {
-        val context = LocalContext.current
+    val context = LocalContext.current
+    val prefs = remember(context) {
+        context.getSharedPreferences("goreecloud-tasks-appearance", Context.MODE_PRIVATE)
+    }
+    var appearance by remember { mutableStateOf(TasksTheme.appearance(prefs.getString("appearance", null))) }
+    var accent by remember { mutableStateOf(TasksTheme.accent(prefs.getString("accent", null))) }
+    var showAppearanceSettings by remember { mutableStateOf(false) }
+    var draftAppearance by remember { mutableStateOf("light") }
+    var draftAccent by remember { mutableStateOf("neutral") }
+    MaterialTheme(colorScheme = TasksTheme.scheme(appearance, accent)) {
         val tasks = remember { mutableStateListOf<TaskRecord>().apply { addAll(db.listTasks()) } }
         val projects = remember { mutableStateListOf<ProjectRecord>().apply { addAll(db.listProjects()) } }
         val deletedTasks = remember { mutableStateListOf<TaskRecord>().apply { addAll(db.listDeletedTasks()) } }
         var title by remember { mutableStateOf("") }
+        var description by remember { mutableStateOf("") }
+        var labelsInput by remember { mutableStateOf("") }
         var priority by remember { mutableIntStateOf(4) }
         var priorityMenu by remember { mutableStateOf(false) }
         var selectedProjectId by remember { mutableStateOf<String?>(null) }
@@ -68,7 +74,32 @@ private fun TasksScreen(db: TasksDatabase) {
         var newProjectName by remember { mutableStateOf("") }
         var dueDate by remember { mutableStateOf<String?>(null) }
         var view by remember { mutableStateOf("Open") }
+        var showCapture by remember { mutableStateOf(false) }
+        var showTools by remember { mutableStateOf(false) }
+        var showBrowse by remember { mutableStateOf(false) }
+        val searchFocusRequester = remember { FocusRequester() }
+        val keyboardController = LocalSoftwareKeyboardController.current
+        var focusSearchAfterCapture by remember { mutableStateOf(false) }
+        LaunchedEffect(showCapture, focusSearchAfterCapture) {
+            if (!showCapture && focusSearchAfterCapture) {
+                searchFocusRequester.requestFocus()
+                keyboardController?.show()
+                focusSearchAfterCapture = false
+            }
+        }
         var search by remember { mutableStateOf("") }
+        var priorityFilter by remember { mutableStateOf<Int?>(null) }
+        var labelFilter by remember { mutableStateOf<String?>(null) }
+        var labelFilterMenu by remember { mutableStateOf(false) }
+        var priorityFilterMenu by remember { mutableStateOf(false) }
+        var sortBy by remember { mutableStateOf("Smart") }
+        var sortMenu by remember { mutableStateOf(false) }
+        val selectedTaskIds = remember { mutableStateListOf<String>() }
+        var bulkPriority by remember { mutableIntStateOf(4) }
+        var bulkPriorityMenu by remember { mutableStateOf(false) }
+        var bulkProjectId by remember { mutableStateOf<String?>(null) }
+        var bulkProjectMenu by remember { mutableStateOf(false) }
+        var pendingBulkTrash by remember { mutableStateOf<List<String>?>(null) }
         var error by remember { mutableStateOf("") }
         var backupNotice by remember { mutableStateOf("") }
         var preparedBackup by remember { mutableStateOf<ByteArray?>(null) }
@@ -113,6 +144,8 @@ private fun TasksScreen(db: TasksDatabase) {
         }
         var editing by remember { mutableStateOf<TaskRecord?>(null) }
         var editTitle by remember { mutableStateOf("") }
+        var editDescription by remember { mutableStateOf("") }
+        var editLabelsInput by remember { mutableStateOf("") }
         var editPriority by remember { mutableIntStateOf(4) }
         var editDueDate by remember { mutableStateOf<String?>(null) }
         var editProjectId by remember { mutableStateOf<String?>(null) }
@@ -127,11 +160,30 @@ private fun TasksScreen(db: TasksDatabase) {
             deletedTasks.clear()
             deletedTasks.addAll(db.listDeletedTasks())
         }
+        LaunchedEffect(view, search, selectedProjectId, priorityFilter, labelFilter, sortBy) {
+            selectedTaskIds.clear()
+        }
+        val availableLabels = (tasks + deletedTasks).flatMap { it.labels }.distinct().sorted()
+        LaunchedEffect(availableLabels) {
+            if (labelFilter?.let { it !in availableLabels } == true) labelFilter = null
+        }
         val visible = if (view == "Trash") {
-            deletedTasks.filter {
-                search.isBlank() || it.title.contains(search.trim(), ignoreCase = true)
+            TaskViews.selectTrash(deletedTasks, search, labelFilter)
+        } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search,
+            priorityFilter, sortBy, labelFilter)
+        val visibleIds = if (view == "Trash") emptySet() else visible.map { it.id }.toSet()
+        val batchIds = selectedTaskIds.filter { it in visibleIds }
+        fun applyBulk(action: String, value: String? = null) {
+            try {
+                val count = db.bulkEdit(batchIds, action, value)
+                selectedTaskIds.clear()
+                error = ""
+                backupNotice = "Updated $count tasks on this device."
+                reload()
+            } catch (failure: Exception) {
+                error = failure.message ?: "Bulk action failed; nothing was saved."
             }
-        } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search)
+        }
         val activeProjectName = projects.find { it.id == selectedProjectId }?.name ?: "Inbox"
         val chooseDate = {
             val initial = dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
@@ -143,33 +195,68 @@ private fun TasksScreen(db: TasksDatabase) {
                 initial.year, initial.monthValue - 1, initial.dayOfMonth
             ).show()
         }
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 18.dp)) {
-                Text(
-                    "✦  GOREECLOUD TASKS", color = MaterialTheme.colorScheme.primary,
-                    fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp
-                )
-                Spacer(Modifier.height(18.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(22.dp)) {
-                        Text("Make space for", style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.SemiBold)
-                        Text("what matters.", style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(7.dp))
-                        Text("Capture ideas. Take action. Stay in your flow.",
-                            style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            "${tasks.count { !it.completed }} open  ·  ${tasks.count { it.completed }} accomplished",
-                            fontWeight = FontWeight.SemiBold, fontSize = 12.sp
-                        )
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    NavigationBarItem(selected = TasksNavigation.tabFor(view) == "Today",
+                        onClick = { view = "Today"; showCapture = false },
+                        icon = { Text("◷") }, label = { Text("Today") })
+                    NavigationBarItem(selected = TasksNavigation.tabFor(view) == "Inbox",
+                        onClick = { view = "Open"; showCapture = false },
+                        icon = { Text("▣") }, label = { Text("Inbox") })
+                    NavigationBarItem(selected = false, onClick = {
+                        if (showCapture) {
+                            focusSearchAfterCapture = true
+                            showCapture = false
+                        } else {
+                            searchFocusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                    }, icon = { Text("⌕") }, label = { Text("Search") })
+                    NavigationBarItem(selected = showBrowse || TasksNavigation.tabFor(view) == "Browse",
+                        onClick = { showCapture = false; showBrowse = true },
+                        icon = { Text("☷") }, label = { Text("Browse") })
+                }
+            },
+            floatingActionButton = {
+                if (view != "Trash") {
+                    FloatingActionButton(
+                        onClick = { showCapture = !showCapture },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.semantics {
+                            contentDescription = if (showCapture) "Close task composer" else "Add task"
+                        }
+                    ) { Text(if (showCapture) "×" else "+", fontSize = 28.sp) }
+                }
+            }
+        ) { insets ->
+            Column(modifier = Modifier.fillMaxSize().padding(insets)
+                .padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("✦  GOREECLOUD TASKS", color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                    TextButton(onClick = { showTools = !showTools }) {
+                        Text(if (showTools) "Close settings" else "Settings")
                     }
                 }
                 Spacer(Modifier.height(12.dp))
+                Text(TasksNavigation.title(view, activeProjectName),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold)
+                Text("${tasks.count { !it.completed }} open · ${tasks.count { it.completed }} completed · On this device",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(12.dp))
+                if (showTools) {
+                    OutlinedButton(onClick = {
+                        draftAppearance = appearance
+                        draftAccent = accent
+                        showAppearanceSettings = true
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Appearance & color") }
                 OutlinedButton(
                     onClick = {
                         try {
@@ -197,18 +284,38 @@ private fun TasksScreen(db: TasksDatabase) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Import JSON into empty workspace") }
-                if (backupNotice.isNotBlank()) {
-                    Text(backupNotice, style = MaterialTheme.typography.bodySmall,
-                         color = MaterialTheme.colorScheme.primary)
                 }
-                Spacer(Modifier.height(16.dp))
-                Text("Quick capture", style = MaterialTheme.typography.titleLarge,
+                if (backupNotice.isNotBlank()) {
+                    // Backup status stays visible after closing Settings.
+                    Text(backupNotice, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary)
+                }
+                if (showCapture && view != "Trash") {
+                    Column(modifier = Modifier.weight(1f)
+                        .verticalScroll(rememberScrollState())) {
+                Spacer(Modifier.height(12.dp))
+                Text("Add task", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = title, onValueChange = { if (it.length <= 240) title = it },
                     singleLine = true, label = { Text("What needs to get done?") },
                     modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { if (it.length <= 2000) description = it },
+                    label = { Text("Description / notes (optional)") },
+                    minLines = 2, maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = labelsInput,
+                    onValueChange = { if (it.length <= 272) labelsInput = it },
+                    label = { Text("Labels, comma separated (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -254,10 +361,14 @@ private fun TasksScreen(db: TasksDatabase) {
                 Button(
                     onClick = {
                         try {
-                            db.add(title, priority, dueDate, selectedProjectId)
+                            db.add(title, priority, dueDate, selectedProjectId, description,
+                                TaskRules.parseLabels(labelsInput))
                             title = ""
+                            description = ""
+                            labelsInput = ""
                             dueDate = null
                             error = ""
+                            showCapture = false
                             reload()
                         } catch (failure: Exception) {
                             error = failure.message ?: "Task could not be saved."
@@ -267,11 +378,16 @@ private fun TasksScreen(db: TasksDatabase) {
                 if (error.isNotBlank()) {
                     Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
+                    }
+                } else {
+                    if (error.isNotBlank()) {
+                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = search, onValueChange = { search = it },
-                    singleLine = true, label = { Text("Search tasks") },
-                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)
+                    singleLine = true, label = { Text("Search task titles and notes") },
+                    modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester), shape = RoundedCornerShape(14.dp)
                 )
                 Spacer(Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -280,6 +396,117 @@ private fun TasksScreen(db: TasksDatabase) {
                             selected = view == name, onClick = { view = name },
                             label = { Text(name) }
                         )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { priorityFilterMenu = true },
+                            enabled = view != "Trash", modifier = Modifier.fillMaxWidth()) {
+                            Text(priorityFilter?.let { "Filter P$it" } ?: "All priorities", maxLines = 1)
+                        }
+                        DropdownMenu(expanded = priorityFilterMenu,
+                            onDismissRequest = { priorityFilterMenu = false }) {
+                            DropdownMenuItem(text = { Text("All priorities") }, onClick = {
+                                priorityFilter = null; priorityFilterMenu = false
+                            })
+                            (1..4).forEach { level ->
+                                DropdownMenuItem(text = { Text("P$level") }, onClick = {
+                                    priorityFilter = level; priorityFilterMenu = false
+                                })
+                            }
+                        }
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { sortMenu = true }, enabled = view != "Trash",
+                            modifier = Modifier.fillMaxWidth()) { Text("Sort: $sortBy", maxLines = 1) }
+                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                            listOf("Smart", "Due date", "Title").forEach { mode ->
+                                DropdownMenuItem(text = { Text(mode) }, onClick = {
+                                    sortBy = mode; sortMenu = false
+                                })
+                            }
+                        }
+                    }
+                }
+                Box {
+                    OutlinedButton(onClick = { labelFilterMenu = true },
+                        enabled = availableLabels.isNotEmpty()) {
+                        Text(labelFilter?.let { "Label: #$it" } ?: "All labels")
+                    }
+                    DropdownMenu(expanded = labelFilterMenu,
+                        onDismissRequest = { labelFilterMenu = false }) {
+                        DropdownMenuItem(text = { Text("All labels") }, onClick = {
+                            labelFilter = null; labelFilterMenu = false
+                        })
+                        availableLabels.forEach { label ->
+                            DropdownMenuItem(text = { Text("#$label") }, onClick = {
+                                labelFilter = label; labelFilterMenu = false
+                            })
+                        }
+                    }
+                }
+                if (view != "Trash") {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${batchIds.size} selected", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = {
+                            if (visible.size <= 200) {
+                                selectedTaskIds.clear()
+                                selectedTaskIds.addAll(visible.map { it.id })
+                            } else error = "Select at most 200 tasks; narrow the view first."
+                        }) { Text("Select visible") }
+                        TextButton(onClick = { selectedTaskIds.clear() },
+                            enabled = batchIds.isNotEmpty()) { Text("Clear") }
+                    }
+                    if (batchIds.isNotEmpty()) {
+                        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { applyBulk("complete") }) { Text("Complete") }
+                            OutlinedButton(onClick = { applyBulk("reopen") }) { Text("Reopen") }
+                            Box {
+                                OutlinedButton(onClick = { bulkPriorityMenu = true }) {
+                                    Text("P$bulkPriority ▾")
+                                }
+                                DropdownMenu(expanded = bulkPriorityMenu,
+                                    onDismissRequest = { bulkPriorityMenu = false }) {
+                                    (1..4).forEach { level ->
+                                        DropdownMenuItem(text = { Text("P$level") }, onClick = {
+                                            bulkPriority = level
+                                            bulkPriorityMenu = false
+                                        })
+                                    }
+                                }
+                            }
+                            OutlinedButton(onClick = {
+                                applyBulk("priority", bulkPriority.toString())
+                            }) { Text("Apply priority") }
+                            Box {
+                                OutlinedButton(onClick = { bulkProjectMenu = true }) {
+                                    Text(projects.find { it.id == bulkProjectId }?.name ?: "Inbox",
+                                        maxLines = 1)
+                                }
+                                DropdownMenu(expanded = bulkProjectMenu,
+                                    onDismissRequest = { bulkProjectMenu = false }) {
+                                    DropdownMenuItem(text = { Text("Inbox") }, onClick = {
+                                        bulkProjectId = null; bulkProjectMenu = false
+                                    })
+                                    projects.forEach { project ->
+                                        DropdownMenuItem(text = { Text(project.name) }, onClick = {
+                                            bulkProjectId = project.id; bulkProjectMenu = false
+                                        })
+                                    }
+                                }
+                            }
+                            OutlinedButton(onClick = { applyBulk("project", bulkProjectId) }) {
+                                Text("Move to project")
+                            }
+                            OutlinedButton(onClick = { pendingBulkTrash = batchIds.toList() }) {
+                                Text("Move to Trash")
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -298,24 +525,38 @@ private fun TasksScreen(db: TasksDatabase) {
                     }
                 } else {
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         items(visible, key = { it.id }) { task ->
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                shape = RoundedCornerShape(17.dp), modifier = Modifier.fillMaxWidth()
+                                shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     if (view != "Trash") {
+                                        Checkbox(
+                                            checked = task.id in batchIds,
+                                            onCheckedChange = { checked ->
+                                                if (checked && task.id !in selectedTaskIds) {
+                                                    if (selectedTaskIds.size < 200) selectedTaskIds.add(task.id)
+                                                    else error = "Selection is limited to 200 tasks."
+                                                } else if (!checked) selectedTaskIds.remove(task.id)
+                                            },
+                                            modifier = Modifier.semantics {
+                                                contentDescription = "Select ${task.title} for bulk actions"
+                                            }
+                                        )
                                         Checkbox(checked = task.completed, onCheckedChange = {
                                             try { db.setCompleted(task.id, it); reload() }
                                             catch (failure: Exception) {
                                                 error = failure.message ?: "Unable to save task."
                                             }
+                                        }, modifier = Modifier.semantics {
+                                            contentDescription = if (task.completed) "Reopen ${task.title}" else "Complete ${task.title}"
                                         })
                                     }
                                     Column(Modifier.weight(1f).padding(start = 5.dp)) {
@@ -324,6 +565,17 @@ private fun TasksScreen(db: TasksDatabase) {
                                             overflow = TextOverflow.Ellipsis,
                                             fontWeight = FontWeight.SemiBold
                                         )
+                                        if (task.description.isNotEmpty()) {
+                                            Text(task.description, maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        if (task.labels.isNotEmpty()) {
+                                            Text(task.labels.joinToString("  ") { "#$it" },
+                                                color = MaterialTheme.colorScheme.primary,
+                                                style = MaterialTheme.typography.labelSmall)
+                                        }
                                         val detail = buildList {
                                             add("P${task.priority}")
                                             task.dueDate?.let { add("Due $it") }
@@ -345,21 +597,159 @@ private fun TasksScreen(db: TasksDatabase) {
                                             }
                                         }) { Text("Restore") }
                                     } else {
-                                        TextButton(onClick = {
-                                            editing = task
-                                            editTitle = task.title
-                                            editPriority = task.priority
-                                            editDueDate = task.dueDate
-                                            editProjectId = task.projectId
-                                        }) { Text("Edit") }
-                                        TextButton(onClick = { deletion = task }) { Text("Delete") }
+                                        var actionsOpen by remember(task.id) { mutableStateOf(false) }
+                                        Box {
+                                            TextButton(onClick = { actionsOpen = true },
+                                                modifier = Modifier.semantics {
+                                                    contentDescription = "Actions for ${task.title}"
+                                                }) { Text("⋯", fontSize = 22.sp) }
+                                            DropdownMenu(expanded = actionsOpen,
+                                                onDismissRequest = { actionsOpen = false }) {
+                                                DropdownMenuItem(text = { Text("Edit task") }, onClick = {
+                                                    actionsOpen = false
+                                                    editing = task
+                                                    editTitle = task.title
+                                                    editDescription = task.description
+                                                    editLabelsInput = task.labels.joinToString(", ")
+                                                    editPriority = task.priority
+                                                    editDueDate = task.dueDate
+                                                    editProjectId = task.projectId
+                                                })
+                                                DropdownMenuItem(text = { Text("Duplicate as open task") }, onClick = {
+                                                    actionsOpen = false
+                                                    try {
+                                                        db.duplicateTask(task.id)
+                                                        backupNotice = "Duplicated task locally. Original unchanged."
+                                                        error = ""
+                                                        reload()
+                                                    } catch (failure: Exception) {
+                                                        error = failure.message ?: "Could not duplicate task."
+                                                    }
+                                                })
+                                                DropdownMenuItem(text = { Text("Move to Trash") }, onClick = {
+                                                    actionsOpen = false
+                                                    deletion = task
+                                                })
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                }
             }
+        }
+
+        if (showBrowse) {
+            AlertDialog(
+                onDismissRequest = { showBrowse = false },
+                title = { Text("Browse tasks") },
+                text = {
+                    Column(modifier = Modifier.heightIn(max = 460.dp)
+                        .verticalScroll(rememberScrollState())) {
+                        (TaskViews.names + "Trash").distinct().forEach { destination ->
+                            TextButton(onClick = {
+                                view = destination
+                                showBrowse = false
+                            }, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (destination == "Open") "Inbox" else destination)
+                            }
+                        }
+                        HorizontalDivider()
+                        Text("Projects", style = MaterialTheme.typography.titleSmall)
+                        projects.forEach { project ->
+                            TextButton(onClick = {
+                                selectedProjectId = project.id
+                                view = "Project"
+                                showBrowse = false
+                            }, modifier = Modifier.fillMaxWidth()) { Text(project.name) }
+                        }
+                        TextButton(onClick = {
+                            showBrowse = false
+                            showProjectDialog = true
+                        }) { Text("+ Create project") }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showBrowse = false }) { Text("Close") }
+                }
+            )
+        }
+
+        if (showAppearanceSettings) {
+            AlertDialog(
+                onDismissRequest = { showAppearanceSettings = false },
+                title = { Text("Appearance & color") },
+                text = {
+                    Column(
+                        modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text("Appearance", style = MaterialTheme.typography.titleSmall)
+                        TasksTheme.appearances.forEach { choice ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = draftAppearance == choice,
+                                    onClick = { draftAppearance = choice }
+                                )
+                                Text(choice.replaceFirstChar { it.uppercase() })
+                            }
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Text("Accent", style = MaterialTheme.typography.titleSmall)
+                        TasksTheme.accents.forEach { choice ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = draftAccent == choice,
+                                    onClick = { draftAccent = choice }
+                                )
+                                Text(choice.replaceFirstChar { it.uppercase() })
+                            }
+                        }
+                        Text("Stored on this device only. Tasks and backups are unchanged.",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val stored = prefs.edit()
+                            .putString("appearance", draftAppearance)
+                            .putString("accent", draftAccent)
+                            .commit()
+                        appearance = draftAppearance
+                        accent = draftAccent
+                        showAppearanceSettings = false
+                        backupNotice = if (stored) "Appearance saved on this device."
+                            else "Appearance applied, but preference saving failed."
+                    }) { Text("Save appearance") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAppearanceSettings = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        pendingBulkTrash?.let { original ->
+            AlertDialog(
+                onDismissRequest = { pendingBulkTrash = null },
+                title = { Text("Move ${original.size} tasks to Trash?") },
+                text = { Text("These tasks can be restored individually from local Trash.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (batchIds != original) {
+                            error = "Selection changed; review the tasks and try again."
+                        } else {
+                            applyBulk("trash")
+                        }
+                        pendingBulkTrash = null
+                    }) { Text("Move to Trash") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingBulkTrash = null }) { Text("Cancel") }
+                }
+            )
         }
 
         pendingRestore?.let { snapshot ->
@@ -431,11 +821,27 @@ private fun TasksScreen(db: TasksDatabase) {
                 onDismissRequest = { editing = null },
                 title = { Text("Edit task") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = 490.dp)
+                            .verticalScroll(rememberScrollState())) {
                         OutlinedTextField(
                             value = editTitle,
                             onValueChange = { if (it.length <= 240) editTitle = it },
                             label = { Text("Task title") }, singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = editDescription,
+                            onValueChange = { if (it.length <= 2000) editDescription = it },
+                            label = { Text("Description / notes") },
+                            minLines = 2, maxLines = 5,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = editLabelsInput,
+                            onValueChange = { if (it.length <= 272) editLabelsInput = it },
+                            label = { Text("Labels, comma separated") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box {
@@ -500,7 +906,8 @@ private fun TasksScreen(db: TasksDatabase) {
                 confirmButton = {
                     TextButton(onClick = {
                         try {
-                            db.update(task.id, editTitle, editPriority, editDueDate, editProjectId)
+                            db.update(task.id, editTitle, editPriority, editDueDate, editProjectId,
+                                editDescription, TaskRules.parseLabels(editLabelsInput))
                             reload()
                             editing = null
                             error = ""

@@ -18,17 +18,21 @@ jobs:
         with:
           node-version: '24'
       - name: Web model tests
-        run: node --check web/app.mjs && node --test web/*.test.mjs
+        run: node --check web/app.mjs && node --check web/theme-bootstrap.js && node --test web/*.test.mjs
       - name: Python store tests
         run: python3 -m unittest discover -s linux/tests -v
       - name: Compile Python syntax
-        run: python3 -m py_compile linux/app.py linux/store.py linux/backup.py linux/tests/gui_smoke.py
+        run: python3 -m py_compile linux/app.py linux/store.py linux/theme.py linux/backup.py linux/tests/gui_smoke.py linux/tests/gui_window_smoke.py linux/tests/test_theme.py
       - name: Install native GTK test libraries
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 xvfb xauth
       - name: Native GTK4/libadwaita runtime smoke
         run: xvfb-run -a /usr/bin/python3 linux/tests/gui_smoke.py
+      - name: Mapped native GTK4 compact and desktop layout smoke
+        run: |
+          xvfb-run -a /usr/bin/python3 linux/tests/gui_window_smoke.py 600
+          xvfb-run -a /usr/bin/python3 linux/tests/gui_window_smoke.py 940
       - name: Isolated Linux user install/uninstall smoke
         run: sh -n linux/install.sh && sh -n linux/uninstall.sh && sh linux/tests/test_install.sh
   api:
@@ -69,3 +73,29 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
+
+  # Test-only browser tools, never bundled into GoreeCloud Tasks.
+  browser-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Install pinned browser QA dependencies
+        run: npm ci --prefix qa --ignore-scripts --no-audit --no-fund
+      - name: Install isolated Chromium and Firefox browser runtimes
+        run: ./qa/node_modules/.bin/playwright install --with-deps chromium firefox
+      - name: Run synthetic UI workflows, axe-core and 200% zoom checks
+        run: GC_TASKS_QA_DIR="$GITHUB_WORKSPACE/qa/evidence" node qa/browser-acceptance.cjs
+      - name: Preserve synthetic browser screenshots for visual review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tasks-browser-qa-${{ github.sha }}
+          path: qa/evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 5

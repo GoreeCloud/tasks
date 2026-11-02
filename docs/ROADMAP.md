@@ -8,6 +8,7 @@
 - [x] Device-local task creation, completion, reopening, deletion, and P1–P4 priorities in all three clients (source implemented; verification tracked separately).
 - [x] Web inbox/project creation, date entry, search, completed history, themes, validated JSON export/restore and stale-tab write protection (source; comprehensive recovery validation pending).
 - [x] Web native HTML edit dialog for title, priority, due date and project using shared create/edit validation, preserved completion metadata and stale-tab write gate; pure field and backup round-trip tests (browser visual acceptance pending).
+- [x] Web productivity dashboard: Overdue and Next 7 days views, priority filtering, sorting, bulk complete/reopen/priority/project/Trash operations, completion-rate metric, keyboard shortcuts and responsive GC UI controls; browser model and static UI tests added. Schema 1 retained; human browser/AT acceptance pending.
 - [x] Web durable local Trash with native browser Restore view and latest-deletion shortcut: backward-compatible legacy schema-1 read, atomic same-key active/Trash updates, strict persisted record validation and 1,000-record/3 MiB limits, exact completion history, orphan-reference/ID-collision protections, and restart/regression tests. Portable JSON exports exclude Trash. True concurrent-tab transactional writes remain pending.
 - [x] Linux GTK and Android Compose projects (source).
 - [x] Linux project creation/assignment, task view filters, due date capture and local search (source; GUI and device validation pending).
@@ -27,6 +28,37 @@
 - [x] Hardened text/priority validation and portable backup boundary cases across native clients; Android verification relies on CI/device tests.
 - [ ] Verify all platform builds and runtime operation, fix defects, audit accessibility and GC UI appearance.
 - [ ] Desktop packaging, Android device validation, and standalone APK handoff if requested.
+
+- [x] Additional native Linux and Android UI source for Overdue/Next 7 days views, P1–P4 priority filtering, and Smart/Due date/Title sorting. Existing native data schema and backups unchanged. Linux unit and GTK runtime smoke covered and previous Android CI succeeded; real-device UI acceptance remains pending. See [native view parity](NATIVE_VIEW_PARITY.md).
+- [x] Native Linux and Android batch-edit source: select visible tasks and apply complete/reopen, P1–P4, project/Inbox move or confirmed recoverable Trash in a single validated SQLite transaction; rejects stale/duplicate IDs and rolls back on Trash collisions. Linux unit and GTK smoke validation added; Android Robolectric/CI must pass at this commit, device accessibility pending. See [native bulk operations](NATIVE_BULK_OPERATIONS.md).
+
+- [x] GC UI appearance integration: browser semantic snapshot pinned to GC UI, Light/Neutral first launch, explicit Light/Dark and accent choices stored separately from tasks across browser, Linux GTK4 and Android Compose. Browser/Linux unit and GTK smoke checks added; Android CI and real UI/device accessibility acceptance are separate gates. See [GC UI appearance migration](GC_UI_APPEARANCE_MIGRATION.md).
+
+- [x] Browser real-runtime acceptance runner using pinned test-only Playwright and axe-core: Chromium and Firefox synthetic task create/edit/bulk/Trash/backup restore; mobile and effective 200% CSS zoom reflow, semantic feedback and accessible checkbox labels; screenshot evidence produced by QA, with automatic CI execution. Real browser toolbar zoom, human screen-reader, full contrast/RTL/device matrices and full Stable release acceptance remain open. See [browser runtime acceptance](BROWSER_RUNTIME_ACCEPTANCE.md).
+
+- [x] Owner-reference-inspired browser list-first visual pass: compact desktop Inbox/Today/Projects hierarchy, clean task rows and due/priority metadata, accessible mobile bottom tabs, Browse dialog and floating Add composer, with GC UI semantic palettes rather than copied third-party branding. Chromium/Firefox runtime and effective-zoom checks required; real mobile/GTK native acceptance remains open. See [UI inspiration direction](UI_INSPIRATION_DIRECTION.md).
+
+- [x] Native list-first navigation source for Android Compose (Today/Inbox/Search/Browse bottom dock, FAB capture, settings and context row actions) and Linux GTK4 (native view rail, compact header and collapsible form); storage and portable JSON schema unchanged. Local GTK smoke and Android JVM UI-route tests added. Android CI and physical-device/Orca/large-text acceptance are separate gates. See [native list-first UI](NATIVE_LIST_FIRST_UI.md).
+
+- [x] GTK4 screenshot-led layout correction: view/project Browse popover under 700px, live project counts, hidden idle batch controls, collapsible advanced filters/new-project form, Ctrl+N/Ctrl+F, true mapped 600×480 and 940×760 synthetic CI smoke. Assistant-reviewed Light/Dark screenshots; owner/Orca/large-text and Android physical acceptance remain open. See [native list-first UI](NATIVE_LIST_FIRST_UI.md).
+
+- [x] First cross-platform richer task field: validated plain-text task descriptions (max 2,000 UTF-16 units) with backward-compatible schema-1 reads and versioned schema-2 exports, GTK/Compose/browser editor support and additive SQLite migrations. Cross-client fixture, Trash recovery and strict export rules added; Android CI, physical-device, AT and recovery sign-off remain separate. See [portable schema 2](PORTABLE_SCHEMA2_DESCRIPTIONS.md).
+
+- [x] Cross-client local notes discovery: title **or** plain-text description search in browser, native Linux and Android, including device-local Trash. Existing project/priority/completion view boundaries retained, SQLite literal wildcard escaping and UI/regression tests added. See [search parity](NATIVE_VIEW_PARITY.md) and [schema-2 descriptions](PORTABLE_SCHEMA2_DESCRIPTIONS.md). Accessibility and Unicode collation parity require further acceptance.
+
+- [x] Manual task duplication: browser, Linux GTK4 and Android Compose create a fresh open task with copied title/notes/priority/date/project but unique ID and no original completion history. No new SQLite migration, permissions, backup schema or automatic recurrence. See [task duplication](TASK_DUPLICATION.md).
+
+- [x] First-class task labels in browser, Linux GTK4 and Android Compose (up to 8 unique labels per task, 32 UTF-16 units per label) with additive SQLite columns and portable backup schema 3. Legacy schema 1/2 remains readable, schema 3 cannot be silently downgraded; full native CI/physical accessibility and recovery acceptance still required. See [schema-3 contract](PORTABLE_SCHEMA3_LABELS.md).
+
+- [x] Exact single-label filtering across browser, native Linux and Android, including recoverable Trash; intersects search, project, priority and completion state without touching persisted schema 3. See [schema-3 label filtering](PORTABLE_SCHEMA3_LABELS.md). CI and physical accessibility acceptance remain separate.
+
+- [ ] First-class hierarchical subtasks: design and failure-mode review started. A proposed schema-4 parent graph, atomic subtree Trash/restore invariants, migration and cross-client acceptance are documented in [subtask schema-4 design](SUBTASKS_SCHEMA4_DESIGN.md). **No schema-4 runtime or UI is implemented.**
+
+- [ ] Schema-4 subtask preflight: pure graph validators for browser/Linux/Android and browser, Linux and Android pure atomic subtree Trash/restore planning tests added. **Not integrated into client storage or UI.** Native group transaction and release validation remain open; [design and guards](SUBTASKS_SCHEMA4_DESIGN.md).
+
+- [x] Offline subtask recovery preflight: proposed v4 graph validators, browser/Linux/Android pure subtree Trash plans, **structural group-integrity rejection**, and isolated disposable SQLite fault-injection tests. These are not connected to native storage or task UI. See [subtask design](SUBTASKS_SCHEMA4_DESIGN.md) and [issue #6](https://github.com/GoreeCloud/tasks/issues/6).
+
+- [x] Read-only schema-1/2/3 → proposed schema-4 root-task previews on browser, Linux and Android test source. Normalizes via existing validators, preserves metadata and checks future project/size limits. **No actual schema-4 import or device migration.** See [subtask schema-4 contract](SUBTASKS_SCHEMA4_DESIGN.md).
 
 ## B. Personal productivity
 

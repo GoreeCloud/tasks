@@ -17,6 +17,82 @@ class TaskStoreTests(unittest.TestCase):
         self.store.close()
         self.dir.cleanup()
 
+    def test_label_filter_intersects_project_priority_search_and_trash(self):
+        project=self.store.add_project("Team")
+        first=self.store.add_task("Shared",priority=1,due_date="2026-11-04",project_id=project,
+                                  description="Audit",labels=["Work","Design 🧭"])
+        other=self.store.add_task("Shared",priority=2,project_id=project,description="Audit",labels=["work"])
+        inbox=self.store.add_task("Inbox",priority=1,labels=["Work"])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(query="Audit",label_filter="Work")],[first])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=project,
+                                   priority_filter=1,label_filter="Work")],[first])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=project,
+                                   label_filter="work")],[other])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=project,
+                                   label_filter="Design 🧭")],[first])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=None,
+                                   label_filter="Work")],[inbox])
+        self.assertEqual(self.store.list_tasks(label_filter="Missing"),[])
+        with self.assertRaises(ValueError):
+            self.store.list_tasks(label_filter="x"*33)
+        self.assertTrue(self.store.delete_task(first))
+        self.assertEqual([t["id"] for t in self.store.list_deleted_tasks(label_filter="Work")],[first])
+        self.assertEqual(self.store.list_deleted_tasks(label_filter="work"),[])
+        self.assertTrue(self.store.restore_deleted_task(first))
+        self.assertEqual([t["id"] for t in self.store.list_tasks(label_filter="Work")],[first,inbox])
+
+    def test_search_task_titles_and_notes_including_literal_wildcards_and_trash(self):
+        project = self.store.add_project("Research")
+        first = self.store.add_task("Readable title", priority=1, project_id=project,
+                                    due_date="2026-11-08", description="Draft release%_notes 🧭")
+        second = self.store.add_task("Another task", description="Roadmap for November")
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release%_")], [first])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="%")], [first])
+        self.assertEqual(self.store.list_tasks(query="releaseX"), [])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="Readable")], [first])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="roadmap")], [second])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release",
+                                        view="Project", project_id=project)], [first])
+        self.assertEqual(self.store.list_tasks(query="release", view="Project", project_id=None), [])
+        self.assertTrue(self.store.complete_task(first, True))
+        self.assertEqual(self.store.list_tasks(query="release"), [])
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release",view="Completed")], [first])
+        self.assertTrue(self.store.delete_task(first))
+        self.assertEqual([row["id"] for row in self.store.list_deleted_tasks(query="release%_")], [first])
+        self.assertEqual(self.store.list_deleted_tasks(query="releaseX"), [])
+        self.assertTrue(self.store.restore_deleted_task(first))
+        self.assertEqual([row["id"] for row in self.store.list_tasks(query="release",view="Completed")], [first])
+
+    def test_duplicate_completed_task_copies_fields_but_not_identity_or_completion_history(self):
+        project = self.store.add_project("Team")
+        source = self.store.add_task("Ship 🚀", priority=2,
+                                     due_date="2026-11-19", project_id=project,
+                                     description="Release checklist\n🧭")
+        self.assertTrue(self.store.complete_task(source, True))
+        original = next(t for t in self.store.list_tasks(include_completed=True) if t["id"] == source)
+        copy = self.store.duplicate_task(source)
+        self.assertNotEqual(copy, source)
+        duplicated = next(t for t in self.store.list_tasks(include_completed=True) if t["id"] == copy)
+        for field in ("title", "priority", "due_date", "project_id", "description"):
+            self.assertEqual(duplicated[field], original[field])
+        self.assertEqual(duplicated["completed"], 0)
+        self.assertIsNone(duplicated["completed_at"])
+        self.assertNotEqual(duplicated["created_at"], original["created_at"])
+        self.assertEqual(self.store.list_tasks()[0]["id"], copy)
+        self.assertEqual(self.store.list_tasks(view="Completed")[0]["id"], source)
+        self.assertEqual(self.store.duplicate_task(copy) != copy, True)
+        with self.assertRaises(ValueError):
+            self.store.duplicate_task("nonexistent")
+        with self.assertRaises(ValueError):
+            self.store.duplicate_task(None)
+        self.store.delete_task(source)
+        with self.assertRaises(ValueError):
+            self.store.duplicate_task(source)
+        self.store.close()
+        self.store = TaskStore(Path(self.dir.name) / "tasks.db")
+        self.assertEqual(next(t for t in self.store.list_tasks() if t["id"] == copy)["description"],
+                         "Release checklist\n🧭")
+
     def test_create_complete_reopen_delete(self):
         key = self.store.add_task("  Build native apps  ", priority=1, due_date="2026-11-02")
         rows = self.store.list_tasks()
@@ -212,6 +288,109 @@ class TaskStoreTests(unittest.TestCase):
         self.assertEqual(self.store.list_tasks(query="_"), [])
         with self.assertRaises(ValueError):
             self.store.list_tasks(view="INVALID")
+
+
+    def test_overdue_and_next_seven_days_calendar_boundaries(self):
+        self.store.add_task("Before", priority=1, due_date="2026-10-31")
+        self.store.add_task("Today", priority=2, due_date="2026-11-01")
+        self.store.add_task("Sixth day", priority=3, due_date="2026-11-07")
+        self.store.add_task("Seventh day", priority=4, due_date="2026-11-08")
+        self.store.add_task("Unscheduled")
+        finished = self.store.add_task("Completed week", due_date="2026-11-04")
+        self.store.complete_task(finished, True)
+        def names(view):
+            return {entry["title"] for entry in self.store.list_tasks(view=view, today="2026-11-01")}
+        self.assertEqual(names("Overdue"), {"Before"})
+        self.assertEqual(names("Today"), {"Before", "Today"})
+        self.assertEqual(names("Next 7 days"), {"Today", "Sixth day"})
+        self.assertEqual(names("Upcoming"), {"Sixth day", "Seventh day"})
+        self.assertEqual(
+            [entry["title"] for entry in self.store.list_tasks(
+                view="Next 7 days", today="2026-11-01", query="Sixth"
+            )], ["Sixth day"]
+        )
+        with self.assertRaises(ValueError):
+            self.store.list_tasks(view="Next 7 days", today="2026-11-31")
+
+    def test_priority_filters_and_sort_modes_do_not_modify_stored_tasks(self):
+        a = self.store.add_task("Zulu", priority=2, due_date="2026-11-09")
+        b = self.store.add_task("Alpha", priority=3, due_date="2026-11-02")
+        self.store.add_task("Undated", priority=1)
+        before = self.store.list_tasks(view="All")
+        self.assertEqual([t["title"] for t in self.store.list_tasks(
+            view="Open", priority_filter=3)], ["Alpha"])
+        self.assertEqual([t["title"] for t in self.store.list_tasks(
+            view="Open", sort_by="Due date")], ["Alpha", "Zulu", "Undated"])
+        self.assertEqual([t["title"] for t in self.store.list_tasks(
+            view="Open", sort_by="Title")], ["Alpha", "Undated", "Zulu"])
+        for bad in (0, True, "1", 5, 1.0):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                self.store.list_tasks(priority_filter=bad)
+        with self.assertRaises(ValueError):
+            self.store.list_tasks(sort_by="user-supplied SQL")
+        self.assertEqual(self.store.list_tasks(view="All"), before)
+
+    def test_next_seven_days_crosses_year_boundary_without_utc_time_arithmetic(self):
+        self.store.add_task("December", due_date="2026-12-31")
+        self.store.add_task("January", due_date="2027-01-04")
+        self.store.add_task("Beyond", due_date="2027-01-05")
+        titles = {task["title"] for task in self.store.list_tasks(
+            view="Next 7 days", today="2026-12-29"
+        )}
+        self.assertEqual(titles, {"December", "January"})
+
+    def test_atomic_bulk_edits_and_original_completion_history(self):
+        project = self.store.add_project("Move here")
+        first = self.store.add_task("First", priority=4)
+        second = self.store.add_task("Second", priority=2)
+        self.assertEqual(self.store.bulk_edit_tasks([first, second], "complete"), 2)
+        originals = {row["id"]: row for row in self.store.list_tasks(view="All")}
+        self.assertTrue(all(row["completed_at"] for row in originals.values()))
+        self.store.bulk_edit_tasks([first, second], "complete")
+        self.assertEqual(originals, {row["id"]: row for row in self.store.list_tasks(view="All")})
+        self.store.bulk_edit_tasks([first, second], "priority", 1)
+        self.store.bulk_edit_tasks([first, second], "project", project)
+        edited = self.store.list_tasks(view="All")
+        self.assertTrue(all(row["priority"] == 1 and row["project_id"] == project for row in edited))
+        self.store.bulk_edit_tasks([first, second], "project", None)
+        self.store.bulk_edit_tasks([first, second], "reopen")
+        reopened = self.store.list_tasks(view="All")
+        self.assertTrue(all(row["completed"] == 0 and row["completed_at"] is None and row["project_id"] is None for row in reopened))
+        self.assertEqual(self.store.bulk_edit_tasks([first, second], "trash"), 2)
+        self.assertEqual(self.store.list_tasks(view="All"), [])
+        self.assertEqual({row["id"] for row in self.store.list_deleted_tasks()}, {first, second})
+        self.store.close()
+        self.store = TaskStore(Path(self.dir.name) / "tasks.db")
+        self.assertEqual({row["id"] for row in self.store.list_deleted_tasks()}, {first, second})
+
+    def test_bulk_edits_reject_invalid_selection_and_rollback_trash_collisions(self):
+        first = self.store.add_task("First")
+        second = self.store.add_task("Second")
+        before = self.store.list_tasks(view="All")
+        cases = [
+            ([], "complete", None), ([first, first], "complete", None),
+            ([first, "missing"], "complete", None),
+            ([first, second], "priority", True), ([first, second], "priority", 5),
+            ([first, second], "project", "missing"),
+            ([first, second], "delete permanently", None),
+            ([first, second], "complete", "unexpected"),
+            ([first] * 201, "complete", None),
+        ]
+        for ids, action, value in cases:
+            with self.subTest(action=action, ids=len(ids)), self.assertRaises(ValueError):
+                self.store.bulk_edit_tasks(ids, action, value)
+            self.assertEqual(self.store.list_tasks(view="All"), before)
+        # Produce a collision for the second ID after the first would be moved.
+        with self.store.db:
+            self.store.db.execute(
+                "INSERT INTO deleted_tasks "
+                "(id,title,priority,completed,created_at,deleted_at) VALUES (?,?,?,?,?,?)",
+                (second, "Older Trash", 4, 0, before[0]["created_at"], before[0]["created_at"])
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.store.bulk_edit_tasks([first, second], "trash")
+        self.assertEqual(self.store.list_tasks(view="All"), before)
+        self.assertEqual({row["id"] for row in self.store.list_deleted_tasks()}, {second})
 
     def test_private_database_file_and_symlink_guard(self):
         self.assertEqual(self.store.path.stat().st_mode & 0o777, 0o600)

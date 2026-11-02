@@ -31,3 +31,17 @@ settings, tokens and application state do not belong in this JSON format.
 This is a format/regression fixture, not a real-world recovery warranty;
 physical-device provider, storage failure and signed release acceptance still
 require separate verification.
+
+## Schema 2: plain-text descriptions
+
+`schema2-synthetic.json` exercises an additive **plain-text description** field (up to 2,000 UTF-16 code units), including multiline Unicode notes and an empty description. Version 1 imports remain unchanged; exporters produce schema 1 when no active task has notes and schema 2 whenever notes must be preserved. Version 2 requires a `description` string on every task. Schema-1 input that attempts to add notes is rejected rather than silently discarding data. Trash remains device-local, not part of the portable export.
+
+## Schema 3: first-class labels
+
+`schema3-synthetic.json` adds required ordered task label arrays on top of schema-2 descriptions. The fixture includes Unicode labels, empty arrays, project and exact completion timestamps. A schema-3-aware importer is required to preserve labels. See [portable label contract](../../docs/PORTABLE_SCHEMA3_LABELS.md).
+
+## Proposed schema 4: not yet supported
+
+`schema4-proposed-synthetic.json` is a **design-only** root/child/grandchild fixture. Current clients must reject it; it is intentionally not importable. See [subtask engineering design](../../docs/SUBTASKS_SCHEMA4_DESIGN.md).
+
+The proposal is now also exercised by isolated JavaScript, Python and Kotlin **read-only** schema-4 graph validators. Live backup readers still refuse schema 4. The browser-only grouped Trash/restore planning model is a test harness, not a user-facing feature. See the design document for recovery and release gates.

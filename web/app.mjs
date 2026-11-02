@@ -1,14 +1,19 @@
-import { EMPTY, deleteTask, editTask, localDate, newTask, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
+import { batchEditTasks, duplicateTask, EMPTY, deleteTask, editTask, localDate, newTask, parseLabelInput, selectTasks, STORAGE_KEY, undoTaskDelete } from './model.mjs';
 import { exportBackup, MAX_BACKUP_BYTES, validateBackupText } from './backup.mjs';
 import { moveToTrash, readLocalSnapshot, restoreFromTrash, serializeLocalSnapshot } from './local-store.mjs';
 
 const $ = id => document.getElementById(id);
+document.body.classList.add('tasks-enhanced');
 let state = EMPTY();
 let lastSavedRaw = null;
 let writeLocked = false;
 let unreadableStore = false;
 let view = 'inbox';
 let search = '';
+const selected = new Set();
+let priorityFilter = 'all';
+let labelFilter = '';
+let sortOrder = 'smart';
 // Recoverable Trash is stored with active tasks in the same local snapshot.
 const deletedTasks = [];
 function showUndo() {
@@ -19,21 +24,29 @@ function showUndo() {
 const views = {
   inbox: ['Inbox', 'A calm place to capture what matters and make progress.'],
   today: ['Today', 'Make room for your most important next steps.'],
+  soon: ['Next 7 days', 'Your upcoming week, without the noise.'],
+  overdue: ['Overdue', 'Give these tasks a new plan or finish them today.'],
   upcoming: ['Upcoming', 'See what is coming, one day at a time.'],
   priority: ['Priority', 'Keep high-impact work in sight.'],
   all: ['All tasks', 'Everything on your plate, in one thoughtful view.'],
   completed: ['Completed', 'A record of the progress you have made.'],
   trash: ['Trash', 'Restore deleted tasks locally. Trash is not included in JSON exports.']
 };
-function report(message) { $('status').textContent = message; }
+function report(message, level = 'info') {
+  $('status').textContent = message;
+  $('status').dataset.level = level;
+}
 function locked(message) {
   writeLocked = true;
-  report(message);
+  report(message, 'error');
   ['task-form', 'project-form', 'edit-task-form'].forEach(id => {
     $(id).querySelectorAll('input, select, button[type="submit"]').forEach(control => { control.disabled = true; });
   });
   $('new-project').disabled = true;
   $('mobile-new-project').disabled = true;
+  for (const id of ['sidebar-add-task', 'toolbar-add-task', 'mobile-add-task']) $(id).disabled = true;
+  $('bulk-toolbar').querySelectorAll('button, select').forEach(control => { control.disabled = true; });
+  $('select-visible').disabled = true;
   showUndo();
 }
 try {
@@ -65,7 +78,7 @@ function mutate(change) {
     report('');
     return true;
   } catch (error) {
-    report(error instanceof Error ? 'Save failed: ' + error.message : 'Could not save the task.');
+    report(error instanceof Error ? 'Save failed: ' + error.message : 'Could not save the task.', 'error');
     return false;
   }
 }
@@ -88,6 +101,8 @@ function openTaskEditor(task) {
   if (writeLocked) return;
   editingTaskId = task.id;
   $('edit-task-title').value = task.title;
+  $('edit-task-description').value = task.description || '';
+  $('edit-task-labels').value = (task.labels || []).join(', ');
   $('edit-task-priority').value = String(task.priority);
   $('edit-task-date').value = task.due || '';
   const projectSelect = $('edit-task-project');
@@ -98,11 +113,41 @@ function openTaskEditor(task) {
   taskEditor.showModal();
   $('edit-task-title').focus();
 }
+function updateSelectionControls(visible) {
+  const ids = new Set(visible.map(task => task.id));
+  for (const id of selected) if (!ids.has(id)) selected.delete(id);
+  const count = selected.size;
+  $('selection-control').hidden = view === 'trash' || ids.size === 0;
+  $('select-visible').checked = ids.size > 0 && count === ids.size;
+  $('select-visible').indeterminate = count > 0 && count < ids.size;
+  $('select-visible').disabled = writeLocked || view === 'trash';
+  $('bulk-toolbar').hidden = view === 'trash' || count === 0;
+  $('selected-count').textContent = count + ' selected';
+  $('bulk-toolbar').querySelectorAll('button, select').forEach(control => { control.disabled = writeLocked; });
+  for (const row of $('task-list').querySelectorAll('.task-row')) {
+    const selector = row.querySelector('.task-selector');
+    if (selector) { selector.checked = selected.has(selector.value); row.classList.toggle('is-selected', selector.checked); }
+  }
+}
 function render() {
+  const labels = [...new Set([...state.tasks, ...deletedTasks.map(item => item.task)]
+    .flatMap(task => task.labels || []))].sort((a, b) => a.localeCompare(b));
+  if (labelFilter && !labels.includes(labelFilter)) labelFilter = '';
+  const labelSelect = $('filter-label');
+  labelSelect.replaceChildren(new Option('All labels', ''));
+  for (const label of labels) labelSelect.add(new Option('#' + label, label));
+  labelSelect.value = labelFilter;
+  labelSelect.disabled = labels.length === 0;
   const today = localDate();
   const filtered = view === 'trash'
-    ? deletedTasks.filter(entry => !search.trim() || entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
-    : selectTasks(state.tasks, view, today, search);
+    ? deletedTasks.filter(entry => (!labelFilter || (entry.task.labels || []).includes(labelFilter)) &&
+        (!search.trim() || entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) ||
+        (entry.task.description || '').toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())))
+    : selectTasks(state.tasks, view, today, search, { priority: priorityFilter, label: labelFilter, sort: sortOrder });
+  if (view === 'trash') selected.clear();
+  const visible = view === 'trash' ? [] : filtered;
+  const visibleIds = new Set(visible.map(task => task.id));
+  for (const id of selected) if (!visibleIds.has(id)) selected.delete(id);
   const meta = views[view] || (view.startsWith('project:') ?
     [state.projects.find(project => project.id === view.slice(8))?.name || 'Project', 'Your project tasks, all in one place.'] : views.inbox);
   $('page-title').textContent = meta[0];
@@ -110,34 +155,53 @@ function render() {
   $('page-description').textContent = meta[1];
   $('tasks-heading').firstChild.textContent = view === 'trash' ? 'Deleted tasks ' : 'Your tasks ';
   $('task-form').hidden = view === 'trash';
+  $('filter-priority').disabled = view === 'trash';
+  $('sort-tasks').disabled = view === 'trash';
   $('task-list').setAttribute('aria-label', view === 'trash' ? 'Deleted tasks' : 'Tasks');
   $('stat-open').textContent = String(state.tasks.filter(task => !task.completed).length);
   $('stat-today').textContent = String(state.tasks.filter(task => !task.completed && task.due && task.due <= today).length);
-  $('stat-done').textContent = String(state.tasks.filter(task => task.completed).length);
+  const completedCount = state.tasks.filter(task => task.completed).length;
+  $('stat-done').textContent = String(completedCount);
+  $('stat-rate').textContent = state.tasks.length ? Math.round(100 * completedCount / state.tasks.length) + '%' : '0%';
   $('inbox-count').textContent = String(state.tasks.filter(task => !task.completed && !task.projectId).length);
   $('trash-count').textContent = String(deletedTasks.length);
   $('result-count').textContent = '(' + filtered.length + ')';
+  for (const id of ['sidebar-add-task', 'toolbar-add-task', 'mobile-add-task']) {
+    $(id).disabled = writeLocked || view === 'trash';
+  }
   document.querySelectorAll('[data-view]').forEach(button => {
     const active = button.dataset.view === view;
     button.classList.toggle('selected', active);
     if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('[data-mobile-view]').forEach(button => {
+    const active = button.dataset.mobileView === view;
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
   });
   const projectNav = $('project-nav');
   projectNav.replaceChildren();
   const mobileProjects = $('mobile-project-select');
   mobileProjects.replaceChildren(new Option('Projects', ''));
   const projectSelect = $('task-project');
+  const bulkProject = $('bulk-project');
+  bulkProject.replaceChildren(new Option('Move to project…', ''), new Option('Inbox', '__inbox__'));
   const previousSelection = projectSelect.value;
   projectSelect.replaceChildren(new Option('Inbox', ''));
   for (const project of state.projects) {
     const nav = makeButton('◈  ' + project.name, 'nav-item project-nav', () => {
       view = 'project:' + project.id;
+      selected.clear();
       render();
     });
     nav.disabled = false;
+    const count = state.tasks.filter(task => !task.completed && task.projectId === project.id).length;
+    nav.replaceChildren(el('span', 'project-dot', '●'), el('span', 'project-name', project.name), el('em', 'project-count', String(count)));
     nav.dataset.view = 'project:' + project.id;
     if (view === nav.dataset.view) nav.classList.add('selected');
+    if (view === nav.dataset.view) nav.setAttribute('aria-current', 'page');
     projectNav.append(nav);
+    bulkProject.add(new Option(project.name, project.id));
     projectSelect.add(new Option(project.name, project.id));
     mobileProjects.add(new Option(project.name, project.id));
   }
@@ -146,16 +210,22 @@ function render() {
   const list = $('task-list');
   list.replaceChildren();
   $('empty').hidden = filtered.length !== 0;
-  $('empty').querySelector('h3').textContent = view === 'trash' ? 'Trash is empty' : 'All clear here';
+  const narrowed = !!search.trim() || priorityFilter !== 'all' || !!labelFilter;
+  $('empty').querySelector('h3').textContent = view === 'trash'
+    ? (deletedTasks.length ? 'No matching deleted tasks' : 'Trash is empty')
+    : narrowed ? 'No matching tasks' : 'All clear here';
   $('empty').querySelector('p').textContent = view === 'trash'
-    ? 'Deleted tasks stay on this browser until restored.'
-    : 'Start with a small next step. Your future self will thank you.';
+    ? (deletedTasks.length ? 'Try another search.' : 'Deleted tasks stay on this browser until restored.')
+    : narrowed ? 'Adjust your search or priority filter.' : 'Start with a small next step. Your future self will thank you.';
   filtered.forEach(record => {
     const task = view === 'trash' ? record.task : record;
     const item = el('li', 'task-row' + (task.completed ? ' is-completed' : ''));
+    item.dataset.priority = String(task.priority);
     if (view === 'trash') {
       const body = el('div', 'task-body');
       body.append(el('strong', 'task-name', task.title));
+    if (task.description) body.append(el('span', 'task-description', task.description));
+    if (task.labels?.length) body.append(el('span', 'task-labels', task.labels.map(label => '#' + label).join('  ')));
       const details = el('div', 'task-details');
       details.append(el('span', 'priority priority-' + task.priority, 'P' + task.priority));
       details.append(el('span', '', 'Deleted ' + new Date(record.deletedAt).toLocaleDateString()));
@@ -167,6 +237,16 @@ function render() {
       list.append(item);
       return;
     }
+    const selector = el('input', 'task-selector');
+    selector.type = 'checkbox';
+    selector.value = task.id;
+    selector.checked = selected.has(task.id);
+    selector.disabled = writeLocked;
+    selector.setAttribute('aria-label', 'Select ' + task.title);
+    selector.addEventListener('change', () => {
+      if (selector.checked) selected.add(task.id); else selected.delete(task.id);
+      updateSelectionControls(visible);
+    });
     const checkbox = el('input', 'task-checkbox');
     checkbox.type = 'checkbox';
     checkbox.checked = task.completed;
@@ -182,6 +262,8 @@ function render() {
     });
     const body = el('div', 'task-body');
     body.append(el('strong', 'task-name', task.title));
+    if (task.description) body.append(el('span', 'task-description', task.description));
+    if (task.labels?.length) body.append(el('span', 'task-labels', task.labels.map(label => '#' + label).join('  ')));
     const details = el('div', 'task-details');
     details.append(el('span', 'priority priority-' + task.priority, 'P' + task.priority));
     if (task.due) details.append(el('span', task.due < today && !task.completed ? 'due overdue' : 'due', task.due));
@@ -190,6 +272,15 @@ function render() {
     body.append(details);
     const edit = makeButton('Edit', 'row-button', () => openTaskEditor(task));
     edit.setAttribute('aria-label', 'Edit ' + task.title);
+    const duplicate = makeButton('Copy', 'row-button', () => {
+      if (mutate(draft => {
+        const original = draft.tasks.find(entry => entry.id === task.id);
+        if (!original) throw new Error('Task no longer exists.');
+        draft.tasks.push(duplicateTask(original, draft.projects));
+      })) report('Duplicated as a new open task. Your original remains unchanged.');
+      render();
+    });
+    duplicate.setAttribute('aria-label', 'Duplicate ' + task.title);
     const remove = makeButton('Delete', 'row-button danger', () => {
       if (!confirm('Move this task to local Trash? You can restore it after reloading.')) return;
       if (mutate((draft, trash) => {
@@ -199,9 +290,15 @@ function render() {
       }
       render();
     });
-    item.append(checkbox, body, edit, remove);
+    remove.setAttribute('aria-label', 'Delete ' + task.title);
+    const selectLabel = el('label', 'task-check-wrap');
+    selectLabel.append(selector, el('span', 'task-check-label', 'Select'));
+    const completeLabel = el('label', 'task-check-wrap');
+    completeLabel.append(checkbox, el('span', 'task-check-label', 'Done'));
+    item.append(selectLabel, completeLabel, body, edit, duplicate, remove);
     list.append(item);
   });
+  updateSelectionControls(visible);
   showUndo();
 }
 function restoreTrashedTask(id) {
@@ -219,33 +316,124 @@ $('undo-task-delete').addEventListener('click', () => {
 $('task-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
-    const task = newTask($('task-title').value, $('task-project').value, $('task-date').value, $('task-priority').value);
+    const task = newTask($('task-title').value, $('task-project').value, $('task-date').value, $('task-priority').value, $('task-description').value, parseLabelInput($('task-labels').value));
     if (mutate(draft => { draft.tasks.push(task); })) {
       $('task-form').reset();
-      $('task-title').focus();
+      if (matchMedia('(max-width:720px)').matches) {
+        $('task-form').classList.remove('is-open');
+        $('mobile-add-task').setAttribute('aria-expanded', 'false');
+        $('mobile-add-task').focus();
+      } else $('task-title').focus();
     }
     render();
-  } catch (error) { report(error.message); }
+  } catch (error) { report(error.message, 'error'); }
 });
 document.querySelectorAll('#primary-nav [data-view]').forEach(button => button.addEventListener('click', () => {
   view = button.dataset.view;
+  selected.clear();
   render();
 }));
-$('search').addEventListener('input', event => { search = event.target.value; render(); });
+function focusAddTask() {
+  if (writeLocked || view === 'trash') return;
+  if (matchMedia('(max-width:720px)').matches) {
+    $('task-form').classList.add('is-open');
+    $('mobile-add-task').setAttribute('aria-expanded', 'true');
+  }
+  $('task-title').scrollIntoView({ block: 'center', behavior: 'instant' });
+  $('task-title').focus({ preventScroll: true });
+}
+for (const id of ['sidebar-add-task', 'toolbar-add-task']) {
+  $(id).addEventListener('click', focusAddTask);
+}
+$('mobile-add-task').addEventListener('click', () => {
+  if ($('task-form').classList.contains('is-open')) {
+    $('task-form').classList.remove('is-open');
+    $('mobile-add-task').setAttribute('aria-expanded', 'false');
+  } else focusAddTask();
+});
+for (const button of document.querySelectorAll('[data-mobile-view]')) {
+  button.addEventListener('click', () => {
+    view = button.dataset.mobileView;
+    selected.clear();
+    $('mobile-browse-dialog').close();
+    render();
+    $('page-title').scrollIntoView({ block: 'start', behavior: 'instant' });
+  });
+}
+$('mobile-search').addEventListener('click', () => {
+  $('search').scrollIntoView({ block: 'center', behavior: 'instant' });
+  $('search').focus({ preventScroll: true });
+});
+$('mobile-browse').addEventListener('click', () => $('mobile-browse-dialog').showModal());
+$('mobile-browse-close').addEventListener('click', () => $('mobile-browse-dialog').close());
+$('search').addEventListener('input', event => { search = event.target.value; selected.clear(); render(); });
+$('filter-priority').addEventListener('change', event => { priorityFilter = event.target.value; selected.clear(); render(); });
+$('filter-label').addEventListener('change', event => { labelFilter = event.target.value; selected.clear(); render(); });
+$('sort-tasks').addEventListener('change', event => { sortOrder = event.target.value; render(); });
+$('select-visible').addEventListener('change', event => {
+  if (writeLocked || view === 'trash') return;
+  const visible = selectTasks(state.tasks, view, localDate(), search, { priority: priorityFilter, label: labelFilter, sort: sortOrder });
+  if (event.target.checked) visible.forEach(task => selected.add(task.id));
+  else selected.clear();
+  updateSelectionControls(visible);
+});
+function runBulk(changes, label) {
+  if (writeLocked || selected.size === 0) return;
+  const ids = [...selected];
+  if (mutate(draft => batchEditTasks(draft, ids, changes))) {
+    selected.clear();
+    render();
+    report(label + ' (' + ids.length + ' tasks).');
+  } else render();
+}
+$('bulk-complete').addEventListener('click', () => runBulk({ completed: true }, 'Completed'));
+$('bulk-reopen').addEventListener('click', () => runBulk({ completed: false }, 'Reopened'));
+$('bulk-priority').addEventListener('change', event => {
+  const value = event.target.value;
+  if (value) runBulk({ priority: Number(value) }, 'Priority updated');
+  event.target.value = '';
+});
+$('bulk-project').addEventListener('change', event => {
+  const value = event.target.value;
+  if (value) runBulk({ projectId: value === '__inbox__' ? null : value }, 'Tasks moved');
+  event.target.value = '';
+});
+$('bulk-clear').addEventListener('click', () => { selected.clear(); render(); });
+$('bulk-trash').addEventListener('click', () => {
+  if (writeLocked || !selected.size) return;
+  const ids = [...selected];
+  if (!confirm('Move ' + ids.length + ' selected tasks to local Trash? You can restore them individually.')) return;
+  if (mutate((draft, trash) => {
+    for (const id of ids) moveToTrash(draft, trash, deleteTask, id, new Date().toISOString());
+  })) {
+    selected.clear();
+    render();
+    report(ids.length + ' tasks moved to local Trash.');
+  } else render();
+});
 const dialog = $('project-dialog');
 $('new-project').addEventListener('click', () => dialog.showModal());
 $('project-cancel').addEventListener('click', () => dialog.close());
-$('mobile-new-project').addEventListener('click', () => $('new-project').click());
+$('mobile-new-project').addEventListener('click', () => {
+  $('mobile-browse-dialog').close();
+  $('new-project').click();
+});
 $('mobile-project-select').addEventListener('change', event => {
-  if (event.target.value) { view = 'project:' + event.target.value; render(); }
+  if (event.target.value) {
+    $('mobile-browse-dialog').close();
+    view = 'project:' + event.target.value;
+    selected.clear();
+    render();
+  }
 });
 $('project-form').addEventListener('submit', event => {
   event.preventDefault();
   const name = $('project-title').value.trim();
-  if (!name || name.length > 100) { report('Project name must be 1–100 characters.'); return; }
+  if (!name || name.length > 100) { report('Project name must be 1–100 characters.', 'error'); return; }
   const project = { id: crypto.randomUUID(), name };
   if (mutate(draft => { draft.projects.push(project); })) {
     view = 'project:' + project.id;
+    selected.clear();
     dialog.close();
     $('project-form').reset();
   }
@@ -260,12 +448,18 @@ $('edit-task-form').addEventListener('submit', event => {
     return;
   }
   const id = editingTaskId;
-  const updates = {
+  let updates;
+  try { updates = {
     title: $('edit-task-title').value,
+    description: $('edit-task-description').value,
+    labels: parseLabelInput($('edit-task-labels').value),
     priority: $('edit-task-priority').value,
     due: $('edit-task-date').value,
     projectId: $('edit-task-project').value || null
-  };
+  }; } catch (error) {
+    $('edit-task-error').textContent = error.message;
+    return;
+  }
   const saved = mutate(draft => {
     const index = draft.tasks.findIndex(task => task.id === id);
     if (index < 0) throw new Error('Task no longer exists.');
@@ -278,20 +472,23 @@ $('edit-task-form').addEventListener('submit', event => {
   taskEditor.close();
   render();
 });
+// Appearance is separate from task storage and is initialized before CSS.
+const appearanceDialog = $('appearance-dialog');
 $('theme-toggle').addEventListener('click', () => {
-  const root = document.documentElement;
-  const next = root.dataset.mode === 'dark' ? 'light' : 'dark';
-  root.dataset.mode = next;
-  try { localStorage.setItem('goreecloud.tasks.theme', next); }
-  catch { report('Theme preference could not be saved.'); }
+  $('appearance-mode').value = document.documentElement.dataset.mode || 'light';
+  $('appearance-accent').value = document.documentElement.dataset.gcAccent || 'neutral';
+  appearanceDialog.showModal();
 });
-try {
-  const saved = localStorage.getItem('goreecloud.tasks.theme');
-  if (saved === 'light' || saved === 'dark') document.documentElement.dataset.mode = saved;
-} catch { /* theme remains available for this session */ }
+$('appearance-cancel').addEventListener('click', () => appearanceDialog.close());
+$('appearance-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const persisted = window.GoreeTasksTheme.save($('appearance-mode').value, $('appearance-accent').value);
+  appearanceDialog.close();
+  report(persisted ? 'Appearance saved on this browser.' : 'Appearance applied for this session; saving the preference was blocked.', persisted ? 'success' : 'error');
+});
 $('export-data').addEventListener('click', () => {
-  if (unreadableStore) { report('Cannot export unreadable task data. Restore a valid backup first.'); return; }
-  if (writeLocked) { report('This browser tab has stale task data. Reload before exporting a backup.'); return; }
+  if (unreadableStore) { report('Cannot export unreadable task data. Restore a valid backup first.', 'error'); return; }
+  if (writeLocked) { report('This browser tab has stale task data. Reload before exporting a backup.', 'error'); return; }
   try {
     // Fail closed if another tab saved a newer snapshot before the storage
     // event was delivered. Otherwise export could misleadingly look current.
@@ -308,17 +505,17 @@ $('export-data').addEventListener('click', () => {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
     report('Backup exported (active tasks only; local Trash excluded). Verify the downloaded file.');
-  } catch (error) { report('Export failed: ' + error.message); }
+  } catch (error) { report('Export failed: ' + error.message, 'error'); }
 });
 $('import-data').addEventListener('click', () => $('import-file').click());
 $('import-file').addEventListener('change', async event => {
   const file = event.target.files?.[0];
   event.target.value = '';
   if (!file) return;
-  if (file.size > MAX_BACKUP_BYTES) { report('Backup exceeds the 2 MiB limit.'); return; }
+  if (file.size > MAX_BACKUP_BYTES) { report('Backup exceeds the 2 MiB limit.', 'error'); return; }
   let candidate;
   try { candidate = validateBackupText(await file.text()); }
-  catch (error) { report('Import rejected: ' + error.message); return; }
+  catch (error) { report('Import rejected: ' + error.message, 'error'); return; }
   const summary = candidate.tasks.length + ' task(s), ' + candidate.projects.length + ' project(s).';
   if (!confirm('Replace active browser tasks and projects with this backup (' + summary + ')? Existing local Trash will be preserved; colliding IDs are rejected. Export current active data first.')) return;
   try {
@@ -343,12 +540,28 @@ $('import-file').addEventListener('change', async event => {
     $('edit-task-form').querySelectorAll('input, select, button[type="submit"]').forEach(control => { control.disabled = false; });
     report('Backup restored locally (' + summary + '). Existing local Trash was preserved.');
     render();
-  } catch (error) { report('Import not saved: ' + error.message + ' Existing data was not changed.'); }
+  } catch (error) { report('Import not saved: ' + error.message + ' Existing data was not changed.', 'error'); }
 });
 $('mobile-export').addEventListener('click', () => $('export-data').click());
 $('mobile-import').addEventListener('click', () => $('import-data').click());
-$('mobile-theme').addEventListener('click', () => $('theme-toggle').click());
+$('mobile-theme').addEventListener('click', () => {
+  $('mobile-theme').closest('details').open = false;
+  $('theme-toggle').click();
+});
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey ||
+      event.target?.closest?.('input, textarea, select, button, [contenteditable]') ||
+      document.querySelector('dialog[open]')) return;
+  if (event.key === '/') { event.preventDefault(); $('search').focus(); }
+  if (event.key.toLowerCase() === 'n' && !writeLocked && view !== 'trash') {
+    event.preventDefault(); focusAddTask();
+  }
+});
 window.addEventListener('storage', event => {
+  if (['goreecloud.tasks.ui.v1', 'goreecloud.tasks.appearance',
+       'goreecloud.tasks.accent', 'goreecloud.tasks.theme'].includes(event.key)) {
+    window.GoreeTasksTheme.apply(window.GoreeTasksTheme.read());
+  }
   if (event.key === STORAGE_KEY && event.newValue !== lastSavedRaw) {
     locked('This workspace changed in another tab. Reload before editing to avoid lost updates.');
     render();

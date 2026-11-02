@@ -28,10 +28,10 @@ if [ -e "$DESKTOP_FILE" ] && ! grep -q '^# GoreeCloud Tasks desktop entry$' "$DE
 fi
 
 mkdir -p "$APP_DIR" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR"
-for file in app.py store.py backup.py style.css; do
+for file in app.py store.py backup.py theme.py style.css; do
     if [ -L "$APP_DIR/$file" ]; then echo "Refusing linked application file: $file" >&2; exit 1; fi
 done
-install -m 0644 "$SOURCE_DIR/app.py" "$SOURCE_DIR/store.py" "$SOURCE_DIR/backup.py" "$SOURCE_DIR/style.css" "$APP_DIR/"
+install -m 0644 "$SOURCE_DIR/app.py" "$SOURCE_DIR/store.py" "$SOURCE_DIR/backup.py" "$SOURCE_DIR/theme.py" "$SOURCE_DIR/style.css" "$APP_DIR/"
 install -m 0644 "$SOURCE_DIR/assets/com.goreecloud.tasks.svg" "$ICON_DIR/com.goreecloud.tasks.svg"
 cat > "$LAUNCHER" <<'EOF'
 #!/bin/sh

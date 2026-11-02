@@ -3,6 +3,7 @@ package com.goreecloud.tasks
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteDatabase
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -57,6 +58,151 @@ class RestoreDatabaseTest {
         val database = db.readableDatabase
         return android.database.DatabaseUtils.queryNumEntries(database, "tasks") to
             android.database.DatabaseUtils.queryNumEntries(database, "projects")
+    }
+
+
+    @Test fun duplicateCompletedSchemaTwoTaskPreservesFieldsButClearsHistory() {
+        db.restorePortableBackup(PortableRestore.parse(PortableFixture.read("schema2-synthetic.json")))
+        val source = db.listTasks().single { it.id == "task-notes" }
+        assertTrue(source.completed)
+        val copiedId = db.duplicateTask(source.id)
+        val copy = db.listTasks().single { it.id == copiedId }
+        assertEquals(source.title,copy.title)
+        assertEquals(source.priority,copy.priority)
+        assertEquals(source.dueDate,copy.dueDate)
+        assertEquals(source.projectId,copy.projectId)
+        assertEquals(source.description,copy.description)
+        assertFalse(copy.completed)
+        assertTrue(copiedId != source.id)
+        val exported = PortableRestore.parse(db.exportPortableBackup()).tasks
+        assertEquals(3,exported.size)
+        val newRecord = exported.single { it.id == copiedId }
+        val original = exported.single { it.id == source.id }
+        assertFalse(newRecord.completed)
+        assertEquals(null,newRecord.completedAtExact)
+        assertEquals(null,newRecord.completedAt)
+        assertEquals("2026-11-01T01:23:45.654321Z",original.completedAtExact)
+        assertEquals(source.description,newRecord.description)
+        val before = db.listTasks().size
+        try {
+            db.duplicateTask("not-found")
+            throw AssertionError("Missing source duplicated")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(before,db.listTasks().size)
+        db.close(); db = TasksDatabase(context)
+        assertEquals(source.description,db.listTasks().single { it.id == copiedId }.description)
+    }
+
+    @Test fun schemaThreeLabelsSurviveImportDuplicateTrashRestoreAndExport() {
+        db.restorePortableBackup(PortableRestore.parse(PortableFixture.read("schema3-synthetic.json")))
+        val original = db.listTasks().single { it.id == "task-notes" }
+        assertEquals(listOf("Work", "Design 🧭"),original.labels)
+        val copiedId = db.duplicateTask(original.id)
+        assertEquals(original.labels,db.listTasks().single { it.id == copiedId }.labels)
+        val exported = JSONObject(String(db.exportPortableBackup(),Charsets.UTF_8))
+        assertEquals(3,exported.getInt("schema"))
+        assertEquals(original.labels,PortableRestore.parse(db.exportPortableBackup()).tasks
+            .single { it.id == original.id }.labels)
+        assertTrue(db.delete("task-notes"))
+        db.close();db = TasksDatabase(context)
+        assertEquals(original.labels,db.listDeletedTasks().single().labels)
+        assertTrue(db.restoreDeletedTask("task-notes"))
+        db.update(copiedId,original.title,original.priority,original.dueDate,original.projectId,
+            original.description,listOf("Archive"))
+        assertEquals(listOf("Archive"),db.listTasks().single { it.id == copiedId }.labels)
+        try {
+            db.update(copiedId,original.title,original.priority,original.dueDate,original.projectId,
+                original.description,listOf("X","X"))
+            throw AssertionError("Duplicate labels accepted")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(listOf("Archive"),db.listTasks().single { it.id == copiedId }.labels)
+    }
+
+    @Test fun schemaTwoDescriptionSurvivesImportUpdateBulkTrashAndExport() {
+        val source = PortableRestore.parse(PortableFixture.read("schema2-synthetic.json"))
+        db.restorePortableBackup(source)
+        assertEquals("Check accessibility 🧭\nFollow up on copy edits.",
+            db.listTasks().single { it.id == "task-notes" }.description)
+        db.update("task-notes", "Review release", 1, "2026-11-03", "project-alpha")
+        db.bulkEdit(listOf("task-notes"), "priority", "2")
+        val json = JSONObject(String(db.exportPortableBackup(), Charsets.UTF_8))
+        assertEquals(2, json.getInt("schema"))
+        assertEquals(source.tasks.single { it.id == "task-notes" }.description,
+            PortableRestore.parse(db.exportPortableBackup()).tasks
+                .single { it.id == "task-notes" }.description)
+        assertTrue(db.delete("task-notes"))
+        db.close(); db = TasksDatabase(context)
+        assertEquals(source.tasks.single { it.id == "task-notes" }.description,
+            db.listDeletedTasks().single().description)
+        assertTrue(db.restoreDeletedTask("task-notes"))
+        assertEquals(source.tasks.single { it.id == "task-notes" }.description,
+            db.listTasks().single { it.id == "task-notes" }.description)
+        db.update("task-notes", "Review release", 2, "2026-11-03", "project-alpha", "")
+        assertEquals(1, JSONObject(String(db.exportPortableBackup(), Charsets.UTF_8)).getInt("schema"))
+    }
+
+    @Test fun atomicBulkActionsPreserveMetadataAndMoveToRecoverableTrash() {
+        val source = snapshot()
+        db.restorePortableBackup(source)
+        assertEquals(2, db.bulkEdit(listOf("task-1", "task-2"), "complete"))
+        val completed = PortableRestore.parse(db.exportPortableBackup()).tasks
+        assertTrue(completed.all { it.completed })
+        val existingTimestamp = completed.single { it.id == "task-2" }.completedAtExact
+        db.bulkEdit(listOf("task-1", "task-2"), "complete")
+        assertEquals(existingTimestamp, PortableRestore.parse(db.exportPortableBackup())
+            .tasks.single { it.id == "task-2" }.completedAtExact)
+        assertEquals(2, db.bulkEdit(listOf("task-1", "task-2"), "priority", "1"))
+        assertTrue(db.listTasks().all { it.priority == 1 })
+        db.bulkEdit(listOf("task-1", "task-2"), "project", "project-1")
+        assertTrue(db.listTasks().all { it.projectId == "project-1" })
+        db.bulkEdit(listOf("task-1", "task-2"), "project", null)
+        db.bulkEdit(listOf("task-1", "task-2"), "reopen")
+        assertTrue(db.listTasks().all { !it.completed && it.projectId == null })
+        db.bulkEdit(listOf("task-1", "task-2"), "trash")
+        assertTrue(db.listTasks().isEmpty())
+        assertEquals(setOf("task-1", "task-2"), db.listDeletedTasks().map { it.id }.toSet())
+        db.close()
+        db = TasksDatabase(context)
+        assertEquals(2, db.listDeletedTasks().size)
+        assertTrue(db.restoreDeletedTask("task-1"))
+        assertTrue(db.restoreDeletedTask("task-2"))
+        assertEquals(2, db.listTasks().size)
+    }
+
+    @Test fun invalidBulkActionsAndCollisionsRollbackEveryRow() {
+        db.restorePortableBackup(snapshot())
+        val source = PortableRestore.parse(db.exportPortableBackup())
+        val invalid = listOf(
+            Triple(emptyList<String>(), "complete", null),
+            Triple(listOf("task-1", "task-1"), "complete", null),
+            Triple(listOf("task-1", "absent"), "complete", null),
+            Triple(listOf("task-1", "task-2"), "priority", "9"),
+            Triple(listOf("task-1", "task-2"), "project", "absent"),
+            Triple(listOf("task-1", "task-2"), "unknown", null),
+            Triple(listOf("task-1", "task-2"), "complete", "extra"),
+            Triple(List(201) { "synthetic-$it" }, "complete", null)
+        )
+        for ((ids, action, value) in invalid) {
+            try {
+                db.bulkEdit(ids, action, value)
+                throw AssertionError("Invalid batch was accepted: $action")
+            } catch (_: IllegalArgumentException) { }
+            assertEquals(source, PortableRestore.parse(db.exportPortableBackup()))
+        }
+        // An existing Trash ID for the second item triggers a mid-batch SQL
+        // exception. The earlier transfer must be rolled back.
+        db.writableDatabase.execSQL(
+            "INSERT INTO deleted_tasks (id,title,priority,completed,created_at,deleted_at) " +
+                "VALUES (?,?,?,?,?,?)",
+            arrayOf("task-2", "Older Trash", 4, 0, System.currentTimeMillis(),
+                System.currentTimeMillis())
+        )
+        try {
+            db.bulkEdit(listOf("task-1", "task-2"), "trash")
+            throw AssertionError("Trash collision was not detected")
+        } catch (_: SQLiteConstraintException) { }
+        assertEquals(source, PortableRestore.parse(db.exportPortableBackup()))
+        assertEquals(listOf("task-2"), db.listDeletedTasks().map { it.id })
     }
 
     @Test fun sharedPortableFixtureRestoresAndExportsExactSourceMetadata() {
@@ -210,6 +356,49 @@ class RestoreDatabaseTest {
         } catch (_: IllegalArgumentException) { }
         assertEquals(listOf("task-1"), db.listDeletedTasks().map { it.id })
         assertEquals(listOf("task-2"), db.listTasks().map { it.id })
+    }
+
+    @Test fun versionSixUpgradeAddsLabelsWithoutChangingExistingNotes() {
+        db.close()
+        context.deleteDatabase("goreecloud-tasks.db")
+        val old = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath("goreecloud-tasks.db"), null)
+        old.execSQL("CREATE TABLE projects (id TEXT PRIMARY KEY,name TEXT NOT NULL)")
+        old.execSQL("CREATE TABLE tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT,description TEXT NOT NULL DEFAULT '')")
+        old.execSQL("CREATE TABLE deleted_tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT,deleted_at INTEGER,description TEXT NOT NULL DEFAULT '')")
+        old.execSQL("INSERT INTO tasks (id,title,priority,completed,created_at,description) " +
+            "VALUES ('old','Preserved',4,0,1761904800123,'Keep notes')")
+        old.version = 6
+        old.close()
+        db = TasksDatabase(context)
+        assertEquals("Keep notes",db.listTasks().single().description)
+        assertEquals(emptyList<String>(),db.listTasks().single().labels)
+        db.update("old","Preserved",4,null,null,"Keep notes",listOf("Review"))
+        assertEquals(listOf("Review"),db.listTasks().single().labels)
+    }
+
+    @Test fun versionFiveUpgradeAddsDescriptionsWithoutChangingExistingTasks() {
+        db.close()
+        context.deleteDatabase("goreecloud-tasks.db")
+        val old = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath("goreecloud-tasks.db"), null)
+        old.execSQL("CREATE TABLE projects (id TEXT PRIMARY KEY,name TEXT NOT NULL)")
+        old.execSQL("CREATE TABLE tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT)")
+        old.execSQL("CREATE TABLE deleted_tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL," +
+            "priority INTEGER,completed INTEGER,created_at INTEGER,completed_at INTEGER," +
+            "created_at_exact TEXT,completed_at_exact TEXT,due_date TEXT,project_id TEXT,deleted_at INTEGER)")
+        old.execSQL("INSERT INTO tasks (id,title,priority,completed,created_at) VALUES ('old','Preserved',4,0,1761904800123)")
+        old.version = 5
+        old.close()
+        db = TasksDatabase(context)
+        assertEquals("Preserved", db.listTasks().single().title)
+        assertEquals("", db.listTasks().single().description)
+        db.update("old", "Preserved", 4, null, null, "Notes after upgrade")
+        assertEquals("Notes after upgrade", db.listTasks().single().description)
     }
 
     @Test fun versionFourUpgradeAddsTrashWithoutReplacingExistingRows() {

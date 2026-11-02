@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY, deleteTask, editTask, hydrate, localDate, newTask, selectTasks, undoTaskDelete } from './model.mjs';
+import { batchEditTasks, duplicateTask, EMPTY, deleteTask, editTask, hydrate, localDate, newTask, parseLabelInput, selectTasks, undoTaskDelete } from './model.mjs';
+import { exportBackup, validateBackupText } from './backup.mjs';
 test('bad persistence recovers safely', () => { assert.deepEqual(hydrate('{'), EMPTY()); assert.deepEqual(hydrate('{"schema":2}'), EMPTY()); });
 test('title and priority validation', () => { assert.throws(() => newTask('  ')); assert.throws(() => newTask('ok', null, '', 0)); assert.equal(newTask('  Plan  ').title, 'Plan'); });
 test('inbox, project, today, completed and priority filtering', () => {
@@ -109,4 +110,143 @@ test('undo rejects duplicate IDs, missing projects and invalid workspace state',
   assert.equal(draft.tasks.length, 1);
   assert.throws(() => undoTaskDelete(null, deleted));
   assert.throws(() => undoTaskDelete(draft, null));
+});
+
+test('overdue and next-seven-day views respect local calendar boundaries and priority', () => {
+  const sample = [
+    { ...newTask('Overdue', '', '2026-10-31', 1), id:'overdue' },
+    { ...newTask('Today', '', '2026-11-01', 2), id:'today' },
+    { ...newTask('End of week', '', '2026-11-07', 4), id:'end' },
+    { ...newTask('Beyond week', '', '2026-11-08', 3), id:'beyond' },
+    { ...newTask('Later', '', '2026-11-09', 1), id:'later' },
+    { ...newTask('Undated', '', '', 1), id:'none' },
+    { ...newTask('Finished', '', '2026-11-01', 1), id:'done', completed: true, completedAt:'2026-11-01T18:00:00Z' }
+  ];
+  assert.deepEqual(selectTasks(sample,'overdue','2026-11-01').map(t=>t.id), ['overdue']);
+  assert.deepEqual(selectTasks(sample,'soon','2026-11-01').map(t=>t.id), ['today','end']);
+  assert.deepEqual(selectTasks(sample,'soon','2026-11-01','', {priority:'2'}).map(t=>t.id), ['today']);
+  assert.deepEqual(selectTasks(sample,'upcoming','2026-11-01','', {sort:'due'}).map(t=>t.id), ['end','beyond','later']);
+  assert.deepEqual(selectTasks(sample,'all','2026-11-01','', {sort:'title'}).map(t=>t.id),
+    ['beyond','end','later','overdue','today','none']);
+  assert.deepEqual(selectTasks(sample,'all','2026-11-01','today').map(t=>t.id), ['today']);
+  assert.equal(sample[0].id, 'overdue'); // filters/sorts are nonmutating
+});
+
+test('bulk edits preserve task identity, history, and schema-one backup portability', () => {
+  const project = {id:'roadmap',name:'Roadmap'};
+  const before = newTask('First', null, '2026-11-01', 4);
+  const second = newTask('Second', null, '', 3);
+  const workspace = {schema:1,projects:[project],tasks:[before,second]};
+  const timestamp = '2026-11-01T19:00:00.000Z';
+  assert.equal(batchEditTasks(workspace,[before.id,second.id],{completed:true,priority:1,projectId:'roadmap'},timestamp),2);
+  assert.ok(workspace.tasks.every(t=>t.completed && t.completedAt===timestamp && t.priority===1 && t.projectId==='roadmap'));
+  assert.deepEqual(workspace.tasks.map(t=>t.id),[before.id,second.id]);
+  assert.equal(workspace.tasks[0].createdAt,before.createdAt);
+  assert.deepEqual(validateBackupText(exportBackup(workspace)),workspace);
+  batchEditTasks(workspace,[before.id],{completed:true},'2026-11-02T00:00:00Z');
+  assert.equal(workspace.tasks[0].completedAt,timestamp); // repeat complete does not reset history
+  batchEditTasks(workspace,[before.id],{completed:false,projectId:null});
+  assert.equal(workspace.tasks[0].completedAt,null);
+  assert.equal(workspace.tasks[0].projectId,null);
+  assert.equal(workspace.tasks[1].completedAt,timestamp);
+});
+
+test('bulk edits reject stale IDs and invalid patches without partial mutation', () => {
+  const one = newTask('One');
+  const two = newTask('Two');
+  const workspace = {schema:1,projects:[{id:'p',name:'Project'}],tasks:[one,two]};
+  const original = structuredClone(workspace);
+  const bad = [
+    [[one.id,'missing'],{completed:true}],
+    [[one.id,one.id],{priority:1}],
+    [[one.id,two.id],{priority:0}],
+    [[one.id,two.id],{projectId:'missing'}],
+    [[one.id,two.id],{completed:'yes'}],
+    [[one.id],{title:'unsupported'}],
+    [[],{completed:true}],
+    [[one.id],{}]
+  ];
+  for (const [ids,patch] of bad) {
+    assert.throws(()=>batchEditTasks(workspace,ids,patch));
+    assert.deepEqual(workspace,original);
+  }
+  assert.throws(()=>batchEditTasks(workspace,[one.id],{completed:true},'not-a-time'));
+  assert.deepEqual(workspace,original);
+});
+
+test('task descriptions preserve Unicode and editing history', () => {
+  const task = newTask('Plan',null,'',2,'Notes 🚀\nMore details');
+  assert.equal(task.description,'Notes 🚀\nMore details');
+  const edited = editTask(task,{title:'Updated',projectId:null,due:'',priority:1},[]);
+  assert.equal(edited.description,task.description);
+  assert.equal(editTask(edited,{title:'Updated',projectId:null,due:'',priority:1,description:''},[]).description,'');
+  assert.throws(()=>newTask('Bad',null,'',4,'x'.repeat(2001)));
+  assert.throws(()=>newTask('Bad',null,'',4,String.fromCharCode(0xD800)));
+});
+
+test('search matches plain-text notes in active, completed, and project views without losing view boundaries', () => {
+  const notes = {...newTask('Public title', 'project-a', '2026-11-03', 2, 'Release audit 🧭\nLine two'), id:'n'};
+  const completed = {...newTask('Closed ticket', null, '', 4, 'Release audit 🧭'), id:'c', completed:true, completedAt:'2026-11-01T16:00:00Z'};
+  const unrelated = {...newTask('Other',null,'',4,'Different notes'),id:'u'};
+  const list = [notes, completed, unrelated];
+  const find=(view,query)=>selectTasks(list,view,'2026-11-01',query).map(t=>t.id);
+  assert.deepEqual(find('all','  AUDIT  '),['n']);
+  assert.deepEqual(find('all','🧭'),['n']);
+  assert.deepEqual(find('completed','audit'),['c']);
+  assert.deepEqual(find('inbox','audit'),[]);
+  assert.deepEqual(find('project:project-a','audit'),['n']);
+  assert.deepEqual(find('upcoming','audit'),['n']);
+  assert.deepEqual(find('all','Public title'),['n']);
+  assert.deepEqual(find('all','cannot-match'),[]);
+});
+
+test('duplicate completed schema-2 task creates a distinct open copy without historical timestamps', () => {
+  const completed = {
+    ...newTask('Ship 🚀', 'team', '2026-11-19', 2, 'Release checklist\n🧭'),
+    id: 'original', completed: true, createdAt: '2026-10-20T10:20:30.123456Z',
+    completedAt: '2026-11-01T15:44:20.56789Z'
+  };
+  const project = [{id:'team',name:'Team'}];
+  const duplicated = duplicateTask(completed, project);
+  assert.notEqual(duplicated.id, completed.id);
+  assert.deepEqual(
+    [duplicated.title,duplicated.projectId,duplicated.due,duplicated.priority,duplicated.description],
+    [completed.title,completed.projectId,completed.due,completed.priority,completed.description]
+  );
+  assert.equal(duplicated.completed,false);
+  assert.equal(duplicated.completedAt,null);
+  assert.notEqual(duplicated.createdAt,completed.createdAt);
+  assert.equal(exportBackup({schema:2,projects:project,tasks:[completed,duplicated]}).includes('Release checklist'),true);
+  assert.throws(()=>duplicateTask(completed,[]),/project/);
+  assert.throws(()=>duplicateTask(null,project),/Task/);
+});
+
+test('plain text labels preserve identity in editing and duplication',()=>{
+ const labels=parseLabelInput('Work, Design 🧭');
+ const source=newTask('Tagged',null,'',2,'Context',labels);
+ const duplicate=duplicateTask(source,[]);
+ assert.deepEqual(duplicate.labels,labels);
+ assert.notEqual(duplicate.id,source.id);
+ assert.deepEqual(editTask(source,{title:'Tagged',projectId:null,due:'',priority:2,labels:[]},[]).labels,[]);
+ assert.deepEqual(source.labels,labels);
+ assert.throws(()=>parseLabelInput('Work, Work'),/unique/);
+ assert.throws(()=>parseLabelInput('X'.repeat(33)),/unique/);
+ assert.throws(()=>parseLabelInput('🧭'.repeat(17)),/unique/);
+});
+
+test('exact label filter intersects search, priority, project and completion without mutation',()=>{
+ const a={...newTask('Shared', 'team','2026-11-04',1,'Audit', ['Work','Design 🧭']),id:'a'};
+ const b={...newTask('Shared', 'team','2026-11-04',2,'Audit', ['work']),id:'b'};
+ const c={...newTask('Inbox',null,'',1,'Audit',['Work']),id:'c'};
+ const d={...newTask('Done',null,'',1,'Audit',['Work']),id:'d',completed:true,completedAt:'2026-11-01T12:00:00Z'};
+ const tasks=[a,b,c,d];
+ const pick=(view,query,options)=>selectTasks(tasks,view,'2026-11-01',query,options).map(t=>t.id);
+ assert.deepEqual(pick('all','audit',{label:'Work'}),['a','c']);
+ assert.deepEqual(pick('project:team','audit',{label:'Work',priority:'1'}),['a']);
+ assert.deepEqual(pick('all','audit',{label:'work'}),['b']);
+ assert.deepEqual(pick('completed','',{label:'Work'}),['d']);
+ assert.deepEqual(pick('inbox','',{label:'Design 🧭'}),[]);
+ assert.deepEqual(pick('all','',{label:'Missing'}),[]);
+ assert.throws(()=>pick('all','',{label:'x'.repeat(33)}));
+ assert.deepEqual(a.labels,['Work','Design 🧭']);
 });

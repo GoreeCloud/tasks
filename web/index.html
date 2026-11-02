@@ -1,21 +1,29 @@
 <!doctype html>
-<html lang="en" data-mode="light" data-accent="iris">
+<html lang="en" data-mode="light" data-theme="light" data-gc-accent="neutral">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#5145d9">
+  <meta name="theme-color" content="#ecf0f8">
   <title>GoreeCloud Tasks</title>
+  <script src="./theme-bootstrap.js"></script>
+  <link rel="stylesheet" href="./gc-app-semantic.css">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./mobile.css">
+  <link rel="stylesheet" href="./theme-overrides.css">
+  <link rel="stylesheet" href="./list-first.css">
   <script type="module" src="./app.mjs"></script>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to tasks</a>
 <div class="shell">
   <aside class="sidebar" aria-label="Workspace navigation">
     <a class="identity" href="./index.html" aria-label="GoreeCloud Tasks home"><span class="logo">✦</span><span><strong>GoreeCloud</strong><small>TASKS</small></span></a>
-    <div class="workspace-label">MY WORKSPACE</div>
+    <button id="sidebar-add-task" class="sidebar-add-task" type="button">+ &nbsp; Add task</button>
+    <div class="workspace-label">WORKSPACE</div>
     <nav id="primary-nav" aria-label="Task views">
       <button class="nav-item selected" data-view="inbox"><span>▣</span> Inbox <em id="inbox-count"></em></button>
       <button class="nav-item" data-view="today"><span>◷</span> Today</button>
+      <button class="nav-item" data-view="soon"><span>▦</span> Next 7 days</button>
+      <button class="nav-item" data-view="overdue"><span>!</span> Overdue</button>
       <button class="nav-item" data-view="upcoming"><span>▦</span> Upcoming</button>
       <button class="nav-item" data-view="priority"><span>⚑</span> Priority</button>
       <button class="nav-item" data-view="all"><span>☷</span> All tasks</button>
@@ -25,35 +33,41 @@
     <div class="projects-label"><span>PROJECTS</span><button id="new-project" title="Create project" aria-label="Create project">+</button></div>
     <nav id="project-nav" aria-label="Projects"></nav>
     <div class="mobile-toolbar" aria-label="Mobile project and settings tools">
-      <label for="mobile-project-select" class="visually-hidden">Browse projects</label>
-      <select id="mobile-project-select" aria-label="Browse projects"><option value="">Projects</option></select>
-      <button type="button" id="mobile-new-project">+ Project</button>
-      <details class="mobile-options"><summary aria-label="More settings">•••</summary><div class="mobile-options-content"><button id="mobile-export" type="button">↓ Export data</button><button id="mobile-import" type="button">↑ Restore backup</button><button id="mobile-theme" type="button">◐ Change theme</button></div></details>
+      <details class="mobile-options"><summary aria-label="More settings">•••</summary><div class="mobile-options-content"><button id="mobile-export" type="button">↓ Export data</button><button id="mobile-import" type="button">↑ Restore backup</button><button id="mobile-theme" type="button">◐ Appearance &amp; color</button></div></details>
     </div>
     <div class="sidebar-bottom">
       <p><strong>Privacy-first foundation</strong><span>Saved on this browser only. Sync and shared accounts are not available yet.</span></p>
       <button id="export-data" class="sidebar-action">↓ Export data</button>
       <button id="import-data" class="sidebar-action" type="button">↑ Restore backup</button>
       <input id="import-file" class="visually-hidden" type="file" accept=".json,application/json" aria-label="Choose GoreeCloud Tasks JSON backup">
-      <button id="theme-toggle" class="sidebar-action">◐ Change theme</button>
+      <button id="theme-toggle" class="sidebar-action">◐ Appearance &amp; color</button>
     </div>
   </aside>
-  <main class="workspace">
-    <header class="topbar"><div class="breadcrumb">PERSONAL WORKSPACE <span> / </span> <b id="crumb">Inbox</b></div><span class="local-status">● Browser-local</span></header>
+  <main class="workspace" id="main-content" tabindex="-1">
+    <header class="topbar"><div class="breadcrumb">MY TASKS <span> / </span> <b id="crumb">Inbox</b></div><div class="topbar-actions"><span class="local-status">● Browser-local</span><button id="toolbar-add-task" type="button" class="topbar-add">+ Add task</button></div></header>
     <div class="content">
       <section class="hero" aria-labelledby="page-title">
-        <div class="hero-content"><span class="eyebrow">YOUR DAY, ORGANIZED</span><h1 id="page-title">Inbox</h1><p id="page-description">A calm place to capture what matters and make progress.</p></div>
+        <div class="hero-content"><span class="eyebrow">YOUR TASKS, IN FOCUS</span><h1 id="page-title">Inbox</h1><p id="page-description">A calm place to capture what matters and make progress.</p></div>
         <div class="hero-art" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><div class="hero-check">✓</div></div>
       </section>
       <div class="overview" aria-label="Task overview">
         <div class="metric"><span>Open tasks</span><strong id="stat-open">0</strong><small>In your workspace</small></div>
-        <div class="metric"><span>Due today</span><strong id="stat-today">0</strong><small>Ready for focus</small></div>
+        <div class="metric"><span>Due or overdue</span><strong id="stat-today">0</strong><small>Ready for focus</small></div>
         <div class="metric"><span>Completed</span><strong id="stat-done">0</strong><small>Progress made</small></div>
+        <div class="metric"><span>Completion rate</span><strong id="stat-rate">0%</strong><small>Across all tasks</small></div>
       </div>
       <section class="task-panel" aria-labelledby="tasks-heading">
-        <div class="section-heading"><div><span class="overline">FOCUS SPACE</span><h2 id="tasks-heading">Your tasks <span id="result-count"></span></h2></div><label class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Find tasks" aria-label="Search tasks"></label></div>
+        <div class="section-heading"><div><span class="overline">FOCUS SPACE</span><h2 id="tasks-heading">Your tasks <span id="result-count"></span></h2></div><label class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search titles & notes · /" aria-label="Search task titles and descriptions"></label></div>
+        <div class="list-controls" role="group" aria-label="Task list controls">
+          <label class="control-select">Priority <select id="filter-priority" aria-label="Filter by priority"><option value="all">All priorities</option><option value="1">P1 · Urgent</option><option value="2">P2 · High</option><option value="3">P3 · Medium</option><option value="4">P4 · Normal</option></select></label>
+          <label class="control-select">Label <select id="filter-label" aria-label="Filter by label"><option value="">All labels</option></select></label>
+          <label class="control-select">Sort <select id="sort-tasks" aria-label="Sort tasks"><option value="smart">Smart</option><option value="due">Due date</option><option value="newest">Newest first</option><option value="title">Title A–Z</option></select></label>
+          <span class="keyboard-hint">/ Search · N New task</span>
+        </div>
         <form id="task-form" class="quick-add" autocomplete="off">
           <span class="add-glyph">+</span><label for="task-title" class="visually-hidden">New task title</label><input id="task-title" maxlength="240" placeholder="Add a task to clear your mind..." required>
+          <label for="task-description" class="visually-hidden">Task notes (optional)</label><textarea id="task-description" maxlength="2000" rows="2" placeholder="Notes (optional)"></textarea>
+          <label for="task-labels" class="visually-hidden">Labels (comma separated)</label><input id="task-labels" type="text" maxlength="272" placeholder="Labels, comma separated (optional)">
           <label for="task-project" class="visually-hidden">Project</label><select id="task-project" title="Project"><option value="">Inbox</option></select>
           <label for="task-date" class="visually-hidden">Due date</label><input id="task-date" type="date" title="Due date">
           <label for="task-priority" class="visually-hidden">Priority</label><select id="task-priority" title="Priority"><option value="4">P4</option><option value="3">P3</option><option value="2">P2</option><option value="1">P1</option></select>
@@ -61,13 +75,56 @@
         </form>
         <div id="status" role="status" aria-live="polite"></div>
         <button id="undo-task-delete" class="undo-task-delete" type="button" hidden>↶ Restore latest deleted task</button>
+        <div id="selection-control" class="selection-control"><label><input id="select-visible" type="checkbox"> Select all visible tasks</label></div>
+        <div id="bulk-toolbar" class="bulk-toolbar" role="group" aria-label="Bulk task actions" hidden>
+          <strong id="selected-count">0 selected</strong>
+          <button type="button" id="bulk-complete">Complete</button><button type="button" id="bulk-reopen">Reopen</button>
+          <label><span class="visually-hidden">Set priority for selected tasks</span><select id="bulk-priority" aria-label="Set priority for selected tasks"><option value="">Set priority…</option><option value="1">P1 · Urgent</option><option value="2">P2 · High</option><option value="3">P3 · Medium</option><option value="4">P4 · Normal</option></select></label>
+          <label><span class="visually-hidden">Move selected tasks to a project</span><select id="bulk-project" aria-label="Move selected tasks to project"><option value="">Move to project…</option></select></label>
+          <button type="button" id="bulk-trash" class="danger">Move to Trash</button><button type="button" id="bulk-clear">Clear selection</button>
+        </div>
         <ul id="task-list" class="task-list" aria-label="Tasks"></ul>
         <div id="empty" class="empty" hidden><span class="empty-icon">✦</span><h3>All clear here</h3><p>Start with a small next step. Your future self will thank you.</p></div>
       </section>
-      <footer class="footer">GoreeCloud Tasks · Early foundation · Powered by the GC UI design language</footer>
+      <footer class="footer">GoreeCloud Tasks · Stored in this browser · Built with GC UI</footer>
     </div>
   </main>
+  <nav class="mobile-bottom-nav" aria-label="Mobile task navigation">
+    <button type="button" data-mobile-view="today"><span aria-hidden="true">◷</span>Today</button>
+    <button type="button" data-mobile-view="inbox"><span aria-hidden="true">▣</span>Inbox</button>
+    <button type="button" id="mobile-add-task" class="mobile-fab" aria-label="Add task" aria-controls="task-form" aria-expanded="false"><span aria-hidden="true">+</span></button>
+    <button type="button" id="mobile-search"><span aria-hidden="true">⌕</span>Search</button>
+    <button type="button" id="mobile-browse"><span aria-hidden="true">☷</span>Browse</button>
+  </nav>
 </div>
+<dialog id="mobile-browse-dialog" class="mobile-browse-dialog" aria-labelledby="mobile-browse-heading">
+  <div class="browse-head"><h2 id="mobile-browse-heading">Browse tasks</h2><button id="mobile-browse-close" type="button" aria-label="Close browse menu">✕</button></div>
+  <p>Switch views without changing your tasks.</p>
+  <div class="browse-projects">
+    <label for="mobile-project-select">Projects</label>
+    <select id="mobile-project-select" aria-label="Browse projects"><option value="">Projects</option></select>
+    <button type="button" id="mobile-new-project">+ Create project</button>
+  </div>
+  <nav aria-label="More task views" class="browse-links">
+    <button type="button" data-mobile-view="soon">▦ &nbsp; Next 7 days</button>
+    <button type="button" data-mobile-view="upcoming">▤ &nbsp; Upcoming</button>
+    <button type="button" data-mobile-view="overdue">◴ &nbsp; Overdue</button>
+    <button type="button" data-mobile-view="priority">⚑ &nbsp; Priority</button>
+    <button type="button" data-mobile-view="completed">✓ &nbsp; Completed</button>
+    <button type="button" data-mobile-view="trash">↶ &nbsp; Trash</button>
+  </nav>
+</dialog>
+<dialog id="appearance-dialog" aria-labelledby="appearance-heading">
+  <form id="appearance-form">
+    <h2 id="appearance-heading">Appearance &amp; color</h2>
+    <p>Choose your personal colors for this browser. Task data is unaffected.</p>
+    <label for="appearance-mode">Appearance</label>
+    <select id="appearance-mode"><option value="light">Light</option><option value="dark">Dark</option></select>
+    <label for="appearance-accent">Accent</label>
+    <select id="appearance-accent"><option value="neutral">Neutral (default)</option><option value="lagoon">Lagoon · teal</option><option value="moss">Moss · green</option><option value="ember">Ember · terracotta</option><option value="ocean">Ocean · blue</option><option value="iris">Iris · violet</option></select>
+    <div class="dialog-actions"><button id="appearance-cancel" type="button">Cancel</button><button type="submit" class="primary-button">Save appearance</button></div>
+  </form>
+</dialog>
 <dialog id="project-dialog"><form method="dialog" id="project-form"><h2>Create project</h2><p>Group your tasks around a meaningful goal.</p><label for="project-title">Project name</label><input id="project-title" required maxlength="100" placeholder="e.g. Launch checklist"><div class="dialog-actions"><button type="button" id="project-cancel">Cancel</button><button class="primary-button" type="submit">Create</button></div></form></dialog>
 <dialog id="edit-task-dialog" aria-labelledby="edit-task-heading">
   <form id="edit-task-form" autocomplete="off">
@@ -75,6 +132,10 @@
     <p>Update this task on this browser. Completion history is preserved.</p>
     <label for="edit-task-title">Title</label>
     <input id="edit-task-title" type="text" required maxlength="240">
+    <label for="edit-task-description">Description / notes</label>
+    <textarea id="edit-task-description" maxlength="2000" rows="4" placeholder="Context, links or next steps…"></textarea>
+    <label for="edit-task-labels">Labels (comma separated)</label>
+    <input id="edit-task-labels" type="text" maxlength="272" placeholder="e.g. Work, Follow-up">
     <label for="edit-task-priority">Priority</label>
     <select id="edit-task-priority" required>
       <option value="1">P1 · Urgent</option><option value="2">P2 · High</option>

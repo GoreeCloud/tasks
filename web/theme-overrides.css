@@ -1,0 +1,47 @@
+/* GoreeCloud Tasks GC UI semantic adapter.
+ * Offline snapshot: gc-app-semantic.css, gc-ui revision ec72b5a...
+ * Never use a fixed violet/brand hex for Tasks-specific components. */
+:root, :root[data-mode=dark] {
+  --gc-brand:var(--gc-v1-color-primary);
+  --gc-on-brand:var(--gc-v1-color-on-primary);
+  --gc-brand-container:var(--gc-v1-color-primary-container);
+  --gc-on-brand-container:var(--gc-v1-color-on-primary-container);
+  --gc-canvas:var(--gc-v1-color-canvas);
+  --gc-surface:var(--gc-v1-color-surface);
+  --gc-surface-raised:var(--gc-v1-color-surface-raised);
+  --gc-surface-tonal:var(--gc-v1-color-surface-tonal);
+  --gc-text:var(--gc-v1-color-on-surface);
+  --gc-text-soft:var(--gc-v1-color-on-surface-muted);
+  --gc-outline:var(--gc-v1-color-outline);
+  --gc-positive:var(--gc-v1-color-success);
+  --gc-negative:var(--gc-v1-color-danger);
+}
+.logo { background:var(--gc-brand); color:var(--gc-on-brand); box-shadow:0 8px 26px rgba(25,35,55,.13); }
+.hero {
+  color:var(--gc-on-brand-container);
+  background:linear-gradient(120deg,var(--gc-brand-container),var(--gc-surface-tonal));
+  border:1px solid var(--gc-outline);
+  box-shadow:var(--gc-lens-shadow);
+}
+.hero h1,.hero p,.hero .eyebrow { color:var(--gc-on-brand-container); }
+.hero .eyebrow { opacity:.85; }
+.hero .orbit { border-color:currentColor; opacity:.19; }
+.hero .hero-check {
+  background:var(--gc-brand);
+  color:var(--gc-on-brand);
+  box-shadow:0 12px 28px rgba(25,35,55,.12);
+  backdrop-filter:none;
+}
+.nav-item.selected,.bulk-toolbar,.undo-task-delete:not([hidden]),
+.empty-icon,.projects-label button { color:var(--gc-on-brand-container); }
+.task-row.is-selected { box-shadow:inset 3px 0 0 var(--gc-brand); }
+.theme-preview { margin-top:12px; font-size:12px; color:var(--gc-text-soft); }
+@media (forced-colors:active) {
+  .hero,.logo,.nav-item.selected,.task-row.is-selected { border:1px solid CanvasText; background:Canvas; color:CanvasText; box-shadow:none; }
+  .hero h1,.hero p,.hero .eyebrow { color:CanvasText; }
+}
+
+/* Success is not an error: status feedback uses paired semantic roles. */
+#status{color:var(--gc-text-soft)}
+#status[data-level="error"]{color:var(--gc-negative)}
+#status[data-level="success"]{color:var(--gc-positive)}

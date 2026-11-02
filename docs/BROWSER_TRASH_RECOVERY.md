@@ -5,7 +5,7 @@
 ## Persistence and upgrade
 
 - Existing browser-local schema-1 data at `goreecloud.tasks.local.v1` remains readable. Reading does **not** mutate or discard existing storage. On the first *successful* save, the same key is replaced with an internal versioned envelope (`goreecloud.tasks.local.v2` format).
-- The envelope holds a validated schema-1 **active workspace** and a separate validated **Trash** collection in **one** localStorage value. Saving writes that value in one `setItem` call, so a completed delete does not persist only half of its active/Trash change.
+- The envelope holds a validated schema-1 or schema-2 **active workspace** and a separate validated **Trash** collection in **one** localStorage value. Saving writes that value in one `setItem` call, so a completed delete does not persist only half of its active/Trash change.
 - Deleted task records retain their original IDs, completion/creation timestamps (including microseconds), project associations, priorities, due dates, and full text. Trash remains available across page reloads in the same browser profile.
 - The Trash view supports individual Restore actions. A shortcut restores the most recently deleted task. Task-ID conflicts and missing original projects fail closed, leaving recovery records intact.
 - Trash keeps at most **1,000 records**. Combined storage is capped at **3 MiB** of serialized UTF-8 data. At either limit, new writes **fail** rather than deleting older history.
@@ -13,7 +13,7 @@
 
 ## Portable backup distinction
 
-**Export data** produces only the existing cross-platform **schema-1 JSON**, with active tasks and projects. It intentionally **excludes Trash**. An independent, verified backup is necessary to survive browser-profile removal, device loss, storage eviction, or other failure. Do not confuse durable browser-local recovery with cloud storage or disaster recovery.
+**Export data** produces cross-platform **schema-1 JSON** for tasks without descriptions, or **schema-2 JSON** when notes must be preserved, with active tasks and projects. Older schema-1-only clients cannot restore schema-2 notes; upgrade the receiver first. It intentionally **excludes Trash**. An independent, verified backup is necessary to survive browser-profile removal, device loss, storage eviction, or other failure. Do not confuse durable browser-local recovery with cloud storage or disaster recovery.
 
 ## Concurrency and security limitations
 

@@ -1,0 +1,13 @@
+{
+  "name": "@goreecloud/tasks-browser-qa",
+  "private": true,
+  "version": "0.0.0-development",
+  "description": "Isolated, non-production browser acceptance tests for GoreeCloud Tasks",
+  "scripts": {
+    "test": "node browser-acceptance.cjs"
+  },
+  "devDependencies": {
+    "axe-core": "4.10.3",
+    "playwright": "1.64.1"
+  }
+}
