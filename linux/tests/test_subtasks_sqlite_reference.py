@@ -83,6 +83,22 @@ class TransactionReferenceTests(unittest.TestCase):
         self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
         self.assertEqual(self.repository.manifests()["whole"], manifest)
 
+    def test_interdependent_groups_restore_only_after_missing_parent_returns(self):
+        self.repository.delete_subtree("task-empty-notes", WHEN, "child")
+        self.repository.delete_subtree("task-notes", WHEN, "root")
+        self.assertEqual(set(self.repository.manifests()), {"child", "root"})
+        before = deepcopy((self.repository.workspace(), self.repository.trash(),
+                           self.repository.manifests()))
+        with self.assertRaises(BackupError):
+            self.repository.restore_group("child")
+        self.assertEqual((self.repository.workspace(), self.repository.trash(),
+                          self.repository.manifests()), before)
+        self.repository.restore_group("root")
+        self.repository.restore_group("child")
+        self.assertEqual(self.repository.workspace(), self.fixture)
+        self.assertEqual(self.repository.trash(), [])
+        self.assertEqual(self.repository.manifests(), {})
+
     def test_rejects_disk_database_before_creating_any_tables(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "personal.sqlite3"
