@@ -25,3 +25,11 @@ Before subtask UI is enabled, integrate with versioned schema-4 import, durable 
 Production integration must additionally validate manifest lifecycle across process restarts, protect against torn or tampered metadata, use signed/checksummed snapshots as appropriate, and define safe repair/escalation behavior. The reference proves an in-memory transaction property only.
 
 **Cross-group dependency rule:** a previously trashed child group cannot be restored while its parent remains in a different deletion group. A synthetic reference test verifies that the attempted child restore leaves both manifests and all task records unchanged; restoring the parent's group first then permits the child's full recovery. This policy requires explicit user-facing recovery guidance before activation.
+
+## Additional failure checks
+
+The next acceptance tests must cover missing independent manifests and inconsistent persisted member metadata, and prove that any failed restoration leaves the proposed task, Trash and manifest tables unchanged. This is not a live schema-4 permission to write personal databases.
+
+## Fail-closed corrupted/missing manifest tests
+
+The in-memory SQLite reference now covers absent independent recovery metadata, changed root metadata, child groups restored before their trashed parent, and a simulated failure during manifest finalization after task restoration starts. Each failed operation leaves active, Trash, and manifest state unchanged; verified tests do not write personal SQLite databases. The recovery operator must not try to reconstruct a missing manifest from surviving Trash rows, because the full expected descendant set cannot be proven from those rows alone.
