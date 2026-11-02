@@ -143,3 +143,8 @@ test('shared schema3 labels round-trip and reject legacy silent downgrade',()=>{
   const tooMany={...fixture,tasks:[{...fixture.tasks[0],labels:Array(9).fill('X')},fixture.tasks[1]]};
   assert.throws(()=>validateBackup(tooMany),/8 labels/);
 });
+
+test('unsupported proposed schema-4 hierarchy is rejected rather than losing parent links',()=>{
+ const data=readFileSync(new URL('../fixtures/portable/schema4-proposed-synthetic.json',import.meta.url),'utf8');
+ assert.throws(()=>validateBackupText(data),/Unsupported/);
+});

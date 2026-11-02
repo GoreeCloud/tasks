@@ -39,3 +39,7 @@ require separate verification.
 ## Schema 3: first-class labels
 
 `schema3-synthetic.json` adds required ordered task label arrays on top of schema-2 descriptions. The fixture includes Unicode labels, empty arrays, project and exact completion timestamps. A schema-3-aware importer is required to preserve labels. See [portable label contract](../../docs/PORTABLE_SCHEMA3_LABELS.md).
+
+## Proposed schema 4: not yet supported
+
+`schema4-proposed-synthetic.json` is a **design-only** root/child/grandchild fixture. Current clients must reject it; it is intentionally not importable. See [subtask engineering design](../../docs/SUBTASKS_SCHEMA4_DESIGN.md).

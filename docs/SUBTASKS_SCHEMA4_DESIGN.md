@@ -39,3 +39,7 @@ Legacy schemas 1–3 import as roots with null `parentId` in local storage; expo
 ## Explicit unresolved design decision
 
 Choose and test the atomic Trash/restore group representation (e.g. device-local `deletion_group_id`) **before** writing schema-4 records. The current clients support independent Trash rows, not full parent subtree restoration. Until the grouped-recovery contract is implemented across all three clients, subtask storage and destructive actions should remain off by default.
+
+## Preflight fixture and fail-closed evidence
+
+The **proposed, unsupported** `fixtures/portable/schema4-proposed-synthetic.json` models a three-level parent chain using synthetic data. Browser, Linux and Android legacy import tests explicitly reject its schema number before modifying the target workspace. This is a safety guard **against silent hierarchy loss**, not evidence that subtasks work. The guard tests must be replaced with positive schema-4 import/export tests only after native/browser relationship validation and atomic group recovery are implemented.

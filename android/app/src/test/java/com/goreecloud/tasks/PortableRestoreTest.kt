@@ -93,6 +93,10 @@ class PortableRestoreTest {
         rejects(root.toString()) // UTF-16 2000-unit cap
     }
 
+    @Test fun unsupportedSchemaFourGraphFailsClosed() {
+        rejects(String(PortableFixture.read("schema4-proposed-synthetic.json"), Charsets.UTF_8))
+    }
+
     @Test fun schemaThreeValidatesLabelsAndRefusesLegacyDowngrade() {
         val fixture = PortableFixture.read("schema3-synthetic.json")
         val result = PortableRestore.parse(fixture)

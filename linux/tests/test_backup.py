@@ -64,6 +64,15 @@ class PortableBackupTests(unittest.TestCase):
         finally:
             store.close()
 
+    def test_proposed_schema4_is_rejected_without_changing_empty_store(self):
+        fixture=json.loads((Path(__file__).resolve().parents[2] /
+                            "fixtures/portable/schema4-proposed-synthetic.json").read_text(encoding="utf-8"))
+        with self.assertRaises(BackupError):
+            validate(fixture)
+        with self.assertRaises(BackupError):
+            import_data(self.target,fixture)
+        self.assertEqual(self.target.list_tasks(view="All"),[])
+
     def test_schema3_labels_import_export_and_atomic_trash(self):
         fixture = json.loads((Path(__file__).resolve().parents[2] /
                               "fixtures/portable/schema3-synthetic.json").read_text(encoding="utf-8"))
