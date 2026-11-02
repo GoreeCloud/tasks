@@ -32,6 +32,18 @@ class SubtaskGroupManifestTest {
         assertTrue(SubtaskGroupManifest.verify(m,p.trash))
     }
 
+    @Test fun alteredNotesWithSameTaskIdsCannotPassIntegrityCheck() {
+        val p = plan()
+        val manifest = SubtaskGroupManifest.create(p.trash, "g-1")
+        val tampered = p.trash.map { JSONObject(it.toString()) }
+        tampered.first().getJSONObject("task").put("description", "Modified local notes")
+        try {
+            SubtaskGroupManifest.verify(manifest, tampered)
+            fail("Accepted altered task contents")
+        } catch (_: IllegalArgumentException) { }
+        assertTrue(SubtaskGroupManifest.verify(manifest, p.trash))
+    }
+
     @Test fun swappedMemberAndRootAreRejected() {
         val p=plan()
         val m=SubtaskGroupManifest.create(p.trash,"g-1")

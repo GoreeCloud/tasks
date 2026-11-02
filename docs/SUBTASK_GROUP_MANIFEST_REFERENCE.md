@@ -33,3 +33,7 @@ The next acceptance tests must cover missing independent manifests and inconsist
 ## Fail-closed corrupted/missing manifest tests
 
 The in-memory SQLite reference now covers absent independent recovery metadata, changed root metadata, child groups restored before their trashed parent, and a simulated failure during manifest finalization after task restoration starts. Each failed operation leaves active, Trash, and manifest state unchanged; verified tests do not write personal SQLite databases. The recovery operator must not try to reconstruct a missing manifest from surviving Trash rows, because the full expected descendant set cannot be proven from those rows alone.
+
+## Local payload digests
+
+The pure reference now checks per-member SHA-256 of serialized task contents. This detects accidental content edits even if group IDs and counts match; it is not keyed authentication and is not portable across differing serializers.

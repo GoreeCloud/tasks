@@ -27,6 +27,14 @@ class ManifestContractTests(unittest.TestCase):
             verify_manifest(self.manifest,changed)
         self.assertTrue(verify_manifest(self.manifest,self.trash))
 
+    def test_payload_mutation_is_detected_without_changing_member_ids(self):
+        from copy import deepcopy
+        changed = deepcopy(self.trash)
+        changed[0]['task']['description'] = 'Altered recovery notes'
+        with self.assertRaises(BackupError):
+            verify_manifest(self.manifest, changed)
+        self.assertTrue(verify_manifest(self.manifest, self.trash))
+
     def test_manifests_cannot_change_member_set_or_group_metadata(self):
         for changed in (dict(self.manifest,memberIds=['task-empty-notes','task-notes']),
                         dict(self.manifest,memberIds=list(reversed(self.manifest['memberIds']))),
