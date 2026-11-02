@@ -1,0 +1,19 @@
+# Schema-4 deletion-group manifest reference — isolated development
+
+**Status:** Preview and adversarial test utilities only. None is called by the live browser, Android, GTK or sync services. Current clients must still reject schema-4 imports. This is not a migration or release.
+
+## Proven failure mode
+
+A record-only recovery group may be missing its grandchild. If all surviving rows' `groupSize` values are changed to match their reduced count, row-count checks alone can accept an incomplete subtree. Existing parent-chain validation does not reveal descendants that are simply absent. A full durable member manifest is needed for reliable crash/recovery validation.
+
+## Independent manifest contract
+
+`{groupId,groupRootId,deletedAt,memberIds}` stores sorted, unique task IDs expected in the group. The validator compares the independent expected member set against all present local Trash rows, checks root and timestamp metadata, validates membership ordering and disallows duplicates. It detects missing descendants even with forged per-row counts. JavaScript, Python and Kotlin reference implementations use the same field names and synthetic schema-4 fixture.
+
+A manifest must eventually be stored **separately from Trash entries in the same transaction as the subtree deletion**, restored/deleted atomically with that subtree, and tested through database restart, rollback and disk corruption. The current reference functions merely compute/validate copies of in-memory data. They do not reserve IDs, write databases, enable hierarchy, or alter production imports.
+
+## Limits and acceptance
+
+This is an integrity check against partial/corrupted group membership, **not a cryptographic authentication mechanism**: a malicious actor who can rewrite both the independent manifest and Trash entries coherently can defeat it. A durable implementation may need a stronger checksum or authenticated record depending on the eventual threat model and device-key strategy. Do not claim tamper resistance or production recovery from the pure tests.
+
+Before subtask UI is enabled, integrate with versioned schema-4 import, durable manifest persistence, native SQLite transaction fault injection, crash replay, separate original/Trash data integrity scans, cross-client recovery and manual TalkBack/Orca acceptance. The owner task registry remains Todoist until cutover sign-off.
