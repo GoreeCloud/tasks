@@ -37,3 +37,7 @@ The in-memory SQLite reference now covers absent independent recovery metadata, 
 ## Local payload digests
 
 The pure reference now checks per-member SHA-256 of serialized task contents. This detects accidental content edits even if group IDs and counts match; it is not keyed authentication and is not portable across differing serializers.
+
+## Independent SQLite snapshot replay
+
+A second disposable in-memory SQLite connection can receive a backup copy of the proposed tables. Tests confirm independent group manifests and Trash rows survive that copy and permit recovery without mutating the source database. This is an in-memory copy test, not a file-backed crash, filesystem durability, Android device, or production migration test.

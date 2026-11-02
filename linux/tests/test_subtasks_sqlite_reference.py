@@ -132,6 +132,24 @@ class TransactionReferenceTests(unittest.TestCase):
         self.assertEqual((self.repository.workspace(), self.repository.trash(),
                           self.repository.manifests()), before)
 
+    def test_sqlite_snapshot_copy_retains_independent_group_manifest(self):
+        self.repository.delete_subtree("task-notes", WHEN, "whole")
+        snapshot = sqlite3.connect(":memory:")
+        try:
+            self.db.backup(snapshot)
+            recovered = InMemorySubtreeReference(snapshot)
+            self.assertEqual(recovered.manifests(), self.repository.manifests())
+            self.assertEqual(recovered.trash(), self.repository.trash())
+            recovered.restore_group("whole")
+            self.assertEqual(recovered.workspace(), self.fixture)
+            self.assertEqual(recovered.trash(), [])
+            self.assertEqual(recovered.manifests(), {})
+            # An independent snapshot must not mutate the source connection.
+            self.assertEqual(len(self.repository.trash()), 3)
+            self.assertIn("whole", self.repository.manifests())
+        finally:
+            snapshot.close()
+
     def test_rejects_disk_database_before_creating_any_tables(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "personal.sqlite3"
