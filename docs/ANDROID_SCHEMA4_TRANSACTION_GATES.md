@@ -27,3 +27,11 @@ For restoration, independently read and validate the persisted manifest, verify 
 - App process restart, disk crash and physical-device recovery remain separate future gates; in-memory tests do not satisfy them.
 
 No user-facing Add subtask, nested Delete, or recovery buttons should be enabled until durable on-device implementation, real assistive technology verification, full cross-client backup coverage and owner acceptance are complete.
+
+## Local-only manifest compatibility boundary
+
+The current schema-1/2/3 portable backups intentionally exclude recoverable Trash. The proposed schema-4 format must continue to exclude device-local deletion groups, Trash rows and independent manifests unless a *separate*, reviewed versioned recovery format is created. A normal schema-4 import must validate the parent graph, not import foreign recovery state.
+
+The existing digest references hash locally serialized JSON. JavaScript `JSON.stringify`, Python `json.dumps(sort_keys=True)`, and Android `JSONObject.toString()` need not produce identical byte sequences for semantically identical task objects. **Never compare these hashes across devices or silently reinterpret an imported remote digest as locally verified.** Create a new independent manifest only when the destination itself performs a validated subtree move to local Trash, in the same transaction as those moved records.
+
+If future cross-device Trash recovery is requested, design an explicit canonical encoding and independent integrity/authentication and conflict-resolution contract, with common byte-level test vectors, before enabling it. Local SHA-256 remains an accidental-corruption check, not a keyed proof of authenticity. A mismatched manifest must block recovery rather than trigger automatic reconstruction from the possibly incomplete Trash rows.
