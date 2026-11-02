@@ -10,6 +10,7 @@ import sqlite3
 from backup import BackupError
 from subtasks_contract import validate_proposed_graph
 from subtasks_recovery import plan_subtree_trash, plan_subtree_restore
+from subtasks_manifest import create_manifest, verify_manifest
 
 
 class InMemorySubtreeReference:
@@ -32,6 +33,7 @@ class InMemorySubtreeReference:
                 group_root_id TEXT NOT NULL, group_size INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_proposed_group ON proposed_trash(group_id);
+            CREATE TABLE IF NOT EXISTS proposed_manifests (group_id TEXT PRIMARY KEY,payload TEXT NOT NULL);
         """)
 
     @staticmethod
@@ -67,6 +69,10 @@ class InMemorySubtreeReference:
                            "groupId": group, "groupRootId": root, "groupSize": size})
         return result
 
+    def manifests(self):
+        return {group: json.loads(payload) for group,payload in
+                self.db.execute("SELECT group_id,payload FROM proposed_manifests")}
+
     def _transaction(self, operation):
         if self.db.in_transaction:
             raise ValueError("Reference operation requires a new transaction")
@@ -83,6 +89,9 @@ class InMemorySubtreeReference:
         def apply():
             plan = plan_subtree_trash(self.workspace(), self.trash(),
                                       root_id, deleted_at, group_id)
+            manifest = create_manifest(plan["trash"], group_id)
+            self.db.execute("INSERT INTO proposed_manifests VALUES (?,?)",
+                            (group_id, self._json(manifest)))
             for entry in plan["trash"]:
                 if entry["groupId"] != group_id:
                     continue
@@ -99,11 +108,16 @@ class InMemorySubtreeReference:
                 if result.rowcount != 1:
                     raise BackupError("Task changed during preview deletion")
             validate_proposed_graph(self.workspace())
+            verify_manifest(manifest, self.trash())
             return plan["affectedIds"]
         return self._transaction(apply)
 
     def restore_group(self, group_id):
         def apply():
+            stored = self.manifests().get(group_id)
+            if stored is None:
+                raise BackupError("Independent recovery manifest missing")
+            verify_manifest(stored, self.trash())
             plan = plan_subtree_restore(self.workspace(), self.trash(), group_id)
             for entry in self.trash():
                 if entry["groupId"] != group_id:
@@ -115,5 +129,8 @@ class InMemorySubtreeReference:
                 if result.rowcount != 1:
                     raise BackupError("Trash changed during preview restoration")
             validate_proposed_graph(self.workspace())
+            if self.db.execute("DELETE FROM proposed_manifests WHERE group_id=?",
+                               (group_id,)).rowcount != 1:
+                raise BackupError("Independent recovery manifest changed")
             return plan["restoredIds"]
         return self._transaction(apply)

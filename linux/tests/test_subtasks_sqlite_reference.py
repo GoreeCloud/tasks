@@ -30,7 +30,9 @@ class TransactionReferenceTests(unittest.TestCase):
         self.assertEqual(len(ids), 3)
         self.assertEqual(self.repository.workspace()["tasks"], [])
         self.assertEqual(len(self.repository.trash()), 3)
+        self.assertEqual(len(self.repository.manifests()["whole"]["memberIds"]), 3)
         self.repository.restore_group("whole")
+        self.assertEqual(self.repository.manifests(), {})
         self.assertEqual(self.repository.workspace(), self.fixture)
         self.assertEqual(self.repository.trash(), [])
 
@@ -54,6 +56,7 @@ class TransactionReferenceTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.repository.delete_subtree("task-notes", WHEN, "whole")
         self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
+        self.assertEqual(self.repository.manifests(), {})
 
     def test_mid_restore_sqlite_fault_rolls_back_all_rows(self):
         self.repository.delete_subtree("task-notes", WHEN, "whole")
@@ -66,6 +69,19 @@ class TransactionReferenceTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.repository.restore_group("whole")
         self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
+        self.assertIn("whole", self.repository.manifests())
+
+    def test_missing_leaf_with_forged_group_counts_cannot_restore(self):
+        self.repository.delete_subtree("task-notes", WHEN, "whole")
+        manifest = deepcopy(self.repository.manifests()["whole"])
+        self.db.execute("DELETE FROM proposed_trash WHERE id='task-grandchild'")
+        self.db.execute("UPDATE proposed_trash SET group_size=2 WHERE group_id='whole'")
+        self.db.commit()
+        before = deepcopy((self.repository.workspace(), self.repository.trash()))
+        with self.assertRaises(BackupError):
+            self.repository.restore_group("whole")
+        self.assertEqual((self.repository.workspace(), self.repository.trash()), before)
+        self.assertEqual(self.repository.manifests()["whole"], manifest)
 
     def test_rejects_disk_database_before_creating_any_tables(self):
         with tempfile.TemporaryDirectory() as folder:
