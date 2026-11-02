@@ -54,6 +54,8 @@
 
 - [ ] First-class hierarchical subtasks: design and failure-mode review started. A proposed schema-4 parent graph, atomic subtree Trash/restore invariants, migration and cross-client acceptance are documented in [subtask schema-4 design](SUBTASKS_SCHEMA4_DESIGN.md). **No schema-4 runtime or UI is implemented.**
 
+- [ ] Schema-4 subtask preflight: pure graph validators for browser/Linux/Android and browser-only atomic subtree Trash/restore planning tests added. **Not integrated into client storage or UI.** Native group transaction and release validation remain open; [design and guards](SUBTASKS_SCHEMA4_DESIGN.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

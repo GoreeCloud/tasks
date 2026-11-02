@@ -43,3 +43,5 @@ require separate verification.
 ## Proposed schema 4: not yet supported
 
 `schema4-proposed-synthetic.json` is a **design-only** root/child/grandchild fixture. Current clients must reject it; it is intentionally not importable. See [subtask engineering design](../../docs/SUBTASKS_SCHEMA4_DESIGN.md).
+
+The proposal is now also exercised by isolated JavaScript, Python and Kotlin **read-only** schema-4 graph validators. Live backup readers still refuse schema 4. The browser-only grouped Trash/restore planning model is a test harness, not a user-facing feature. See the design document for recovery and release gates.
