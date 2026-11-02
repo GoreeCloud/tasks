@@ -233,3 +233,20 @@ test('plain text labels preserve identity in editing and duplication',()=>{
  assert.throws(()=>parseLabelInput('X'.repeat(33)),/unique/);
  assert.throws(()=>parseLabelInput('🧭'.repeat(17)),/unique/);
 });
+
+test('exact label filter intersects search, priority, project and completion without mutation',()=>{
+ const a={...newTask('Shared', 'team','2026-11-04',1,'Audit', ['Work','Design 🧭']),id:'a'};
+ const b={...newTask('Shared', 'team','2026-11-04',2,'Audit', ['work']),id:'b'};
+ const c={...newTask('Inbox',null,'',1,'Audit',['Work']),id:'c'};
+ const d={...newTask('Done',null,'',1,'Audit',['Work']),id:'d',completed:true,completedAt:'2026-11-01T12:00:00Z'};
+ const tasks=[a,b,c,d];
+ const pick=(view,query,options)=>selectTasks(tasks,view,'2026-11-01',query,options).map(t=>t.id);
+ assert.deepEqual(pick('all','audit',{label:'Work'}),['a','c']);
+ assert.deepEqual(pick('project:team','audit',{label:'Work',priority:'1'}),['a']);
+ assert.deepEqual(pick('all','audit',{label:'work'}),['b']);
+ assert.deepEqual(pick('completed','',{label:'Work'}),['d']);
+ assert.deepEqual(pick('inbox','',{label:'Design 🧭'}),[]);
+ assert.deepEqual(pick('all','',{label:'Missing'}),[]);
+ assert.throws(()=>pick('all','',{label:'x'.repeat(33)}));
+ assert.deepEqual(a.labels,['Work','Design 🧭']);
+});

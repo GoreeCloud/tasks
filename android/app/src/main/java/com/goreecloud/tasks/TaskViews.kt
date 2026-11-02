@@ -7,11 +7,13 @@ internal object TaskViews {
     val names = listOf("Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority", "Completed", "Project")
 
     /** Search deleted task titles and notes; leave Trash ordering and recovery untouched. */
-    fun selectTrash(tasks: List<TaskRecord>, search: String = ""): List<TaskRecord> {
+    fun selectTrash(tasks: List<TaskRecord>, search: String = "", labelFilter: String? = null): List<TaskRecord> {
+        if (labelFilter != null) TaskRules.labels(listOf(labelFilter))
         val query = search.trim()
-        return if (query.isEmpty()) tasks else tasks.filter { task ->
-            task.title.contains(query, ignoreCase = true) ||
-                task.description.contains(query, ignoreCase = true)
+        return tasks.filter { task ->
+            (labelFilter == null || labelFilter in task.labels) &&
+                (query.isEmpty() || task.title.contains(query, ignoreCase = true) ||
+                task.description.contains(query, ignoreCase = true))
         }
     }
 
@@ -22,8 +24,10 @@ internal object TaskViews {
         projectId: String? = null,
         search: String = "",
         priorityFilter: Int? = null,
-        sortBy: String = "Smart"
+        sortBy: String = "Smart",
+        labelFilter: String? = null
     ): List<TaskRecord> {
+        if (labelFilter != null) TaskRules.labels(listOf(labelFilter))
         require(view in names) { "Unknown task view" }
         require(priorityFilter == null || priorityFilter in 1..4) { "Invalid priority filter" }
         require(sortBy in listOf("Smart", "Due date", "Title")) { "Unknown task sort" }
@@ -43,7 +47,8 @@ internal object TaskViews {
                 "Project" -> !task.completed && task.projectId == projectId
                 else -> !task.completed
             }
-            visible && (priorityFilter == null || task.priority == priorityFilter) &&
+            visible && (labelFilter == null || labelFilter in task.labels) &&
+                (priorityFilter == null || task.priority == priorityFilter) &&
                 (query.isEmpty() || task.title.contains(query, ignoreCase = true) ||
                     task.description.contains(query, ignoreCase = true))
         }

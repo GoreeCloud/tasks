@@ -17,6 +17,30 @@ class TaskStoreTests(unittest.TestCase):
         self.store.close()
         self.dir.cleanup()
 
+    def test_label_filter_intersects_project_priority_search_and_trash(self):
+        project=self.store.add_project("Team")
+        first=self.store.add_task("Shared",priority=1,due_date="2026-11-04",project_id=project,
+                                  description="Audit",labels=["Work","Design 🧭"])
+        other=self.store.add_task("Shared",priority=2,project_id=project,description="Audit",labels=["work"])
+        inbox=self.store.add_task("Inbox",priority=1,labels=["Work"])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(query="Audit",label_filter="Work")],[first])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=project,
+                                   priority_filter=1,label_filter="Work")],[first])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=project,
+                                   label_filter="work")],[other])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=project,
+                                   label_filter="Design 🧭")],[first])
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Project",project_id=None,
+                                   label_filter="Work")],[inbox])
+        self.assertEqual(self.store.list_tasks(label_filter="Missing"),[])
+        with self.assertRaises(ValueError):
+            self.store.list_tasks(label_filter="x"*33)
+        self.assertTrue(self.store.delete_task(first))
+        self.assertEqual([t["id"] for t in self.store.list_deleted_tasks(label_filter="Work")],[first])
+        self.assertEqual(self.store.list_deleted_tasks(label_filter="work"),[])
+        self.assertTrue(self.store.restore_deleted_task(first))
+        self.assertEqual([t["id"] for t in self.store.list_tasks(label_filter="Work")],[first,inbox])
+
     def test_search_task_titles_and_notes_including_literal_wildcards_and_trash(self):
         project = self.store.add_project("Research")
         first = self.store.add_task("Readable title", priority=1, project_id=project,

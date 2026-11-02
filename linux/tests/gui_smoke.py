@@ -111,6 +111,12 @@ def main():
             assert row["description"] == "Synthetic release%_notes"
             import json
             assert json.loads(row["labels_json"]) == ["Work", "Design 🧭"]
+            assert "Work" in window._available_labels
+            window.label_filter.set_selected(window._available_labels.index("Work") + 1)
+            window.refresh()
+            assert window.visible_task_ids == [task]
+            window.label_filter.set_selected(0)
+            window.refresh()
             window.search.set_text("release%_")
             window.refresh() # SearchEntry notification is debounced by GTK
             assert window.visible_task_ids == [task]

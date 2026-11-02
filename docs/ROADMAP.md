@@ -50,6 +50,8 @@
 
 - [x] First-class task labels in browser, Linux GTK4 and Android Compose (up to 8 unique labels per task, 32 UTF-16 units per label) with additive SQLite columns and portable backup schema 3. Legacy schema 1/2 remains readable, schema 3 cannot be silently downgraded; full native CI/physical accessibility and recovery acceptance still required. See [schema-3 contract](PORTABLE_SCHEMA3_LABELS.md).
 
+- [x] Exact single-label filtering across browser, native Linux and Android, including recoverable Trash; intersects search, project, priority and completion state without touching persisted schema 3. See [schema-3 label filtering](PORTABLE_SCHEMA3_LABELS.md). CI and physical accessibility acceptance remain separate.
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.

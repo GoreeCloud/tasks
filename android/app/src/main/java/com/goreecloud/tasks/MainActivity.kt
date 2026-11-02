@@ -89,6 +89,8 @@ private fun TasksScreen(db: TasksDatabase) {
         }
         var search by remember { mutableStateOf("") }
         var priorityFilter by remember { mutableStateOf<Int?>(null) }
+        var labelFilter by remember { mutableStateOf<String?>(null) }
+        var labelFilterMenu by remember { mutableStateOf(false) }
         var priorityFilterMenu by remember { mutableStateOf(false) }
         var sortBy by remember { mutableStateOf("Smart") }
         var sortMenu by remember { mutableStateOf(false) }
@@ -158,13 +160,17 @@ private fun TasksScreen(db: TasksDatabase) {
             deletedTasks.clear()
             deletedTasks.addAll(db.listDeletedTasks())
         }
-        LaunchedEffect(view, search, selectedProjectId, priorityFilter, sortBy) {
+        LaunchedEffect(view, search, selectedProjectId, priorityFilter, labelFilter, sortBy) {
             selectedTaskIds.clear()
         }
+        val availableLabels = (tasks + deletedTasks).flatMap { it.labels }.distinct().sorted()
+        LaunchedEffect(availableLabels) {
+            if (labelFilter?.let { it !in availableLabels } == true) labelFilter = null
+        }
         val visible = if (view == "Trash") {
-            TaskViews.selectTrash(deletedTasks, search)
+            TaskViews.selectTrash(deletedTasks, search, labelFilter)
         } else TaskViews.select(tasks, view, LocalDate.now().toString(), selectedProjectId, search,
-            priorityFilter, sortBy)
+            priorityFilter, sortBy, labelFilter)
         val visibleIds = if (view == "Trash") emptySet() else visible.map { it.id }.toSet()
         val batchIds = selectedTaskIds.filter { it in visibleIds }
         fun applyBulk(action: String, value: String? = null) {
@@ -421,6 +427,23 @@ private fun TasksScreen(db: TasksDatabase) {
                                     sortBy = mode; sortMenu = false
                                 })
                             }
+                        }
+                    }
+                }
+                Box {
+                    OutlinedButton(onClick = { labelFilterMenu = true },
+                        enabled = availableLabels.isNotEmpty()) {
+                        Text(labelFilter?.let { "Label: #$it" } ?: "All labels")
+                    }
+                    DropdownMenu(expanded = labelFilterMenu,
+                        onDismissRequest = { labelFilterMenu = false }) {
+                        DropdownMenuItem(text = { Text("All labels") }, onClick = {
+                            labelFilter = null; labelFilterMenu = false
+                        })
+                        availableLabels.forEach { label ->
+                            DropdownMenuItem(text = { Text("#$label") }, onClick = {
+                                labelFilter = label; labelFilterMenu = false
+                            })
                         }
                     }
                 }

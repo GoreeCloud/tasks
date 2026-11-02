@@ -203,7 +203,7 @@ class TaskStore:
     def list_tasks(self, *, include_completed: bool = False, view: str | None = None,
                    query: str = "", project_id: str | None = None,
                    today: str | None = None, priority_filter: int | None = None,
-                   sort_by: str = "Smart") -> list[dict]:
+                   sort_by: str = "Smart", label_filter: str | None = None) -> list[dict]:
         if view is None:
             view = "Open" if not include_completed else "All"
         if view not in (*VIEWS, "All"):
@@ -254,10 +254,13 @@ class TaskStore:
             escaped = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             params.extend(("%" + escaped + "%",) * 2)
         where = "WHERE " + " AND ".join(clauses) if clauses else ""
+        if label_filter is not None:
+            self.checked_labels([label_filter])
         rows = self.db.execute(
             f"SELECT * FROM tasks {where} ORDER BY {order_options[sort_by]}", params
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in rows if label_filter is None or
+                label_filter in self.checked_labels(json.loads(row["labels_json"]))]
 
     def complete_task(self, task_id: str, completed: bool) -> bool:
         """Change completion once; redundant toggles preserve the original date."""
@@ -357,7 +360,7 @@ class TaskStore:
                 raise sqlite3.IntegrityError("Task changed during deletion")
         return True
 
-    def list_deleted_tasks(self, *, query: str = "") -> list[dict]:
+    def list_deleted_tasks(self, *, query: str = "", label_filter: str | None = None) -> list[dict]:
         """Deleted rows are local-only and excluded from portable backups."""
         if not isinstance(query, str):
             raise ValueError("Search must be text")
@@ -367,11 +370,14 @@ class TaskStore:
             escaped = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             where = "WHERE (title LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')"
             params.extend(("%" + escaped + "%",) * 2)
+        if label_filter is not None:
+            self.checked_labels([label_filter])
         rows = self.db.execute(
             "SELECT * FROM deleted_tasks " + where +
             " ORDER BY deleted_at DESC, id", params
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in rows if label_filter is None or
+                label_filter in self.checked_labels(json.loads(row["labels_json"]))]
 
     def restore_deleted_task(self, task_id: str) -> bool:
         """Recreate the original task atomically; preserve timestamps and ID."""

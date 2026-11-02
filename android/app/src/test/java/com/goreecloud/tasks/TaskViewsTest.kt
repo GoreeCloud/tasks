@@ -36,6 +36,20 @@ class TaskViewsTest {
         assertEquals(emptyList<String>(), TaskViews.selectTrash(listOf(notes), "absent").map { it.id })
     }
 
+    @Test fun filtersExactLabelsAndTrash() {
+        val a = TaskRecord("a", "Audit", 1, false, "2026-11-03", "team", "Notes", listOf("Work", "Design 🧭"))
+        val b = TaskRecord("b", "Audit", 2, false, null, "team", "Notes", listOf("work"))
+        val c = TaskRecord("c", "Inbox", 1, false, null, null, "Notes", listOf("Work"))
+        val d = TaskRecord("d", "Done", 1, true, null, null, "Notes", listOf("Work"))
+        val records = listOf(a,b,c,d)
+        assertEquals(listOf("a"), TaskViews.select(records,"Project","2026-11-01","team","Audit",1,"Smart","Work").map { it.id })
+        assertEquals(listOf("b"), TaskViews.select(records,"Open","2026-11-01",labelFilter="work").map { it.id })
+        assertEquals(listOf("a","c"), TaskViews.select(records,"Open","2026-11-01",labelFilter="Work").map { it.id })
+        assertEquals(listOf("d"), TaskViews.select(records,"Completed","2026-11-01",labelFilter="Work").map { it.id })
+        assertEquals(listOf("a"), TaskViews.selectTrash(listOf(a,b),"notes","Design 🧭").map { it.id })
+        assertEquals(emptyList<String>(), TaskViews.selectTrash(listOf(a),labelFilter="work").map { it.id })
+    }
+
     @Test fun filtersTodayUpcomingAndCompleted() {
         assertEquals(listOf("a"), TaskViews.select(tasks, "Today", "2026-10-31").map { it.id })
         assertEquals(listOf("b"), TaskViews.select(tasks, "Upcoming", "2026-10-31").map { it.id })

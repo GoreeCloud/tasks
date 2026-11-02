@@ -256,6 +256,13 @@ class TasksWindow(Adw.ApplicationWindow):
         self.priority_filter.set_tooltip_text("Filter visible tasks by priority")
         self.priority_filter.connect("notify::selected", self.on_filter)
         filter_row.append(self.priority_filter)
+        filter_row.append(Gtk.Label(label="Label"))
+        self.label_filter = Gtk.DropDown.new_from_strings(["All labels"])
+        self.label_filter.update_property([Gtk.AccessibleProperty.LABEL], ["Filter by label"])
+        self._updating_label_filter = False
+        self._available_labels = []
+        self.label_filter.connect("notify::selected", self.on_label_change)
+        filter_row.append(self.label_filter)
         filter_row.append(Gtk.Label(label="Sort"))
         self.sort_picker = Gtk.DropDown.new_from_strings(["Smart", "Due date", "Title"])
         self.sort_picker.set_tooltip_text("Sort the task list")
@@ -577,6 +584,29 @@ class TasksWindow(Adw.ApplicationWindow):
         except (ValueError, OSError, sqlite3.Error) as error:
             self.message.set_text(str(error))
 
+    def on_label_change(self, *args):
+        if not self._updating_label_filter:
+            self.on_filter()
+
+    def refresh_label_choices(self):
+        import json
+        rows = self.store.list_tasks(view="All") + self.store.list_deleted_tasks()
+        labels = sorted({label for row in rows
+                         for label in self.store.checked_labels(json.loads(row["labels_json"]))})
+        old = self.label_filter.get_selected()
+        selected = self._available_labels[old - 1] if 0 < old <= len(self._available_labels) else None
+        if labels != self._available_labels:
+            self._updating_label_filter = True
+            try:
+                self.label_filter.set_model(Gtk.StringList.new(["All labels"] + ["#" + label for label in labels]))
+                self.label_filter.set_selected(labels.index(selected) + 1 if selected in labels else 0)
+                self._available_labels = labels
+            finally:
+                self._updating_label_filter = False
+        self.label_filter.set_sensitive(bool(labels))
+        index = self.label_filter.get_selected()
+        return labels[index - 1] if 0 < index <= len(labels) else None
+
     def on_filter(self, *args):
         self.selected_task_ids.clear()
         self.refresh()
@@ -616,14 +646,16 @@ class TasksWindow(Adw.ApplicationWindow):
             self.add_button.set_label("+ Add task")
         self.priority_filter.set_sensitive(view != "Trash")
         self.sort_picker.set_sensitive(view != "Trash")
+        label = self.refresh_label_choices()
         if view == "Trash":
-            tasks = self.store.list_deleted_tasks(query=self.search.get_text())
+            tasks = self.store.list_deleted_tasks(query=self.search.get_text(), label_filter=label)
         else:
             tasks = self.store.list_tasks(
                 view=view, query=self.search.get_text(),
                 project_id=self.selected_project_id(),
                 priority_filter=(None, 1, 2, 3, 4)[self.priority_filter.get_selected()],
-                sort_by=("Smart", "Due date", "Title")[self.sort_picker.get_selected()]
+                sort_by=("Smart", "Due date", "Title")[self.sort_picker.get_selected()],
+                label_filter=label
             )
         self.visible_task_ids = [task["id"] for task in tasks] if view != "Trash" else []
         self.selected_task_ids.intersection_update(self.visible_task_ids)

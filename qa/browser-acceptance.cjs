@@ -168,6 +168,22 @@ async function run(engine,port){
     await labelPage.reload({waitUntil:'networkidle'});
     await labelPage.locator('.task-labels').first().waitFor({state:'visible',timeout:15000});
     assert.equal(await labelPage.locator('.task-labels').count(),1);
+    // Exact label filter is composable with search and local recoverable Trash.
+    await labelPage.locator('#filter-label').selectOption('Work');
+    assert.equal(await labelPage.locator('.task-row').count(),1);
+    await labelPage.locator('#search').fill('No matching task');
+    assert.equal(await labelPage.locator('.task-row').count(),0);
+    await labelPage.locator('#search').fill('');
+    assert.equal(await labelPage.locator('.task-row').count(),1);
+    labelPage.once('dialog',dialog=>dialog.accept());
+    await labelPage.getByRole('button',{name:'Delete Edited acceptance task'}).click();
+    await labelPage.locator('[data-view=trash]').first().click();
+    assert.equal(await labelPage.locator('.task-row').count(),1);
+    await labelPage.getByRole('button',{name:'Restore Edited acceptance task'}).click();
+    await labelPage.locator('[data-view=all]').first().click();
+    assert.equal(await labelPage.locator('.task-row').count(),1);
+    await labelPage.locator('#filter-label').selectOption('');
+    assert.equal(await labelPage.locator('.task-row').count(),2);
     note(engine.name()+' schema3 labels portable roundtrip',{schema:3,labels:2});
     await labelContext.close();
     note(engine.name()+' duplicate notes',{count:duplicates.length,distinctIds:true});

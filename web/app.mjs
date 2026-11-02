@@ -12,6 +12,7 @@ let view = 'inbox';
 let search = '';
 const selected = new Set();
 let priorityFilter = 'all';
+let labelFilter = '';
 let sortOrder = 'smart';
 // Recoverable Trash is stored with active tasks in the same local snapshot.
 const deletedTasks = [];
@@ -129,12 +130,20 @@ function updateSelectionControls(visible) {
   }
 }
 function render() {
+  const labels = [...new Set([...state.tasks, ...deletedTasks.map(item => item.task)]
+    .flatMap(task => task.labels || []))].sort((a, b) => a.localeCompare(b));
+  if (labelFilter && !labels.includes(labelFilter)) labelFilter = '';
+  const labelSelect = $('filter-label');
+  labelSelect.replaceChildren(new Option('All labels', ''));
+  for (const label of labels) labelSelect.add(new Option('#' + label, label));
+  labelSelect.value = labelFilter;
+  labelSelect.disabled = labels.length === 0;
   const today = localDate();
   const filtered = view === 'trash'
-    ? deletedTasks.filter(entry => !search.trim() ||
-        entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) ||
-        (entry.task.description || '').toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
-    : selectTasks(state.tasks, view, today, search, { priority: priorityFilter, sort: sortOrder });
+    ? deletedTasks.filter(entry => (!labelFilter || (entry.task.labels || []).includes(labelFilter)) &&
+        (!search.trim() || entry.task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) ||
+        (entry.task.description || '').toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())))
+    : selectTasks(state.tasks, view, today, search, { priority: priorityFilter, label: labelFilter, sort: sortOrder });
   if (view === 'trash') selected.clear();
   const visible = view === 'trash' ? [] : filtered;
   const visibleIds = new Set(visible.map(task => task.id));
@@ -201,7 +210,7 @@ function render() {
   const list = $('task-list');
   list.replaceChildren();
   $('empty').hidden = filtered.length !== 0;
-  const narrowed = !!search.trim() || priorityFilter !== 'all';
+  const narrowed = !!search.trim() || priorityFilter !== 'all' || !!labelFilter;
   $('empty').querySelector('h3').textContent = view === 'trash'
     ? (deletedTasks.length ? 'No matching deleted tasks' : 'Trash is empty')
     : narrowed ? 'No matching tasks' : 'All clear here';
@@ -359,10 +368,11 @@ $('mobile-browse').addEventListener('click', () => $('mobile-browse-dialog').sho
 $('mobile-browse-close').addEventListener('click', () => $('mobile-browse-dialog').close());
 $('search').addEventListener('input', event => { search = event.target.value; selected.clear(); render(); });
 $('filter-priority').addEventListener('change', event => { priorityFilter = event.target.value; selected.clear(); render(); });
+$('filter-label').addEventListener('change', event => { labelFilter = event.target.value; selected.clear(); render(); });
 $('sort-tasks').addEventListener('change', event => { sortOrder = event.target.value; render(); });
 $('select-visible').addEventListener('change', event => {
   if (writeLocked || view === 'trash') return;
-  const visible = selectTasks(state.tasks, view, localDate(), search, { priority: priorityFilter, sort: sortOrder });
+  const visible = selectTasks(state.tasks, view, localDate(), search, { priority: priorityFilter, label: labelFilter, sort: sortOrder });
   if (event.target.checked) visible.forEach(task => selected.add(task.id));
   else selected.clear();
   updateSelectionControls(visible);

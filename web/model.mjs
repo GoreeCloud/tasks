@@ -109,6 +109,8 @@ export function undoTaskDelete(draft, task) {
 export function selectTasks(tasks, view, today, query = '', options = {}) {
   const term = query.trim().toLocaleLowerCase();
   const priority = options.priority || 'all';
+  const label = options.label || '';
+  if (label && (!validUnicodeText(label) || label.length > 32)) throw new Error('Invalid label filter.');
   const sort = options.sort || 'smart';
   // Calendar arithmetic in UTC avoids shortening the range on DST changes.
   const end = new Date(today + 'T12:00:00Z');
@@ -119,6 +121,7 @@ export function selectTasks(tasks, view, today, query = '', options = {}) {
     if (term && !t.title.toLocaleLowerCase().includes(term) &&
         !(t.description || '').toLocaleLowerCase().includes(term)) return false;
     if (priority !== 'all' && t.priority !== Number(priority)) return false;
+    if (label && !(t.labels || []).includes(label)) return false;
     if (view === 'completed') return !!t.completed;
     if (t.completed) return false;
     if (view === 'inbox') return !t.projectId;
