@@ -58,6 +58,8 @@
 
 - [x] Offline subtask recovery preflight: proposed v4 graph validators, browser/Linux/Android pure subtree Trash plans, **structural group-integrity rejection**, and isolated disposable SQLite fault-injection tests. These are not connected to native storage or task UI. See [subtask design](SUBTASKS_SCHEMA4_DESIGN.md) and [issue #6](https://github.com/GoreeCloud/tasks/issues/6).
 
+- [x] Read-only schema-1/2/3 → proposed schema-4 root-task previews on browser, Linux and Android test source. Normalizes via existing validators, preserves metadata and checks future project/size limits. **No actual schema-4 import or device migration.** See [subtask schema-4 contract](SUBTASKS_SCHEMA4_DESIGN.md).
+
 ## B. Personal productivity
 
 - [ ] Shared versioned task domain model, nesting, labels, descriptions, attachments, priorities, bulk edits and templates.
