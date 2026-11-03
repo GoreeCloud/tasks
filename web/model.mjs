@@ -65,12 +65,18 @@ export function undoTaskDelete(draft, task) {
 }
 export function selectTasks(tasks, view, today, query = '') {
   const term = query.trim().toLocaleLowerCase();
+  // Calendar-day arithmetic is performed on YYYY-MM-DD strings, not on local
+  // 24-hour durations that can skip or repeat a daylight-saving hour.
+  const tomorrow = new Date(today + 'T00:00:00Z');
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowKey = tomorrow.toISOString().slice(0, 10);
   return tasks.filter(t => {
     if (term && !t.title.toLocaleLowerCase().includes(term)) return false;
     if (view === 'completed') return !!t.completed;
     if (t.completed) return false;
     if (view === 'inbox') return !t.projectId;
     if (view === 'today') return t.due === today || (!!t.due && t.due < today);
+    if (view === 'tomorrow') return t.due === tomorrowKey;
     if (view === 'upcoming') return !!t.due && t.due > today;
     if (view === 'priority') return t.priority <= 2;
     if (view.startsWith('project:')) return t.projectId === view.slice(8);
