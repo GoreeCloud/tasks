@@ -117,6 +117,9 @@ export function selectTasks(tasks, view, today, query = '', options = {}) {
   // Seven calendar dates including today (today through day six).
   end.setUTCDate(end.getUTCDate() + 6);
   const nextSevenDays = end.toISOString().slice(0, 10);
+  const nextDate = new Date(today + 'T12:00:00Z');
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  const tomorrowKey = nextDate.toISOString().slice(0, 10);
   const filtered = tasks.filter(t => {
     if (term && !t.title.toLocaleLowerCase().includes(term) &&
         !(t.description || '').toLocaleLowerCase().includes(term)) return false;
@@ -126,6 +129,7 @@ export function selectTasks(tasks, view, today, query = '', options = {}) {
     if (t.completed) return false;
     if (view === 'inbox') return !t.projectId;
     if (view === 'today') return !!t.due && t.due <= today;
+    if (view === 'tomorrow') return t.due === tomorrowKey;
     if (view === 'overdue') return !!t.due && t.due < today;
     if (view === 'soon') return !!t.due && t.due >= today && t.due <= nextSevenDays;
     if (view === 'upcoming') return !!t.due && t.due > today;

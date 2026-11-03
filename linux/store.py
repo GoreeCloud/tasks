@@ -9,7 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 PRIORITIES = (1, 2, 3, 4)
-VIEWS = ("Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority", "Completed", "Project")
+VIEWS = ("Open", "Today", "Tomorrow", "Next 7 days", "Overdue", "Upcoming", "Priority", "Completed", "Project")
 
 
 class TaskStore:
@@ -228,6 +228,12 @@ class TaskStore:
         if view == "Today":
             clauses.append("due_date IS NOT NULL AND due_date<=?")
             params.append(today or date.today().isoformat())
+        elif view == "Tomorrow":
+            current = date.fromisoformat(today) if today is not None else date.today()
+            if today is not None and current.isoformat() != today:
+                raise ValueError("Today must be YYYY-MM-DD")
+            clauses.append("due_date=?")
+            params.append((current + timedelta(days=1)).isoformat())
         elif view == "Overdue":
             clauses.append("due_date IS NOT NULL AND due_date<?")
             params.append(today or date.today().isoformat())

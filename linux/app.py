@@ -91,7 +91,7 @@ class TasksWindow(Adw.ApplicationWindow):
         rail_label.add_css_class("caption-heading")
         navigation.append(rail_label)
         self.nav_buttons = {}
-        for name in ("Open", "Today", "Next 7 days", "Upcoming", "Priority", "Completed", "Trash"):
+        for name in ("Open", "Today", "Tomorrow", "Next 7 days", "Upcoming", "Priority", "Completed", "Trash"):
             button = Gtk.Button()
             button.set_child(Gtk.Label(label="Inbox" if name == "Open" else name, xalign=0))
             button.set_halign(Gtk.Align.FILL)
@@ -208,7 +208,7 @@ class TasksWindow(Adw.ApplicationWindow):
         schedule_row.append(view_label)
         compact.add_setter(view_label, "visible", False)
         self.view_names = (
-            "Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority",
+            "Open", "Today", "Tomorrow", "Next 7 days", "Overdue", "Upcoming", "Priority",
             "Completed", "Project", "Trash"
         )
         self.view = Gtk.DropDown.new_from_strings(self.view_names)

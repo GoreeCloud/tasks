@@ -50,6 +50,19 @@ class TaskViewsTest {
         assertEquals(emptyList<String>(), TaskViews.selectTrash(listOf(a),labelFilter="work").map { it.id })
     }
 
+    @Test fun tomorrowViewHandlesYearAndLeapDayRollover() {
+        val records = listOf(
+            TaskRecord("overdue", "Overdue", 1, false, "2026-12-31", null),
+            TaskRecord("tomorrow", "Tomorrow", 1, false, "2027-01-01", null),
+            TaskRecord("later", "Later", 1, false, "2027-01-02", null),
+            TaskRecord("completed", "Done", 1, true, "2027-01-01", null),
+            TaskRecord("leap", "Leap day", 1, false, "2028-02-29", null)
+        )
+        assertEquals(listOf("tomorrow"), TaskViews.select(records, "Tomorrow", "2026-12-31").map { it.id })
+        assertEquals(listOf("leap"), TaskViews.select(records, "Tomorrow", "2028-02-28").map { it.id })
+        assertEquals(listOf("later"), TaskViews.select(records, "Tomorrow", "2027-01-01").map { it.id })
+    }
+
     @Test fun filtersTodayUpcomingAndCompleted() {
         assertEquals(listOf("a"), TaskViews.select(tasks, "Today", "2026-10-31").map { it.id })
         assertEquals(listOf("b"), TaskViews.select(tasks, "Upcoming", "2026-10-31").map { it.id })

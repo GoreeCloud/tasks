@@ -132,6 +132,26 @@ test('overdue and next-seven-day views respect local calendar boundaries and pri
   assert.equal(sample[0].id, 'overdue'); // filters/sorts are nonmutating
 });
 
+test('tomorrow view follows the next calendar day across years, leap days and DST', () => {
+  const records = [
+    { ...newTask('Past', null, '2026-12-31'), id: 'past' },
+    { ...newTask('Next year', null, '2027-01-01'), id: 'next-year' },
+    { ...newTask('Later', null, '2027-01-02'), id: 'later' },
+    { ...newTask('Finished', null, '2027-01-01'), id: 'finished', completed: true },
+    { ...newTask('Leap', null, '2028-02-29'), id: 'leap' }
+  ];
+  assert.deepEqual(selectTasks(records, 'tomorrow', '2026-12-31').map(item => item.id), ['next-year']);
+  assert.deepEqual(selectTasks(records, 'tomorrow', '2028-02-28').map(item => item.id), ['leap']);
+  assert.deepEqual(selectTasks(records, 'tomorrow', '2028-02-29'), []);
+  const dst = [
+    { ...newTask('Spring', null, '2026-03-08'), id: 'spring' },
+    { ...newTask('Autumn', null, '2026-11-01'), id: 'autumn' }
+  ];
+  assert.deepEqual(selectTasks(dst, 'tomorrow', '2026-03-07').map(item => item.id), ['spring']);
+  assert.deepEqual(selectTasks(dst, 'tomorrow', '2026-10-31').map(item => item.id), ['autumn']);
+  assert.deepEqual(selectTasks(dst, 'tomorrow', '2026-11-01'), []);
+});
+
 test('bulk edits preserve task identity, history, and schema-one backup portability', () => {
   const project = {id:'roadmap',name:'Roadmap'};
   const before = newTask('First', null, '2026-11-01', 4);
