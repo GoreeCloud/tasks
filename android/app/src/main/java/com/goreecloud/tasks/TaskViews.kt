@@ -4,7 +4,7 @@ import java.time.LocalDate
 
 /** Pure, UI-independent native Android task filtering rules. */
 internal object TaskViews {
-    val names = listOf("Open", "Today", "Next 7 days", "Overdue", "Upcoming", "Priority", "Completed", "Project")
+    val names = listOf("Open", "Today", "Tomorrow", "Next 7 days", "Overdue", "Upcoming", "Priority", "Completed", "Project")
 
     /** Search deleted task titles and notes; leave Trash ordering and recovery untouched. */
     fun selectTrash(tasks: List<TaskRecord>, search: String = "", labelFilter: String? = null): List<TaskRecord> {
@@ -35,10 +35,12 @@ internal object TaskViews {
         // Include today through the sixth following date; use calendar arithmetic,
         // not elapsed milliseconds, to remain stable across daylight-saving time.
         val weekEnd = if (view == "Next 7 days") LocalDate.parse(today).plusDays(6).toString() else null
+        val tomorrow = if (view == "Tomorrow") LocalDate.parse(today).plusDays(1).toString() else null
         val filtered = tasks.filter { task ->
             val visible = when (view) {
                 "Completed" -> task.completed
                 "Today" -> !task.completed && task.dueDate != null && task.dueDate <= today
+                "Tomorrow" -> !task.completed && task.dueDate == tomorrow
                 "Overdue" -> !task.completed && task.dueDate != null && task.dueDate < today
                 "Next 7 days" -> !task.completed && task.dueDate != null &&
                     task.dueDate >= today && task.dueDate <= weekEnd!!
