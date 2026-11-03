@@ -24,6 +24,7 @@ function showUndo() {
 const views = {
   inbox: ['Inbox', 'A calm place to capture what matters and make progress.'],
   today: ['Today', 'Make room for your most important next steps.'],
+  tomorrow: ['Tomorrow', 'See what needs attention on the next calendar day.'],
   soon: ['Next 7 days', 'Your upcoming week, without the noise.'],
   overdue: ['Overdue', 'Give these tasks a new plan or finish them today.'],
   upcoming: ['Upcoming', 'See what is coming, one day at a time.'],
