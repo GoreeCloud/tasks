@@ -110,3 +110,33 @@ test('undo rejects duplicate IDs, missing projects and invalid workspace state',
   assert.throws(() => undoTaskDelete(null, deleted));
   assert.throws(() => undoTaskDelete(draft, null));
 });
+
+
+test('tomorrow view respects calendar rollovers and excludes overdue or completed tasks', () => {
+  const tasks = [
+    {...newTask('Tonight', null, '2026-12-31'), id:'today'},
+    {...newTask('Next year', null, '2027-01-01'), id:'tomorrow'},
+    {...newTask('Later', null, '2027-01-02'), id:'later'},
+    {...newTask('Done tomorrow', null, '2027-01-01'), id:'done', completed:true}
+  ];
+  assert.deepEqual(selectTasks(tasks, 'tomorrow', '2026-12-31').map(x => x.id), ['tomorrow']);
+  const leap = {...newTask('Leap day', null, '2028-02-29'), id:'leap'};
+  assert.deepEqual(selectTasks([leap], 'tomorrow', '2028-02-28').map(x => x.id), ['leap']);
+  assert.deepEqual(selectTasks([leap], 'tomorrow', '2028-02-29'), []);
+});
+
+
+test('tomorrow calendar filtering is stable at daylight-saving boundaries', () => {
+  // Local date keys must advance by calendar day, not elapsed milliseconds:
+  // neither the spring-short nor autumn-long day skips a due date.
+  const tasks = [
+    {...newTask('Spring transition', null, '2026-03-08'), id:'spring'},
+    {...newTask('Spring next', null, '2026-03-09'), id:'spring-after'},
+    {...newTask('Autumn transition', null, '2026-11-01'), id:'autumn'},
+    {...newTask('Autumn next', null, '2026-11-02'), id:'autumn-after'}
+  ];
+  assert.deepEqual(selectTasks(tasks, 'tomorrow', '2026-03-07').map(t => t.id), ['spring']);
+  assert.deepEqual(selectTasks(tasks, 'tomorrow', '2026-03-08').map(t => t.id), ['spring-after']);
+  assert.deepEqual(selectTasks(tasks, 'tomorrow', '2026-10-31').map(t => t.id), ['autumn']);
+  assert.deepEqual(selectTasks(tasks, 'tomorrow', '2026-11-01').map(t => t.id), ['autumn-after']);
+});

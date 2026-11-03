@@ -19,6 +19,7 @@ function showUndo() {
 const views = {
   inbox: ['Inbox', 'A calm place to capture what matters and make progress.'],
   today: ['Today', 'Make room for your most important next steps.'],
+  tomorrow: ['Tomorrow', 'See what needs attention on the next calendar day.'],
   upcoming: ['Upcoming', 'See what is coming, one day at a time.'],
   priority: ['Priority', 'Keep high-impact work in sight.'],
   all: ['All tasks', 'Everything on your plate, in one thoughtful view.'],
