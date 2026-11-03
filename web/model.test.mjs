@@ -110,3 +110,17 @@ test('undo rejects duplicate IDs, missing projects and invalid workspace state',
   assert.throws(() => undoTaskDelete(null, deleted));
   assert.throws(() => undoTaskDelete(draft, null));
 });
+
+
+test('tomorrow view respects calendar rollovers and excludes overdue or completed tasks', () => {
+  const tasks = [
+    {...newTask('Tonight', null, '2026-12-31'), id:'today'},
+    {...newTask('Next year', null, '2027-01-01'), id:'tomorrow'},
+    {...newTask('Later', null, '2027-01-02'), id:'later'},
+    {...newTask('Done tomorrow', null, '2027-01-01'), id:'done', completed:true}
+  ];
+  assert.deepEqual(selectTasks(tasks, 'tomorrow', '2026-12-31').map(x => x.id), ['tomorrow']);
+  const leap = {...newTask('Leap day', null, '2028-02-29'), id:'leap'};
+  assert.deepEqual(selectTasks([leap], 'tomorrow', '2028-02-28').map(x => x.id), ['leap']);
+  assert.deepEqual(selectTasks([leap], 'tomorrow', '2028-02-29'), []);
+});
