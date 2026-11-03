@@ -93,6 +93,21 @@ class TaskStoreTests(unittest.TestCase):
         self.assertEqual(next(t for t in self.store.list_tasks() if t["id"] == copy)["description"],
                          "Release checklist\n🧭")
 
+    def test_tomorrow_view_calendar_rollovers_and_persistence(self):
+        self.store.add_task("Dec 31", due_date="2026-12-31")
+        tomorrow = self.store.add_task("New year", due_date="2027-01-01")
+        self.store.add_task("Next day", due_date="2027-01-02")
+        completed = self.store.add_task("Already done", due_date="2027-01-01")
+        self.store.complete_task(completed, True)
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Tomorrow", today="2026-12-31")], [tomorrow])
+        leap = self.store.add_task("Leap day", due_date="2028-02-29")
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Tomorrow", today="2028-02-28")], [leap])
+        self.store.close()
+        self.store = TaskStore(Path(self.dir.name) / "tasks.db")
+        self.assertEqual([t["id"] for t in self.store.list_tasks(view="Tomorrow", today="2026-12-31")], [tomorrow])
+        with self.assertRaises(ValueError):
+            self.store.list_tasks(view="Tomorrow", today="2027-02-29")
+
     def test_create_complete_reopen_delete(self):
         key = self.store.add_task("  Build native apps  ", priority=1, due_date="2026-11-02")
         rows = self.store.list_tasks()
