@@ -148,3 +148,56 @@ test('unsupported proposed schema-4 hierarchy is rejected rather than losing par
  const data=readFileSync(new URL('../fixtures/portable/schema4-proposed-synthetic.json',import.meta.url),'utf8');
  assert.throws(()=>validateBackupText(data),/Unsupported/);
 });
+
+
+test('browser export tolerates cleared empty labels without inventing schema-3 data', () => {
+  const original = newTask('Clear label', null, '', 2);
+  const cleared = editTask(original, {
+    title: original.title, projectId: null, due: '', priority: 2, labels: []
+  }, []);
+  assert.deepEqual(cleared.labels, []);
+  const snapshot = { schema: 1, projects: [], tasks: [cleared] };
+  const first = JSON.parse(exportBackup(snapshot));
+  assert.equal(first.schema, 1);
+  assert.equal(Object.hasOwn(first.tasks[0], 'labels'), false);
+  assert.equal(first.tasks[0].id, original.id);
+  assert.equal(first.tasks[0].createdAt, original.createdAt);
+  assert.deepEqual(validateBackupText(JSON.stringify(first)), first);
+
+  const second = JSON.parse(exportBackup({
+    schema: 2, projects: [], tasks: [{ ...cleared, description: '' }]
+  }));
+  assert.equal(second.schema, 2);
+  assert.equal(second.tasks[0].description, '');
+  assert.equal(Object.hasOwn(second.tasks[0], 'labels'), false);
+
+  const third = JSON.parse(exportBackup({
+    schema: 3, projects: [], tasks: [{ ...cleared, description: '' }]
+  }));
+  assert.equal(third.schema, 3);
+  assert.deepEqual(third.tasks[0].labels, []);
+});
+
+test('backup export upgrades instead of losing meaningful labels or notes', () => {
+  const original = newTask('Recover', null, '', 1, 'Line 1\nLine 2 🚀', ['Work']);
+  const snapshot = { schema: 1, projects: [], tasks: [original] };
+  const out = JSON.parse(exportBackup(snapshot));
+  assert.equal(out.schema, 3);
+  assert.equal(out.tasks[0].description, 'Line 1\nLine 2 🚀');
+  assert.deepEqual(out.tasks[0].labels, ['Work']);
+  assert.deepEqual(validateBackupText(JSON.stringify(out)), out);
+});
+
+test('backup export never discards malformed optional fields or unsupported versions', () => {
+  const task = newTask('Validate');
+  const base = { schema: 1, projects: [], tasks: [task] };
+  for (const optional of [
+    { labels: 'not-an-array' }, { labels: ['Duplicate', 'Duplicate'] },
+    { description: null }, { description: '\uD800' }
+  ]) {
+    assert.throws(() => exportBackup({
+      ...base, tasks: [{ ...task, ...optional }]
+    }));
+  }
+  assert.throws(() => exportBackup({ ...base, schema: 4 }), /Unsupported/);
+});
