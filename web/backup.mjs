@@ -90,13 +90,28 @@ export function validateBackup(value) {
   return { schema: value.schema, projects, tasks };
 }
 export function exportBackup(state) {
-  const version = state.schema === 3 || state.tasks?.some(t => t.labels?.length) ? 3 :
-    state.schema === 2 || state.tasks?.some(t => t.description !== undefined && t.description !== '') ? 2 : 1;
-  const compatible = { ...state, schema: version, tasks: state.tasks.map(task => ({
-    ...task,
-    ...(version >= 2 ? { description: task.description ?? '' } : {}),
-    ...(version === 3 ? { labels: task.labels ?? [] } : {})
-  })) };
+  if (!isObject(state) || ![1, 2, 3].includes(state.schema) || !Array.isArray(state.tasks)) {
+    throw new Error('Unsupported or incomplete GoreeCloud Tasks backup schema.');
+  }
+  // Editing can leave empty optional fields on legacy in-memory task records.
+  // Validate those fields first, then include them only in a schema that owns
+  // them. Never discard nonempty notes or labels or silently downgrade schema 4.
+  const inspected = state.tasks.map(task => {
+    if (!isObject(task)) throw new Error('Backup contains an invalid task.');
+    const description = Object.hasOwn(task, 'description') ? checkedDescription(task.description) : '';
+    const labels = Object.hasOwn(task, 'labels') ? checkedLabels(task.labels) : [];
+    return { task, description, labels };
+  });
+  const version = state.schema === 3 || inspected.some(row => row.labels.length) ? 3 :
+    state.schema === 2 || inspected.some(row => row.description !== '') ? 2 : 1;
+  const compatible = { ...state, schema: version, tasks: inspected.map(({ task, description, labels }) => {
+    const { description: _originalDescription, labels: _originalLabels, ...base } = task;
+    return {
+      ...base,
+      ...(version >= 2 ? { description } : {}),
+      ...(version === 3 ? { labels } : {})
+    };
+  }) };
   const json = JSON.stringify(validateBackup(compatible), null, 2);
   if (new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) {
     throw new Error('Workspace exceeds the 2 MiB JSON export limit.');
