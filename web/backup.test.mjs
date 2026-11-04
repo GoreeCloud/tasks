@@ -151,7 +151,7 @@ test('unsupported proposed schema-4 hierarchy is rejected rather than losing par
 
 
 test('browser export tolerates cleared empty labels without inventing schema-3 data', () => {
-  const original = newTask('Clear label', null, '', 2);
+  const original = newTask('Clear label', null, '', 2, '', ['Work']);
   const cleared = editTask(original, {
     title: original.title, projectId: null, due: '', priority: 2, labels: []
   }, []);
