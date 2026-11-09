@@ -273,6 +273,57 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(self.request("GET", "/v1/changes?after=-1")[0], 400)
         self.assertEqual(self.request("GET", "/v1/tasks")[1]["tasks"], [])
 
+    def test_duplicate_mutation_keys_fail_closed_without_consuming_receipts(self):
+        def raw_request(method, path, payload, headers):
+            request = Request(
+                self.origin + path, data=payload.encode("utf-8"), method=method,
+                headers={
+                    "Authorization": "Bearer " + TOKEN,
+                    "Content-Type": "application/json",
+                    **headers,
+                },
+            )
+            try:
+                response = urlopen(request, timeout=5)
+            except HTTPError as error:
+                response = error
+            with response:
+                return response.status, json.loads(response.read())
+
+        status, error = raw_request(
+            "POST", "/v1/tasks", '{"title":"First","title":"Second"}',
+            {"Idempotency-Key": "duplicate-create-0001"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(error["error"], "Duplicate JSON object field")
+        self.assertEqual(self.request("GET", "/v1/changes")[1]["changes"], [])
+
+        # JSON-escaped property names must not bypass duplicate detection.
+        status, _ = raw_request(
+            "POST", "/v1/tasks", r'{"title":"First","\u0074itle":"Second"}',
+            {"Idempotency-Key": "duplicate-escaped-0001"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(self.request("GET", "/v1/tasks")[1]["tasks"], [])
+
+        status, created, _ = self.create("Kept", key="duplicate-create-0001")
+        self.assertEqual(status, 201)
+        path = "/v1/tasks/" + created["id"]
+        status, _ = raw_request(
+            "PATCH", path, '{"priority":1,"priority":2}',
+            {"If-Match": "1", "Idempotency-Key": "duplicate-patch-0001"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(self.request("GET", path)[1]["revision"], 1)
+        self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 1)
+        status, updated, _ = self.request(
+            "PATCH", path, {"priority": 2},
+            headers={"If-Match": "1", "Idempotency-Key": "duplicate-patch-0001"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["revision"], 2)
+        self.assertEqual(updated["priority"], 2)
+
     def test_unpaired_unicode_rejected_without_persisting_changes(self):
         malformed = "Malformed " + chr(0xD800)
         status, response, _ = self.create(malformed, key="invalid-unicode-0001")
