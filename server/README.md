@@ -12,7 +12,7 @@ This independent service foundation creates a contract for future authenticated 
 - Refuses startup without `GOREETASKS_API_TOKEN` of at least 32 non-whitespace characters; never commits or logs the secret.
 - All task/change endpoints require `Authorization: Bearer …`. Only `/healthz` is unauthenticated.
 - No CORS response headers; browser cross-origin access is not enabled.
-- Input validation and 64 KiB JSON request bounds; no unreviewed shell commands or executable payloads.
+- Input validation and 64 KiB JSON request bounds; duplicate object field names (including escaped aliases) and nonstandard `NaN`/`Infinity` numeric constants are rejected before mutations or idempotency receipts. Unknown or differently cased task fields are rejected by the task schema. No unreviewed shell commands or executable payloads.
 - Parameterized SQLite queries, transactions and WAL, private-directory permissions where supported.
 - Idempotency-Key for task creation; conflicts on reused keys with divergent payloads.
 - Optional, durable Idempotency-Key receipts for PATCH/DELETE, bound to method/task/revision/normalized fields, committed in the task and change-event transaction.
