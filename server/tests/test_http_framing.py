@@ -3,16 +3,18 @@ import json
 import socket
 import sqlite3
 import unittest
-from test_api import ApiTest, TOKEN
+import test_api
+
+TOKEN = test_api.TOKEN
 
 CRLF = bytes([13, 10])
 
 
 class RawHeaderTests(unittest.TestCase):
-    setUp = ApiTest.setUp
-    tearDown = ApiTest.tearDown
-    request = ApiTest.request
-    create = ApiTest.create
+    setUp = test_api.ApiTest.setUp
+    tearDown = test_api.ApiTest.tearDown
+    request = test_api.ApiTest.request
+    create = test_api.ApiTest.create
     def raw(self, method, route, headers, body=b""):
         lines = [f"{method} {route} HTTP/1.1",
                  "Host: 127.0.0.1", "Connection: close", *headers]
