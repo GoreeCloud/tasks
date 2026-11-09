@@ -324,6 +324,60 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(updated["revision"], 2)
         self.assertEqual(updated["priority"], 2)
 
+    def test_nonstandard_json_constants_and_case_aliases_rejected(self):
+        def raw_request(method, path, payload, headers):
+            req = Request(
+                self.origin + path, data=payload.encode("utf-8"), method=method,
+                headers={
+                    "Authorization": "Bearer " + TOKEN,
+                    "Content-Type": "application/json", **headers,
+                },
+            )
+            try:
+                response = urlopen(req, timeout=5)
+            except HTTPError as error:
+                response = error
+            with response:
+                return response.status, json.loads(response.read())
+
+        for constant in ("NaN", "Infinity", "-Infinity"):
+            with self.subTest(constant=constant):
+                status, error = raw_request(
+                    "POST", "/v1/tasks", '{"title":"Unsafe","priority":' + constant + '}',
+                    {"Idempotency-Key": "nonfinite-create-0001"},
+                )
+                self.assertEqual(status, 400)
+                self.assertEqual(error["error"], "Non-standard JSON numeric constant")
+
+        # A similarly named field with distinct case must not be interpreted as "title".
+        status, error = raw_request(
+            "POST", "/v1/tasks", '{"title":"Valid","Title":"Unexpected"}',
+            {"Idempotency-Key": "case-alias-create-0001"},
+        )
+        self.assertEqual(status, 422)
+        self.assertEqual(error["error"], "Unsupported task field")
+        self.assertEqual(self.request("GET", "/v1/tasks")[1]["tasks"], [])
+        self.assertEqual(self.request("GET", "/v1/changes")[1]["changes"], [])
+
+        # A rejected request must not consume its retry key or write any rows.
+        status, created, _ = self.create("Safe", key="nonfinite-create-0001")
+        self.assertEqual(status, 201)
+        path = "/v1/tasks/" + created["id"]
+        status, error = raw_request(
+            "PATCH", path, '{"priority":NaN}',
+            {"If-Match": "1", "Idempotency-Key": "nonfinite-patch-0001"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(error["error"], "Non-standard JSON numeric constant")
+        self.assertEqual(self.request("GET", path)[1]["revision"], 1)
+        status, updated, _ = self.request(
+            "PATCH", path, {"priority": 1},
+            headers={"If-Match": "1", "Idempotency-Key": "nonfinite-patch-0001"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["revision"], 2)
+        self.assertEqual(len(self.request("GET", "/v1/changes")[1]["changes"]), 2)
+
     def test_unpaired_unicode_rejected_without_persisting_changes(self):
         malformed = "Malformed " + chr(0xD800)
         status, response, _ = self.create(malformed, key="invalid-unicode-0001")
