@@ -80,6 +80,16 @@ def normalize_task_fields(body: object, *, create: bool) -> dict:
     return fields
 
 
+def reject_duplicate_json_fields(pairs: list[tuple[str, object]]) -> dict:
+    """Reject ambiguous JSON object keys before a mutation is validated or persisted."""
+    fields = {}
+    for name, value in pairs:
+        if name in fields:
+            raise ApiError(400, "Duplicate JSON object field")
+        fields[name] = value
+    return fields
+
+
 def snapshot(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"], "title": row["title"], "priority": row["priority"],
@@ -354,7 +364,8 @@ def make_handler(store: TaskDatabase, secret: str):
             if len(length) > 5 or not length.isascii() or not length.isdecimal() or not 0 < int(length) <= MAX_BODY:
                 raise ApiError(413, "JSON request must be between 1 and 65536 bytes")
             try:
-                return json.loads(self.rfile.read(int(length)).decode("utf-8"))
+                return json.loads(self.rfile.read(int(length)).decode("utf-8"),
+                                  object_pairs_hook=reject_duplicate_json_fields)
             except (UnicodeError, ValueError) as error:
                 raise ApiError(400, "Invalid UTF-8 JSON document") from error
 
