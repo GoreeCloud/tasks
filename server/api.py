@@ -21,6 +21,7 @@ from uuid import uuid4
 from retry_receipts import MutationReceipts, ReceiptConflict, ReceiptError, fingerprint
 
 MAX_BODY = 64 * 1024
+MAX_JSON_DEPTH = 32
 KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 TASK_ID_PATTERN = re.compile(r"^[0-9a-f-]{36}$")
 
@@ -93,6 +94,34 @@ def reject_duplicate_json_fields(pairs: list[tuple[str, object]]) -> dict:
 def reject_nonfinite_json_constant(_value: str) -> None:
     """Reject NaN and infinities, which are not legal JSON numeric values."""
     raise ApiError(400, "Non-standard JSON numeric constant")
+
+
+def reject_excessive_json_nesting(raw: bytes) -> None:
+    """Reject deep JSON before decoding; ignore brackets in escaped strings.
+
+    The JSON parser still validates matching structures and proper syntax.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for value in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif value == 92:  # backslash
+                escaped = True
+            elif value == 34:  # quote
+                in_string = False
+        elif value == 34:
+            in_string = True
+        elif value == 123 or value == 91:  # { or [
+            depth += 1
+            if depth > MAX_JSON_DEPTH:
+                raise ValueError("JSON nesting depth exceeded")
+        elif value == 125 or value == 93:  # } or ]
+            depth -= 1
+            if depth < 0:
+                raise ValueError("Invalid JSON structure")
 
 
 def snapshot(row: sqlite3.Row) -> dict:
@@ -376,11 +405,13 @@ def make_handler(store: TaskDatabase, secret: str):
             if len(length) > 6 or not length.isascii() or not length.isdecimal() or not 0 < int(length) <= MAX_BODY:
                 raise ApiError(413, "JSON request must be between 1 and 65536 bytes")
             try:
-                return json.loads(self.rfile.read(int(length)).decode("utf-8"),
+                raw = self.rfile.read(int(length))
+                reject_excessive_json_nesting(raw)
+                return json.loads(raw.decode("utf-8"),
                                   object_pairs_hook=reject_duplicate_json_fields,
                                   parse_constant=reject_nonfinite_json_constant)
-            except (UnicodeError, ValueError) as error:
-                raise ApiError(400, "Invalid UTF-8 JSON document") from error
+            except (UnicodeError, ValueError, RecursionError) as error:
+                raise ApiError(400, "Invalid or excessively nested UTF-8 JSON document") from error
 
         def revision(self) -> int:
             value = self.single_header("If-Match", status=428)

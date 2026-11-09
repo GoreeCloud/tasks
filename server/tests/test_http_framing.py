@@ -88,6 +88,26 @@ class RawHeaderTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(updated["revision"], 2)
 
+    def test_deep_json_is_rejected_before_creating_receipts_or_mutations(self):
+        deep = b'{"title":"Invalid","due":' + b'[' * 40 + b'0' + b']' * 40 + b'}'
+        header = self.auth() + [
+            "Content-Type: application/json",
+            "Content-Length: " + str(len(deep)),
+            "Idempotency-Key: depth-check-0001",
+        ]
+        status, details = self.raw("POST", "/v1/tasks", header, deep)
+        self.assertEqual(status, 400, details)
+        self.assertIn("nest", details["error"])
+        self.assert_untouched()
+        # Delimiters inside a JSON string must not count toward nesting.
+        escaped = {"title": ('[{' * 65) + ' \\"quoted\\" and } ]'}
+        safe = json.dumps(escaped).encode("utf-8")
+        header[2] = "Content-Length: " + str(len(safe))
+        status, created = self.raw("POST", "/v1/tasks", header, safe)
+        self.assertEqual(status, 201, created)
+        self.assertEqual(created["title"], escaped["title"])
+        self.assertEqual(self.store.bootstrap()["cursor"], 1)
+
     def test_repeated_authorization_never_chooses_a_valid_credential(self):
         for auth_headers in (
             ["Authorization: Bearer " + TOKEN, "Authorization: Bearer wrong"],
