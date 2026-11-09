@@ -90,6 +90,11 @@ def reject_duplicate_json_fields(pairs: list[tuple[str, object]]) -> dict:
     return fields
 
 
+def reject_nonfinite_json_constant(_value: str) -> None:
+    """Reject NaN and infinities, which are not legal JSON numeric values."""
+    raise ApiError(400, "Non-standard JSON numeric constant")
+
+
 def snapshot(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"], "title": row["title"], "priority": row["priority"],
@@ -365,7 +370,8 @@ def make_handler(store: TaskDatabase, secret: str):
                 raise ApiError(413, "JSON request must be between 1 and 65536 bytes")
             try:
                 return json.loads(self.rfile.read(int(length)).decode("utf-8"),
-                                  object_pairs_hook=reject_duplicate_json_fields)
+                                  object_pairs_hook=reject_duplicate_json_fields,
+                                  parse_constant=reject_nonfinite_json_constant)
             except (UnicodeError, ValueError) as error:
                 raise ApiError(400, "Invalid UTF-8 JSON document") from error
 
