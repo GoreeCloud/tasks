@@ -352,8 +352,15 @@ def make_handler(store: TaskDatabase, secret: str):
             self.end_headers()
             self.wfile.write(raw)
 
+        def single_header(self, name: str, *, status: int = 400) -> str:
+            """Do not choose a value from ambiguous repeated request headers."""
+            values = self.headers.get_all(name, [])
+            if len(values) > 1:
+                raise ApiError(status, "Ambiguous " + name + " header")
+            return values[0] if values else ""
+
         def authorize(self):
-            provided = self.headers.get("Authorization", "")
+            provided = self.single_header("Authorization", status=401)
             try:
                 authorized = hmac.compare_digest(provided, "Bearer " + secret)
             except (TypeError, UnicodeError):
@@ -362,11 +369,11 @@ def make_handler(store: TaskDatabase, secret: str):
                 raise ApiError(401, "Authorization required")
 
         def body_json(self) -> object:
-            content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-            if content_type != "application/json" or "Transfer-Encoding" in self.headers:
+            content_type = self.single_header("Content-Type", status=415).split(";", 1)[0].strip().lower()
+            if content_type != "application/json" or self.headers.get_all("Transfer-Encoding", []):
                 raise ApiError(415, "Expected Content-Type: application/json with Content-Length")
-            length = self.headers.get("Content-Length", "")
-            if len(length) > 5 or not length.isascii() or not length.isdecimal() or not 0 < int(length) <= MAX_BODY:
+            length = self.single_header("Content-Length", status=413)
+            if len(length) > 6 or not length.isascii() or not length.isdecimal() or not 0 < int(length) <= MAX_BODY:
                 raise ApiError(413, "JSON request must be between 1 and 65536 bytes")
             try:
                 return json.loads(self.rfile.read(int(length)).decode("utf-8"),
@@ -376,7 +383,7 @@ def make_handler(store: TaskDatabase, secret: str):
                 raise ApiError(400, "Invalid UTF-8 JSON document") from error
 
         def revision(self) -> int:
-            value = self.headers.get("If-Match", "")
+            value = self.single_header("If-Match", status=428)
             if len(value) > 10 or not value.isascii() or not value.isdecimal() or not 0 < int(value) < 2**31:
                 raise ApiError(428, "If-Match must specify the current task revision")
             return int(value)
@@ -398,7 +405,7 @@ def make_handler(store: TaskDatabase, secret: str):
                 self.reply(200, {"tasks": store.list_tasks(limit), "limit": limit})
                 return
             if route == "/v1/tasks" and method == "POST":
-                key = self.headers.get("Idempotency-Key", "")
+                key = self.single_header("Idempotency-Key")
                 created = store.create_task(self.body_json(), key)
                 self.reply(201, created)
                 return
@@ -424,12 +431,14 @@ def make_handler(store: TaskDatabase, secret: str):
                     return
                 if method == "PATCH":
                     updated = store.update_task(task_id, self.body_json(), self.revision(),
-                                                key=self.headers.get("Idempotency-Key"))
+                                                key=(self.single_header("Idempotency-Key")
+                                                     if self.headers.get_all("Idempotency-Key", []) else None))
                     self.reply(200, updated)
                     return
                 if method == "DELETE":
                     deleted = store.delete_task(task_id, self.revision(),
-                                                key=self.headers.get("Idempotency-Key"))
+                                                key=(self.single_header("Idempotency-Key")
+                                                     if self.headers.get_all("Idempotency-Key", []) else None))
                     self.reply(200, deleted)
                     return
             raise ApiError(404, "Endpoint not found")
