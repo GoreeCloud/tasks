@@ -120,7 +120,7 @@ the server may be operating. It validates `PRAGMA integrity_check` and the
 expected API tables before publishing an output. It uses private temporary
 files and exclusive hard-link creation so existing backup or database files are
 not overwritten. Restoration is only to a **new path**, never an existing
-live database. Both commands operate on local files; no HTTP endpoint exists.
+live database. Backup and restore refuse symbolic links anywhere in the destination parent path, and also reject existing destination symlinks, to prevent inadvertently writing through a linked directory. This is a static path check, not a production race-proof dirfd/openat security boundary. Both commands operate on local files; no HTTP endpoint exists.
 
 ```sh
 python3 server/backup.py backup --source /path/to/dev-tasks.sqlite3 --destination /private/backup.sqlite3

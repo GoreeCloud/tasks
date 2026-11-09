@@ -64,6 +64,40 @@ class SnapshotTests(unittest.TestCase):
             snapshot_database(alias, self.root / "new.sqlite3")
         self.assertEqual(victim.read_text(encoding="utf-8"), "DO NOT TOUCH")
 
+    def test_backup_and_restore_refuse_linked_destination_ancestors(self):
+        outside = self.root / "private-target"
+        outside.mkdir(mode=0o700)
+        linked = self.root / "linked-parent"
+        linked.symlink_to(outside, target_is_directory=True)
+        sentinel = outside / "preserve.txt"
+        sentinel.write_text("preserve", encoding="utf-8")
+
+        # Target itself is new; refuse the unexpected parent before writing.
+        with self.assertRaisesRegex(SnapshotError, "ancestry.*real directories"):
+            snapshot_database(self.source, linked / "backup.sqlite3")
+        self.assertFalse((outside / "backup.sqlite3").exists())
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve")
+
+        good = self.root / "verified.sqlite3"
+        snapshot_database(self.source, good)
+        with self.assertRaisesRegex(SnapshotError, "ancestry.*real directories"):
+            restore_to_new_database(good, linked / "restored.sqlite3")
+        self.assertFalse((outside / "restored.sqlite3").exists())
+
+        nested = self.root / "safe-parent" / "private"
+        nested.mkdir(mode=0o700, parents=True)
+        restored = nested / "recovered.sqlite3"
+        self.assertGreater(restore_to_new_database(good, restored), 100)
+        self.assertEqual(TaskDatabase(restored).get_task(self.created["id"])["title"],
+                         "Recoverable task")
+
+    def test_non_directory_destination_parent_is_refused_before_writes(self):
+        plain = self.root / "not-directory"
+        plain.write_text("immutable data", encoding="utf-8")
+        with self.assertRaisesRegex(SnapshotError, "ancestry.*real directories"):
+            snapshot_database(self.source, plain / "unexpected.sqlite3")
+        self.assertEqual(plain.read_text(encoding="utf-8"), "immutable data")
+
     def test_invalid_or_missing_source_does_not_create_destination(self):
         fake = self.root / "garbage.sqlite3"
         fake.write_bytes(b"not a valid SQLite database")
