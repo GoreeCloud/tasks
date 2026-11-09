@@ -10,6 +10,7 @@ from contextlib import closing
 import os
 from pathlib import Path
 import sqlite3
+import stat
 import sys
 import tempfile
 
@@ -23,6 +24,22 @@ class SnapshotError(ValueError):
 def _validate_source(path: Path) -> None:
     if path.is_symlink() or not path.is_file():
         raise SnapshotError("Source must be an existing, regular SQLite file (not a symlink)")
+
+
+def _validate_destination_parent(parent: Path) -> None:
+    """Reject linked path components before opening a backup destination.
+
+    This static check is not race-proof against hostile concurrent renames:
+    such hosts require a dirfd/openat-based production implementation.
+    """
+    components = [parent, *parent.parents]
+    for ancestor in reversed(components):
+        try:
+            info = ancestor.lstat()
+        except FileNotFoundError as error:
+            raise SnapshotError("Destination parent directory does not exist") from error
+        if not stat.S_ISDIR(info.st_mode):
+            raise SnapshotError("Destination ancestry must contain only real directories")
 
 
 def _check_database(conn: sqlite3.Connection) -> None:
@@ -44,11 +61,10 @@ def snapshot_database(source: Path, destination: Path) -> int:
     This works with a live SQLite WAL database using SQLite's online backup API.
     A temporary private file is linked into place only after verification.
     """
-    source = Path(source)
-    destination = Path(destination)
+    source = Path(os.path.abspath(os.fspath(source)))
+    destination = Path(os.path.abspath(os.fspath(destination)))
     _validate_source(source)
-    if not destination.parent.is_dir():
-        raise SnapshotError("Destination parent directory does not exist")
+    _validate_destination_parent(destination.parent)
     if destination.exists() or destination.is_symlink():
         raise SnapshotError("Destination already exists; no overwrite permitted")
     if source.absolute() == destination.absolute():
