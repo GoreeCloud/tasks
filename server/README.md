@@ -43,13 +43,22 @@ Responses are JSON. Requests with bodies require `Content-Type: application/json
 | Method | Path | Operation |
 |---|---|---|
 | GET | `/healthz` | Loopback-only health check |
-| GET | `/v1/bootstrap` | Authenticated, transactionally consistent active-task snapshot and cursor (maximum 100 tasks) |
+| GET | `/v1/bootstrap` | Legacy authenticated, transactionally consistent active-task snapshot and change cursor (maximum 100 tasks) |
+| GET | `/v1/bootstrap-page?limit=100` | Authenticated bounded keyset initial snapshot; continuation requires `after={nextAfter}&checkpoint={checkpoint}`; rejects concurrent workspace changes with HTTP 409 |
 | GET | `/v1/tasks?limit=100` | Read up to 100 non-deleted tasks, including `hasMore` overflow signal |
 | GET | `/v1/tasks/{id}` | Read a task |
 | POST | `/v1/tasks` | Create a task; requires `Idempotency-Key` (8–128 safe characters) |
 | PATCH | `/v1/tasks/{id}` | Update title, priority, due, completed; requires `If-Match` integer revision; `Idempotency-Key` strongly recommended for retries |
 | DELETE | `/v1/tasks/{id}` | Tombstone task; requires `If-Match` revision; `Idempotency-Key` strongly recommended for retries |
 | GET | `/v1/changes?after=0&limit=100` | Immutable ordered changes with cursor/hasMore |
+
+### Complete initial snapshot paging (development v1)
+
+The new `GET /v1/bootstrap-page?limit=100` contract is **opt-in** and can enumerate more than 100 active tasks without a silent cutoff. It returns `schemaVersion`, `tasks`, numeric `checkpoint` (the ordered change-log sequence at first page), `nextAfter` (last returned UUID when additional records exist, otherwise `null`), `hasMore`, and `limit`. Pages are ordered by stable task UUID, not display priority.
+
+For each subsequent page, request `GET /v1/bootstrap-page?limit=100&after=<nextAfter>&checkpoint=<checkpoint>` using the unchanged checkpoint and last `nextAfter`. Query parameters must not be duplicated; arbitrary/oversized cursors are rejected. When `hasMore=false`, the complete set is valid for the recorded checkpoint. Start subsequent delta reconciliation at `GET /v1/changes?after=<checkpoint>`, including changes committed after the final page. **If any committed task mutation occurs between page requests, the API responds 409 and the client must discard all previously collected pages and restart at the first page.** Do not merge conflicting pages or assume a partial set is complete.
+
+Each request holds an independent SQLite read transaction for both the checkpoint and bounded keyset query. This is not a persistent multi-request server snapshot and does not freeze writers; under sustained concurrent writes a client may need to retry or wait for quiescence. It assumes all task writes pass through the existing transactional change-log API. No native client currently consumes this endpoint, and there is no multi-user auth, TLS, offline production sync, compaction or verified device acceptance. Existing `/v1/bootstrap` retains its 100-task safety limit for compatibility.
 
 The bounded `GET /v1/tasks` preview returns `{"tasks":[...],"limit":N,"hasMore":boolean}`. It performs one ordered SQLite query with a one-row lookahead so callers can distinguish an incomplete view from a fully enumerated list. `hasMore: true` **does not** provide a continuation cursor or authorize treating the list as a full backup or synchronization snapshot. `GET /v1/bootstrap` is the atomic bounded initial-state contract and still rejects more than 100 active tasks instead of returning an incomplete state. Neither endpoint provides full-workspace pagination yet.
 
