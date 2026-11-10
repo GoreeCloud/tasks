@@ -97,6 +97,9 @@ class BootstrapCollectorTests(unittest.TestCase):
         good = self.fetch(limit=2, after=None, checkpoint=None)
         cases = [
             {**good, "limit": 100},
+            {**good, "unexpectedMeta": "private"},
+            {**good, "tasks": [{**good["tasks"][0], "extra": "private"}] +
+                              good["tasks"][1:]},
             {**good, "checkpoint": True},
             {**good, "schemaVersion": 3},
             {**good, "tasks": good["tasks"][::-1]},
