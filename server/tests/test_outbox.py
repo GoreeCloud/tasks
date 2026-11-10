@@ -239,6 +239,24 @@ class OfflineOutboxTests(unittest.TestCase):
         self.assertEqual(self.store.cursor(), 0)
         self.assertEqual(len(self.store.pending()), 1)
 
+    def test_rejects_linked_parent_before_creating_outbox(self):
+        outside = Path(self.temp.name) / 'outside'
+        outside.mkdir(mode=0o700)
+        sentinel = outside / 'sentinel.txt'
+        sentinel.write_text('unchanged', encoding='utf-8')
+        linked = Path(self.temp.name) / 'linked-parent'
+        linked.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(OutboxError, 'directory ancestry'):
+            OfflineOutbox(linked / 'nested' / 'new.sqlite3')
+        self.assertFalse((outside / 'nested').exists())
+        self.assertEqual(sentinel.read_text(encoding='utf-8'), 'unchanged')
+
+    def test_allows_real_private_nested_outbox_parent(self):
+        new = Path(self.temp.name) / 'safe' / 'nested' / 'outbox.sqlite3'
+        store = OfflineOutbox(new)
+        self.assertEqual(store.pending(), [])
+        self.assertEqual(new.parent.stat().st_mode & 0o777, 0o700)
+
     def test_symlinked_database_is_rejected(self):
         alias = Path(self.temp.name) / "alias.sqlite3"
         alias.symlink_to(self.path)
