@@ -18,6 +18,9 @@ from path_guard import ensure_private_store_parent
 
 MAX_MUTATION_BYTES = 64 * 1024
 MAX_PAGE_CHANGES = 100
+MAX_BOOTSTRAP_PAGES = 1000
+MAX_BOOTSTRAP_TASKS = 10000
+MAX_BOOTSTRAP_TOTAL_BYTES = 16 * 1024 * 1024
 MUTATION_KINDS = frozenset(("create", "update", "delete"))
 CHANGE_KINDS = frozenset(("created", "updated", "deleted"))
 
@@ -248,6 +251,73 @@ class OfflineOutbox:
             if type(revision) is not int or revision < 1 or task.get("deleted") is not False:
                 raise OutboxError("Invalid live task snapshot")
             planned.append((task_id, raw, revision, cursor))
+        return self._commit_bootstrap(cursor, planned)
+
+    def seed_bootstrap_pages(self, pages: list[dict]) -> int:
+        """Atomically accept a complete authenticated bootstrap-page sequence.
+
+        Pages must already be received from the caller's authorized transport.
+        This validator does not perform networking or prove a remote endpoint
+        returned every record; do not use it with an untrusted/misrouted feed.
+        A partial, conflicting, unordered or oversized sequence changes no
+        local projection and consumes no bootstrap checkpoint.
+        """
+        if not isinstance(pages, list) or not 1 <= len(pages) <= MAX_BOOTSTRAP_PAGES:
+            raise OutboxError("Expected a bounded nonempty bootstrap page set")
+        checkpoint = None
+        planned = []
+        seen = set()
+        last_id = None
+        total_bytes = 0
+        for page_index, page in enumerate(pages):
+            if not isinstance(page, dict) or type(page.get("schemaVersion")) is not int or page["schemaVersion"] != 1:
+                raise OutboxError("Unsupported paginated bootstrap schema")
+            cursor = page.get("checkpoint")
+            if type(cursor) is not int or not 0 <= cursor < 2**63:
+                raise OutboxError("Invalid paginated bootstrap checkpoint")
+            if checkpoint is None:
+                checkpoint = cursor
+            elif cursor != checkpoint:
+                raise OutboxError("Mixed bootstrap checkpoints; restart collection")
+            limit = page.get("limit")
+            tasks = page.get("tasks")
+            has_more = page.get("hasMore")
+            if (type(limit) is not int or not 1 <= limit <= MAX_PAGE_CHANGES
+                    or not isinstance(tasks, list) or len(tasks) > limit
+                    or type(has_more) is not bool):
+                raise OutboxError("Invalid paginated bootstrap page")
+            if (page_index and not tasks) or (has_more and len(tasks) != limit):
+                raise OutboxError("Incomplete paginated bootstrap page")
+            if page_index < len(pages) - 1 and not has_more:
+                raise OutboxError("Bootstrap has pages after a terminal page")
+            if page_index == len(pages) - 1 and has_more:
+                raise OutboxError("Incomplete bootstrap; continuation not collected")
+            for task in tasks:
+                raw = safe_json(task)
+                task_id = canonical_uuid(task.get("id"))
+                if task_id in seen or (last_id is not None and task_id <= last_id):
+                    raise OutboxError("Duplicate or unordered bootstrap task")
+                seen.add(task_id)
+                revision = task.get("revision")
+                if type(revision) is not int or revision < 1 or task.get("deleted") is not False:
+                    raise OutboxError("Invalid live task snapshot")
+                total_bytes += len(raw.encode("utf-8"))
+                if len(planned) >= MAX_BOOTSTRAP_TASKS or total_bytes > MAX_BOOTSTRAP_TOTAL_BYTES:
+                    raise OutboxError("Bootstrap exceeds local staging budget")
+                planned.append((task_id, raw, revision, checkpoint))
+                last_id = task_id
+            next_after = page.get("nextAfter")
+            if has_more:
+                if next_after is None or canonical_uuid(next_after) != last_id:
+                    raise OutboxError("Invalid bootstrap continuation")
+            elif next_after is not None:
+                raise OutboxError("Terminal bootstrap page must not continue")
+        return self._commit_bootstrap(checkpoint, planned)
+
+
+    def _commit_bootstrap(self, cursor: int,
+                          planned: list[tuple[str, str, int, int]]) -> int:
+        """Commit only fully validated snapshots to a pristine local projection."""
         with closing(self._open()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             if db.execute("SELECT applied FROM bootstrap_state WHERE singleton=1").fetchone()[0]:
