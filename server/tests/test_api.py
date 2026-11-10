@@ -111,6 +111,87 @@ class ApiTest(unittest.TestCase):
         self.assertIs(listing["hasMore"], True)
         self.assertEqual(len({t["id"] for t in listing["tasks"]}), 100)
 
+    def test_bootstrap_page_enumerates_more_than_100_tasks_without_truncation(self):
+        for index in range(103):
+            status, _, _ = self.create("Seed", key="bootstrap-pages-%04d" % index)
+            self.assertEqual(status, 201)
+        self.assertEqual(self.request("GET", "/v1/bootstrap")[0], 413)
+        after = None
+        seen = []
+        checkpoints = []
+        for step in range(1, 10):
+            query = "/v1/bootstrap-page?limit=27"
+            if after is not None:
+                query += "&after=" + after + "&checkpoint=" + str(checkpoints[-1])
+            status, page, cache = self.request("GET", query)
+            self.assertEqual(status, 200)
+            self.assertEqual(cache, "no-store")
+            self.assertEqual(page["schemaVersion"], 1)
+            self.assertEqual(page["limit"], 27)
+            checkpoints.append(page["checkpoint"])
+            seen.extend(item["id"] for item in page["tasks"])
+            if not page["hasMore"]:
+                self.assertIsNone(page["nextAfter"])
+                break
+            self.assertEqual(page["nextAfter"], page["tasks"][-1]["id"])
+            after = page["nextAfter"]
+        self.assertEqual(len(seen), 103)
+        self.assertEqual(seen, sorted(set(seen)))
+        self.assertEqual(checkpoints, [103] * len(checkpoints))
+        self.assertEqual(self.request("GET", "/v1/changes?after=103")[1]["changes"], [])
+
+    def test_bootstrap_page_restarts_on_create_update_delete_between_pages(self):
+        first = self.create("First", key="paged-first-0001")[1]
+        second = self.create("Second", key="paged-second-0001")[1]
+        self.create("Third", key="paged-third-0001")
+        status, page, _ = self.request("GET", "/v1/bootstrap-page?limit=1")
+        self.assertEqual(status, 200)
+        self.assertTrue(page["hasMore"])
+        cursor = page["nextAfter"]
+        checkpoint = page["checkpoint"]
+        self.assertEqual(checkpoint, 3)
+        continuation = "/v1/bootstrap-page?limit=1&after=" + cursor + "&checkpoint=" + str(checkpoint)
+        self.assertEqual(self.request("GET", continuation)[0], 200)
+        self.assertEqual(self.create("Concurrent", key="paged-concurrent-0001")[0], 201)
+        status, conflict, _ = self.request("GET", continuation)
+        self.assertEqual(status, 409)
+        self.assertIn("restart", conflict["error"])
+        restart = self.request("GET", "/v1/bootstrap-page?limit=1")[1]
+        self.assertEqual(restart["checkpoint"], 4)
+        changed = self.request("PATCH", "/v1/tasks/" + first["id"],
+                               {"title": "Edited"}, headers={"If-Match": "1"})[0]
+        self.assertEqual(changed, 200)
+        self.assertEqual(self.request("GET", continuation)[0], 409)
+        deleted = self.request("DELETE", "/v1/tasks/" + second["id"],
+                               headers={"If-Match": "1"})[0]
+        self.assertEqual(deleted, 200)
+        self.assertEqual(self.request("GET", continuation)[0], 409)
+        final = self.request("GET", "/v1/bootstrap-page?limit=100")[1]
+        self.assertEqual(final["checkpoint"], 6)
+        self.assertEqual(len(final["tasks"]), 3)
+        self.assertFalse(final["hasMore"])
+        self.assertEqual(self.request("GET", "/v1/changes?after=6")[1]["changes"], [])
+        self.assertEqual(self.request("GET", "/v1/bootstrap-page", auth=False)[0], 401)
+
+    def test_bootstrap_page_rejects_incomplete_or_malformed_cursor_inputs(self):
+        for query in [
+            "?after=abc", "?checkpoint=0", "?after=&checkpoint=0",
+            "?after=not-a-uuid&checkpoint=0",
+            "?after=" + str(uuid4()) + "&checkpoint=-1",
+            "?after=" + str(uuid4()) + "&checkpoint=999999999999999999999",
+            "?after=" + str(uuid4()) + "&checkpoint=nan",
+            "?after=" + str(uuid4()) + "&checkpoint=0&checkpoint=1",
+            "?after=" + str(uuid4()) + "&checkpoint=0&limit=101",
+            "?limit=0", "?limit=00101", "?limit=999999999",
+            "?limit=1&unknown=value"
+        ]:
+            status, _, _ = self.request("GET", "/v1/bootstrap-page" + query)
+            self.assertEqual(status, 400, query)
+        with self.assertRaises(ApiError):
+            self.store.bootstrap_page(101)
+        with self.assertRaises(ApiError):
+            self.store.bootstrap_page(1, after=str(uuid4()), checkpoint=True)
+
     def test_list_page_lookahead_and_original_local_caller_contract(self):
         self.create("First", key="page-first-0001")
         self.create("Second", key="page-second-0002")
