@@ -52,6 +52,16 @@ Responses are JSON. Requests with bodies require `Content-Type: application/json
 | DELETE | `/v1/tasks/{id}` | Tombstone task; requires `If-Match` revision; `Idempotency-Key` strongly recommended for retries |
 | GET | `/v1/changes?after=0&limit=100` | Immutable ordered changes with cursor/hasMore |
 
+### Authenticated 127.0.0.1 bootstrap integration (development only)
+
+The new `server/loopback_bootstrap.py` provides `LoopbackBootstrapTransport(port, token).fetch_page(limit=..., after=..., checkpoint=...)`. When a **trusted local user** starts the experimental API on the same machine, this callback can be passed to `collect_and_seed()` with a freshly created, empty `OfflineOutbox`. Synthetic integration tests exercise real loopback HTTP without reading any user's existing Tasks stores.
+
+The transport constructs its destination as `127.0.0.1` plus a validated numeric port. It cannot be configured with a DNS host, URI, reverse proxy, remote IP or redirect target; `http.client` makes a direct connection without environmental HTTP proxies and never follows Location headers. A developer-supplied ASCII bearer token is used in process memory only, not in URLs, logs, filenames, serialized snapshots, or default object representations. A token is **not** acquired, rotated, stored, shared across accounts or managed by this library.
+
+Only authenticated HTTP 200 JSON with a single exact content type, content length, no-store cache policy, no Transfer-Encoding/content encoding, <=2 MiB body, strict UTF-8, unique JSON properties and legal numeric constants is accepted. HTTP 409 is mapped to `SnapshotChanged`, causing the collector to discard and restart incomplete sets. Unexpected HTTP statuses, 3xx redirects, short reads, duplicate framing, malformed responses, and failed authorization abort without committing task data. The collector still validates the exact snapshot schema and stages before the one-time outbox transaction.
+
+**Security and release limits:** Loopback cleartext remains observable to privileged local software and is not a multi-user trust boundary. A malicious local listener or compromised host is outside this prototype's authenticated source assurance. There is no device installation, browser CORS, native app wiring, TLS, secure credential vault, Identity tenant authorization, GoreeShield sharing approval, Wardveil production ingress review, long-lived sync worker or remote service connection. Never expose the development port publicly or reuse production secrets. A future networked connector must be a separately reviewed implementation with authorized secure transport.
+
 ### Bounded bootstrap collection adapter (synthetic-only)
 
 The new `server/bootstrap_client.py` provides `collect_and_seed(outbox, fetch_page, limit=100, max_restarts=2)`. This is a **transport-injected synchronous orchestration helper**, not a network client. The trusted caller must authenticate the intended source/account, validate TLS/identity as applicable, parse its JSON within HTTP response budgets, and implement `fetch_page(*, limit, after, checkpoint)`. Only HTTP **409** from the intended source should be mapped to the marker `SnapshotChanged`; all other authentication, protocol, transport, and authorization errors must propagate and must not be retried as stale checkpoints.
