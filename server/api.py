@@ -201,13 +201,25 @@ class TaskDatabase:
             (task["id"], action, json.dumps(task, separators=(",", ":")), mutation_key)
         )
 
-    def list_tasks(self, limit: int = 100) -> list[dict]:
+    def list_tasks_page(self, limit: int = 100) -> dict:
+        """Expose incomplete bounded listings rather than silently hiding tasks.
+
+        This is a read-only preview, not a cursor-based snapshot API. Clients
+        needing an atomic initial state must use /v1/bootstrap.
+        """
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ApiError(400, "Task limit must be between 1 and 100")
         with closing(self.connect()) as db:
             rows = db.execute(
-                "SELECT * FROM tasks WHERE deleted=0 ORDER BY completed,priority,created_at DESC LIMIT ?",
-                (limit,)
+                "SELECT * FROM tasks WHERE deleted=0 ORDER BY completed,priority,created_at DESC,id ASC LIMIT ?",
+                (limit + 1,)
             ).fetchall()
-        return [snapshot(row) for row in rows]
+        return {"tasks": [snapshot(row) for row in rows[:limit]],
+                "limit": limit, "hasMore": len(rows) > limit}
+
+    def list_tasks(self, limit: int = 100) -> list[dict]:
+        """Preserve the original Python caller contract for local tests."""
+        return self.list_tasks_page(limit)["tasks"]
 
     def bootstrap(self) -> dict:
         """Return a complete bounded active-task snapshot and cursor atomically."""
@@ -437,7 +449,7 @@ def make_handler(store: TaskDatabase, secret: str):
                 return
             if route == "/v1/tasks" and method == "GET":
                 limit = self.positive_limit(parsed.query)
-                self.reply(200, {"tasks": store.list_tasks(limit), "limit": limit})
+                self.reply(200, store.list_tasks_page(limit))
                 return
             if route == "/v1/tasks" and method == "POST":
                 key = self.single_header("Idempotency-Key")
