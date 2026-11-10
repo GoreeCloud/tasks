@@ -411,6 +411,24 @@ class ApiTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             TaskDatabase(alias)
 
+    def test_rejects_symlinked_parent_without_creating_database(self):
+        outside = Path(self.tmp.name) / 'outside'
+        outside.mkdir(mode=0o700)
+        sentinel = outside / 'sentinel.txt'
+        sentinel.write_text('unchanged', encoding='utf-8')
+        linked = Path(self.tmp.name) / 'linked-parent'
+        linked.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'directory ancestry'):
+            TaskDatabase(linked / 'nested' / 'new.sqlite3')
+        self.assertFalse((outside / 'nested').exists())
+        self.assertEqual(sentinel.read_text(encoding='utf-8'), 'unchanged')
+
+    def test_creates_real_nested_private_parent(self):
+        new = Path(self.tmp.name) / 'safe' / 'nested' / 'tasks.sqlite3'
+        store = TaskDatabase(new)
+        self.assertEqual(store.list_tasks(), [])
+        self.assertEqual(new.parent.stat().st_mode & 0o777, 0o700)
+
     def test_persists_across_store_reopens(self):
         self.create("Persistent")
         reopened = TaskDatabase(self.path)
