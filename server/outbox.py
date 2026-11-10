@@ -14,6 +14,7 @@ from pathlib import Path
 import sqlite3
 import stat
 from uuid import UUID
+from path_guard import ensure_private_store_parent
 
 MAX_MUTATION_BYTES = 64 * 1024
 MAX_PAGE_CHANGES = 100
@@ -64,8 +65,11 @@ class OfflineOutbox:
     """
 
     def __init__(self, path: str | Path):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        self.path = Path(os.path.abspath(os.fspath(path)))
+        try:
+            ensure_private_store_parent(self.path)
+        except (OSError, ValueError) as error:
+            raise OutboxError('Refusing unsafe outbox directory ancestry') from error
         if self.path.is_symlink():
             raise OutboxError("Refusing a symlinked local database")
         flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
