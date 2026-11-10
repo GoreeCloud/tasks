@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from api import TaskDatabase, make_handler
+from api import TaskDatabase, make_handler, ApiError
 from outbox import OfflineOutbox
 
 TOKEN = "synthetic-test-token-0123456789abcdef0123456789abcdef"
@@ -69,6 +69,8 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(cache, "no-store")
         self.assertEqual(response["tasks"], [])
+        self.assertEqual(response["hasMore"], False)
+        self.assertEqual(response["limit"], 100)
 
     def test_abusive_headers_and_large_parameters_fail_closed(self):
         status, _, _ = self.request("GET", "/v1/tasks", auth=False, headers={"Authorization": "Bearer ñ"})
@@ -101,6 +103,30 @@ class ApiTest(unittest.TestCase):
         status, response, _ = self.request("GET", "/v1/bootstrap")
         self.assertEqual(status, 413)
         self.assertIn("100 tasks", response["error"].lower())
+        # An ordinary list is a bounded preview, not a silent complete export.
+        status, listing, _ = self.request("GET", "/v1/tasks")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(listing["tasks"]), 100)
+        self.assertEqual(listing["limit"], 100)
+        self.assertIs(listing["hasMore"], True)
+        self.assertEqual(len({t["id"] for t in listing["tasks"]}), 100)
+
+    def test_list_page_lookahead_and_original_local_caller_contract(self):
+        self.create("First", key="page-first-0001")
+        self.create("Second", key="page-second-0002")
+        self.create("Third", key="page-third-0003")
+        first = self.request("GET", "/v1/tasks?limit=2")[1]
+        self.assertEqual(first["limit"], 2)
+        self.assertEqual(len(first["tasks"]), 2)
+        self.assertIs(first["hasMore"], True)
+        full = self.request("GET", "/v1/tasks?limit=3")[1]
+        self.assertEqual(full["limit"], 3)
+        self.assertEqual(len(full["tasks"]), 3)
+        self.assertIs(full["hasMore"], False)
+        self.assertEqual({t["id"] for t in full["tasks"]},
+                         {t["id"] for t in self.store.list_tasks()})
+        with self.assertRaises(ApiError):
+            self.store.list_tasks_page(101)
 
     def test_created_tasks_idempotency_and_conflicting_key(self):
         status, first, _ = self.create("Launch", priority=1, due="2026-11-07")
