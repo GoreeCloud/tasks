@@ -19,6 +19,7 @@ import sqlite3
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 from retry_receipts import MutationReceipts, ReceiptConflict, ReceiptError, fingerprint
+from path_guard import ensure_private_store_parent
 
 MAX_BODY = 64 * 1024
 MAX_JSON_DEPTH = 32
@@ -135,8 +136,11 @@ def snapshot(row: sqlite3.Row) -> dict:
 
 class TaskDatabase:
     def __init__(self, path: str | Path):
-        self.path = Path(path)
-        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.path = Path(os.path.abspath(os.fspath(path)))
+        try:
+            ensure_private_store_parent(self.path)
+        except (OSError, ValueError) as error:
+            raise ValueError('Refusing unsafe server database directory ancestry') from error
         if self.path.is_symlink():
             raise ValueError("Refusing symlinked server database")
         if not self.path.exists():
