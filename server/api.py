@@ -221,6 +221,46 @@ class TaskDatabase:
         """Preserve the original Python caller contract for local tests."""
         return self.list_tasks_page(limit)["tasks"]
 
+    def bootstrap_page(self, limit: int = 100, *, after: str | None = None,
+                       checkpoint: int | None = None) -> dict:
+        """Bounded keyset bootstrap; refuse stale checkpoints instead of mixing views.
+
+        Each request uses a single SQLite read transaction. The change-log
+        high-water mark must match across pages, or callers restart from page
+        one and then apply /v1/changes after the finished checkpoint. This is
+        deliberately single-workspace and local-only.
+        """
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ApiError(400, "Page limit must be between 1 and 100")
+        if after is None:
+            if checkpoint is not None:
+                raise ApiError(400, "A checkpoint requires an after cursor")
+        elif (not isinstance(after, str) or
+              re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", after) is None or
+              type(checkpoint) is not int or not 0 <= checkpoint < 2**63):
+            raise ApiError(400, "Continuation requires a valid after and checkpoint")
+        with closing(self.connect()) as db:
+            db.execute("BEGIN")
+            current = db.execute("SELECT COALESCE(MAX(seq),0) FROM changes").fetchone()[0]
+            if checkpoint is not None and current != checkpoint:
+                db.rollback()
+                raise ApiError(409, "Workspace changed during paging; restart bootstrap")
+            rows = db.execute(
+                "SELECT * FROM tasks WHERE deleted=0 AND id>? ORDER BY id ASC LIMIT ?",
+                (after or "", limit + 1)
+            ).fetchall()
+            db.commit()
+        selected = rows[:limit]
+        more = len(rows) > limit
+        return {
+            "schemaVersion": 1,
+            "tasks": [snapshot(row) for row in selected],
+            "checkpoint": current,
+            "nextAfter": selected[-1]["id"] if more else None,
+            "hasMore": more,
+            "limit": limit
+        }
+
     def bootstrap(self) -> dict:
         """Return a complete bounded active-task snapshot and cursor atomically."""
         with closing(self.connect()) as db:
@@ -446,6 +486,30 @@ def make_handler(store: TaskDatabase, secret: str):
                 if parsed.query:
                     raise ApiError(400, "Bootstrap accepts no query parameters")
                 self.reply(200, store.bootstrap())
+                return
+            if route == "/v1/bootstrap-page" and method == "GET":
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                if set(query) - {"limit", "after", "checkpoint"}:
+                    raise ApiError(400, "Unknown bootstrap-page query parameter")
+                limits = query.get("limit", ["100"])
+                if (len(limits) != 1 or len(limits[0]) > 3
+                        or not limits[0].isascii() or not limits[0].isdecimal()
+                        or not 1 <= int(limits[0]) <= 100):
+                    raise ApiError(400, "limit must be between 1 and 100")
+                afters = query.get("after", [])
+                checkpoints = query.get("checkpoint", [])
+                if len(afters) > 1 or len(checkpoints) > 1 or bool(afters) != bool(checkpoints):
+                    raise ApiError(400, "Specify exactly one after and checkpoint together")
+                after = afters[0] if afters else None
+                raw_checkpoint = checkpoints[0] if checkpoints else None
+                if raw_checkpoint is not None and (
+                        len(raw_checkpoint) > 19 or not raw_checkpoint.isascii()
+                        or not raw_checkpoint.isdecimal()
+                        or int(raw_checkpoint) >= 2**63):
+                    raise ApiError(400, "Invalid bootstrap checkpoint")
+                self.reply(200, store.bootstrap_page(
+                    int(limits[0]), after=after,
+                    checkpoint=int(raw_checkpoint) if raw_checkpoint is not None else None))
                 return
             if route == "/v1/tasks" and method == "GET":
                 limit = self.positive_limit(parsed.query)
