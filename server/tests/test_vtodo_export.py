@@ -71,7 +71,7 @@ class VtodoPreviewTests(unittest.TestCase):
             {"updatedAt": "2026-99-99T22:43:10Z"},
             {"title": ""}, {"title": "x" * 241},
             {"title": "bad\0value"}, {"title": "bad\u202Eflip"},
-            {"title": "bad\u2066hide"}, {"title": "bad\u2028break"},
+            {"title": "bad\u2066hide"}, {"title": "bad\u2028break"}, {"title": "bad\u0085break"},
             {"title": "bad\ud800surrogate"},
         ]
         for values in invalid:
