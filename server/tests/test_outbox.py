@@ -147,6 +147,87 @@ class OfflineOutboxTests(unittest.TestCase):
         self.assertEqual(self.store.apply_change_page(page, 3), 4)
         self.assertEqual(self.store.remote_task(created["id"])["title"], "Newer title")
 
+    def test_seed_complete_paginated_bootstrap_over_100_records_and_resume_delta(self):
+        from api import TaskDatabase
+        server = TaskDatabase(Path(self.temp.name) / "server-many.sqlite3")
+        created = []
+        for index in range(103):
+            created.append(server.create_task(
+                {"title": "Task %03d" % index}, "seed-pages-%04d" % index))
+        pages = []
+        after, checkpoint = None, None
+        for _ in range(10):
+            page = server.bootstrap_page(limit=27, after=after, checkpoint=checkpoint)
+            pages.append(page)
+            self.assertEqual(page["schemaVersion"], 1)
+            if checkpoint is None:
+                checkpoint = page["checkpoint"]
+            self.assertEqual(checkpoint, page["checkpoint"])
+            if not page["hasMore"]:
+                self.assertIsNone(page["nextAfter"])
+                break
+            after = page["nextAfter"]
+        self.assertEqual([len(p["tasks"]) for p in pages], [27, 27, 27, 22])
+        self.assertEqual(self.store.seed_bootstrap_pages(pages), 103)
+        self.assertEqual(self.store.cursor(), 103)
+        self.assertEqual(len([t for t in created if self.store.remote_task(t["id"]) is not None]), 103)
+        self.assertEqual(OfflineOutbox(self.path).cursor(), 103)
+        with self.assertRaises(OutboxError):
+            self.store.seed_bootstrap_pages(pages)
+        server.update_task(created[0]["id"], {"title": "Updated after bootstrap"}, 1)
+        self.assertEqual(self.store.apply_change_page(server.changes(after=103), 103), 104)
+        self.assertEqual(self.store.remote_task(created[0]["id"])["title"], "Updated after bootstrap")
+
+    def test_paged_bootstrap_rejects_mixed_incomplete_or_unordered_pages_atomically(self):
+        from api import TaskDatabase
+        server = TaskDatabase(Path(self.temp.name) / "server-badpages.sqlite3")
+        for index in range(3):
+            server.create_task({"title": "Test " + str(index)}, "badpage-key-%04d" % index)
+        first = server.bootstrap_page(limit=2)
+        second = server.bootstrap_page(limit=2, after=first["nextAfter"],
+                                      checkpoint=first["checkpoint"])
+        self.assertEqual(len(first["tasks"]), 2)
+        self.assertEqual(len(second["tasks"]), 1)
+        self.assertTrue(first["hasMore"])
+        self.assertFalse(second["hasMore"])
+        cases = [
+            [],
+            [first],
+            [first, {**second, "checkpoint": 999}],
+            [first, {**second, "nextAfter": first["nextAfter"]}],
+            [{**first, "nextAfter": None}, second],
+            [{**first, "hasMore": False, "nextAfter": None}, second],
+            [first, {**second, "tasks": first["tasks"][:1]}],
+            [{**first, "tasks": first["tasks"][::-1]}, second],
+            [{**first, "limit": True}, second],
+            [{**first, "checkpoint": True}, second],
+            [{**first, "schemaVersion": 2}, second],
+            [{**first, "tasks": [{**first["tasks"][0], "deleted": True}]}, second],
+            [second, first],
+        ]
+        for pages in cases:
+            with self.subTest(pages=pages), self.assertRaises(OutboxError):
+                self.store.seed_bootstrap_pages(pages)
+            self.assertEqual(self.store.cursor(), 0)
+            for entry in first["tasks"] + second["tasks"]:
+                self.assertIsNone(self.store.remote_task(entry["id"]))
+        # Invalid data must not consume the one-time bootstrap gate.
+        self.assertEqual(self.store.seed_bootstrap_pages([first, second]), 3)
+        self.assertEqual(self.store.cursor(), 3)
+
+    def test_paginated_bootstrap_cannot_overwrite_pending_offline_mutations(self):
+        from api import TaskDatabase
+        server = TaskDatabase(Path(self.temp.name) / "server-pending.sqlite3")
+        server.create_task({"title": "Remote item"}, "pending-remote-0001")
+        page = server.bootstrap_page()
+        self.store.queue(self.mutation_id, self.task_id, "create",
+                         {"title": "Locally composed"})
+        with self.assertRaises(OutboxError):
+            self.store.seed_bootstrap_pages([page])
+        self.assertEqual(self.store.cursor(), 0)
+        self.assertEqual(len(self.store.pending()), 1)
+        self.assertIsNone(self.store.remote_task(page["tasks"][0]["id"]))
+
     def test_refuse_incomplete_duplicate_or_dirty_bootstrap(self):
         task = self.change()["task"]
         original = {"schemaVersion": 1, "cursor": 1, "tasks": [task]}
