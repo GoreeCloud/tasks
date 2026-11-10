@@ -16,6 +16,15 @@ from outbox import (
 )
 
 
+EXPECTED_PAGE_KEYS = frozenset(
+    ("schemaVersion", "tasks", "checkpoint", "nextAfter", "hasMore", "limit")
+)
+EXPECTED_TASK_KEYS = frozenset(
+    ("id", "title", "priority", "due", "completed", "revision",
+     "createdAt", "updatedAt", "deleted")
+)
+
+
 class SnapshotChanged(Exception):
     """Authorized source reported a checkpoint conflict (HTTP 409)."""
 
@@ -60,7 +69,8 @@ def collect_and_seed(
                 # Never seed even a valid-looking partial set.
                 break
 
-            if not isinstance(page, dict) or type(page.get("schemaVersion")) is not int or page["schemaVersion"] != 1:
+            if (not isinstance(page, dict) or set(page) != EXPECTED_PAGE_KEYS
+                    or type(page.get("schemaVersion")) is not int or page["schemaVersion"] != 1):
                 raise OutboxError("Invalid bootstrap page schema")
             current = page.get("checkpoint")
             if type(current) is not int or not 0 <= current < 2**63:
@@ -78,6 +88,8 @@ def collect_and_seed(
                     or (has_more and len(tasks) != limit)):
                 raise OutboxError("Malformed bounded bootstrap page")
             for task in tasks:
+                if not isinstance(task, dict) or set(task) != EXPECTED_TASK_KEYS:
+                    raise OutboxError("Unexpected task snapshot schema")
                 raw = safe_json(task)
                 task_id = canonical_uuid(task.get("id"))
                 if last_id is not None and task_id <= last_id:
