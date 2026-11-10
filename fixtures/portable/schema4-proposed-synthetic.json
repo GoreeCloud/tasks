@@ -1,0 +1,55 @@
+{
+  "schema": 4,
+  "projects": [
+    {
+      "id": "project-alpha",
+      "name": "Roadmap 🚀"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-notes",
+      "title": "Review release",
+      "description": "Check accessibility 🧭\nFollow up on copy edits.",
+      "projectId": "project-alpha",
+      "due": "2026-11-03",
+      "priority": 1,
+      "completed": true,
+      "createdAt": "2026-10-31T20:15:42.123456-05:00",
+      "completedAt": "2026-11-01T01:23:45.654321Z",
+      "labels": [
+        "Work",
+        "Design 🧭"
+      ],
+      "parentId": null
+    },
+    {
+      "id": "task-empty-notes",
+      "title": "Inbox action",
+      "description": "",
+      "projectId": "project-alpha",
+      "due": "",
+      "priority": 4,
+      "completed": false,
+      "createdAt": "2026-10-30T10:05:00.001+00:00",
+      "completedAt": null,
+      "labels": [],
+      "parentId": "task-notes"
+    },
+    {
+      "id": "task-grandchild",
+      "title": "Check keyboard-only focus",
+      "description": "Synthetic data only",
+      "projectId": "project-alpha",
+      "due": "",
+      "priority": 4,
+      "completed": false,
+      "createdAt": "2026-11-01T16:00:00Z",
+      "completedAt": null,
+      "labels": [
+        "Quality"
+      ],
+      "parentId": "task-empty-notes"
+    }
+  ]
+}

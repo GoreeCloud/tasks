@@ -16,7 +16,9 @@ internal data class RestoreTask(
     val id: String, val title: String, val priority: Int, val completed: Boolean,
     val dueDate: String?, val projectId: String?, val createdAt: Long,
     val completedAt: Long?, val createdAtExact: String,
-    val completedAtExact: String?
+    val completedAtExact: String?,
+    val description: String = "",
+    val labels: List<String> = emptyList()
 )
 internal data class RestoreSnapshot(
     val projects: List<RestoreProject>, val tasks: List<RestoreTask>
@@ -125,7 +127,8 @@ internal object PortableRestore {
             throw IllegalArgumentException("Backup is not valid JSON", failure)
         } ?: throw IllegalArgumentException("Backup must be a JSON object")
         require(tokener.nextClean() == '\u0000') { "Unexpected content after JSON" }
-        require(root.opt("schema") is Int && root.getInt("schema") == 1) {
+        val schema = root.opt("schema")
+        require(schema is Int && schema in 1..3) {
             "Unsupported or incomplete GoreeCloud Tasks backup schema"
         }
         val projectEntries = childArray(root, "projects")
@@ -182,9 +185,24 @@ internal object PortableRestore {
             require(completed == (completedAt != null)) {
                 "Task completion metadata is inconsistent"
             }
+            if (schema == 1 && item.has("description")) {
+                throw IllegalArgumentException("Descriptions require schema 2")
+            }
+            val description = if (schema >= 2) {
+                TaskRules.description(requiredString(item.opt("description"), "task description"))
+            } else ""
+            require(schema == 3 || !item.has("labels")) { "Labels require schema 3" }
+            val labels = if (schema == 3) {
+                val values = item.opt("labels") as? JSONArray
+                    ?: throw IllegalArgumentException("Schema 3 requires a labels array")
+                TaskRules.labels((0 until values.length()).map { index ->
+                    values.opt(index) as? String
+                        ?: throw IllegalArgumentException("Labels must be plain text")
+                })
+            } else emptyList()
             tasks.add(RestoreTask(key, title, priority, completed, due, projectId,
                                   createdAt.millis, completedAt?.millis,
-                                  createdAt.original, completedAt?.original))
+                                  createdAt.original, completedAt?.original, description, labels))
         }
         return RestoreSnapshot(projects, tasks)
     }

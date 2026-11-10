@@ -24,3 +24,65 @@
   .quick-add .primary-button{grid-column:1/-1;min-height:44px;width:100%}
   .row-button{min-height:40px}
 }
+
+/* Container-sensitive reflow: 200% zoom halves usable width even when
+   the mobile viewport remains 390 CSS pixels wide. */
+@media(max-width:720px){.sidebar,.workspace{container-type:inline-size}}
+@container (max-width:280px){
+  #primary-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #primary-nav .nav-item{justify-content:flex-start;padding-inline:10px;white-space:normal;overflow-wrap:anywhere}
+  .mobile-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .mobile-toolbar select{grid-column:1/-1;width:100%}
+  .mobile-toolbar #mobile-new-project{min-width:0;white-space:normal}
+  .mobile-options{justify-self:stretch}
+  .mobile-options summary{width:100%}
+  .mobile-options-content{width:min(190px,90vw)}
+  .content{padding-inline:10px}
+  .overview{grid-template-columns:minmax(0,1fr)}
+  .metric{min-width:0}
+  .task-panel{min-width:0;padding:12px}
+  .list-controls{grid-template-columns:minmax(0,1fr)}
+  .control-select{min-width:0}
+  .control-select select{min-width:0;max-width:100%}
+  .search-wrap{min-width:0}
+  .search-wrap input{min-width:0;width:100%}
+  .quick-add{grid-template-columns:minmax(0,1fr)}
+  .quick-add #task-title,.quick-add #task-project,.quick-add #task-date,
+  .quick-add #task-priority,.quick-add .primary-button{grid-column:1;min-width:0;max-width:100%;width:100%}
+  .task-row{column-gap:8px}
+  .task-row .task-body{flex-basis:calc(100% - 64px);min-width:0}
+  .task-row .row-button{margin-left:0}
+}
+
+/* Firefox may calculate the root zoom differently from Chromium; a narrow
+   viewport fallback must work without relying on nested container rules. */
+@media(max-width:480px){
+  #primary-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mobile-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .mobile-toolbar select{grid-column:1/-1;width:100%}
+  .mobile-toolbar .mobile-options{justify-self:stretch}
+  .mobile-toolbar .mobile-options summary{width:100%}
+  .content{padding-inline:10px}
+  .overview{grid-template-columns:minmax(0,1fr)}
+  .task-panel{min-width:0;padding:12px}
+  .list-controls,.quick-add{grid-template-columns:minmax(0,1fr)}
+  .control-select select,.search-wrap input{min-width:0;width:100%}
+  .quick-add #task-title,.quick-add #task-project,.quick-add #task-date,
+  .quick-add #task-priority,.quick-add .primary-button{grid-column:1;min-width:0;max-width:100%;width:100%}
+}
+
+/* Clear task selection vs completion, with 44px touch targets. */
+.task-check-wrap{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-width:30px;min-height:44px;cursor:pointer}
+.task-check-wrap .task-selector,.task-check-wrap .task-checkbox{margin:0;min-width:20px;min-height:20px}
+.task-check-label{display:none;font-size:11px;font-weight:650;color:var(--gc-text-soft)}
+@media(max-width:720px){
+  .task-check-wrap{flex-direction:column;gap:4px;min-width:44px;min-height:48px}
+  .task-check-label{display:block}
+}
+@media(max-width:480px){
+  .topbar{height:auto;min-height:60px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding-block:12px}
+  .breadcrumb{overflow-wrap:anywhere}
+  .local-status{justify-self:start;white-space:nowrap}
+  .task-row{gap:8px}
+  .task-row .task-body{min-width:0;flex-basis:calc(100% - 110px)}
+}

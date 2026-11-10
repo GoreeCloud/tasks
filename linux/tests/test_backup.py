@@ -29,6 +29,101 @@ class PortableBackupTests(unittest.TestCase):
         completed = self.source.add_task("Validated backup", priority=4)
         self.source.complete_task(completed, True)
 
+    def test_legacy_sqlite_description_columns_migrate_without_data_loss(self):
+        old = self.folder / "old-tasks.sqlite3"
+        connection = sqlite3.connect(old)
+        try:
+            connection.execute("CREATE TABLE projects (id TEXT PRIMARY KEY,name TEXT NOT NULL)")
+            connection.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL,priority INTEGER NOT NULL,"
+                               "due_date TEXT,project_id TEXT,completed INTEGER NOT NULL,created_at TEXT NOT NULL,completed_at TEXT)")
+            connection.execute("CREATE TABLE deleted_tasks (id TEXT PRIMARY KEY,title TEXT NOT NULL,priority INTEGER NOT NULL,"
+                               "due_date TEXT,project_id TEXT,completed INTEGER NOT NULL,created_at TEXT NOT NULL,completed_at TEXT,deleted_at TEXT NOT NULL)")
+            connection.execute("INSERT INTO tasks(id,title,priority,completed,created_at) "
+                               "VALUES ('legacy-active','Original',2,0,'2026-10-31T12:00:00Z')")
+            connection.execute("INSERT INTO deleted_tasks(id,title,priority,completed,created_at,deleted_at) "
+                               "VALUES ('legacy-trash','Recoverable',4,0,'2026-10-31T12:00:00Z','2026-11-01T12:00:00Z')")
+            connection.commit()
+        finally:
+            connection.close()
+        store = TaskStore(old)
+        try:
+            self.assertEqual(store.list_tasks()[0]["title"], "Original")
+            self.assertEqual(store.list_tasks()[0]["description"], "")
+            self.assertEqual(store.list_deleted_tasks()[0]["description"], "")
+            self.assertTrue(store.restore_deleted_task("legacy-trash"))
+            store.update_task("legacy-active",title="Original",priority=2,description="New notes after migration")
+            self.assertEqual(export_data(store)["schema"],2)
+            store.bulk_edit_tasks(["legacy-active"], "trash")
+            self.assertEqual(store.list_deleted_tasks()[0]["description"],"New notes after migration")
+        finally:
+            store.close()
+        # Opening twice must not create duplicate columns or change notes.
+        store = TaskStore(old)
+        try:
+            self.assertEqual(store.list_deleted_tasks()[0]["description"],"New notes after migration")
+        finally:
+            store.close()
+
+    def test_proposed_schema4_is_rejected_without_changing_empty_store(self):
+        fixture=json.loads((Path(__file__).resolve().parents[2] /
+                            "fixtures/portable/schema4-proposed-synthetic.json").read_text(encoding="utf-8"))
+        with self.assertRaises(BackupError):
+            validate(fixture)
+        with self.assertRaises(BackupError):
+            import_data(self.target,fixture)
+        self.assertEqual(self.target.list_tasks(view="All"),[])
+
+    def test_schema3_labels_import_export_and_atomic_trash(self):
+        fixture = json.loads((Path(__file__).resolve().parents[2] /
+                              "fixtures/portable/schema3-synthetic.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate(fixture),fixture)
+        with self.assertRaises(BackupError):
+            validate(dict(fixture,schema=2))
+        broken = json.loads(json.dumps(fixture))
+        broken["tasks"][0]["labels"] = ["Work","Work"]
+        with self.assertRaises(BackupError):
+            validate(broken)
+        tasks, projects = import_data(self.target,fixture)
+        self.assertEqual((tasks,projects),(2,1))
+        exported = export_data(self.target)
+        self.assertEqual(exported["schema"],3)
+        self.assertEqual({t["id"]:t["labels"] for t in exported["tasks"]},
+                         {t["id"]:t["labels"] for t in fixture["tasks"]})
+        self.assertTrue(self.target.delete_task("task-notes"))
+        self.assertEqual(json.loads(self.target.list_deleted_tasks()[0]["labels_json"]),["Work","Design 🧭"])
+        self.assertTrue(self.target.restore_deleted_task("task-notes"))
+        copied=self.target.duplicate_task("task-notes")
+        row=next(t for t in self.target.list_tasks(include_completed=True) if t["id"]==copied)
+        self.assertEqual(json.loads(row["labels_json"]),["Work","Design 🧭"])
+        self.assertTrue(self.target.update_task(copied,title="Review release",priority=1,labels=["Archive"]))
+        with self.assertRaises(ValueError):
+            self.target.update_task(copied,title="Review release",priority=1,labels=["A","A"])
+        self.assertEqual(json.loads(next(t for t in self.target.list_tasks(include_completed=True)
+                                         if t["id"]==copied)["labels_json"]),["Archive"])
+
+    def test_schema2_descriptions_round_trip_across_trash_and_restore(self):
+        fixture = json.loads((Path(__file__).resolve().parents[2] /
+                              "fixtures/portable/schema2-synthetic.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate(fixture), fixture)
+        count, _ = import_data(self.target, fixture)
+        self.assertEqual(count, 2)
+        imported = self.target.list_tasks(include_completed=True)
+        self.assertEqual(next(t for t in imported if t["id"] == "task-notes")["description"], "Check accessibility 🧭\nFollow up on copy edits.")
+        exported = export_data(self.target)
+        self.assertEqual(exported["schema"], 2)
+        self.assertEqual(next(t for t in exported["tasks"] if t["id"] == "task-notes")["description"], fixture["tasks"][0]["description"])
+        self.assertTrue(self.target.delete_task("task-notes"))
+        self.assertEqual(self.target.list_deleted_tasks()[0]["description"], fixture["tasks"][0]["description"])
+        self.assertTrue(self.target.restore_deleted_task("task-notes"))
+        self.assertEqual(next(t for t in self.target.list_tasks(include_completed=True) if t["id"] == "task-notes")["description"], fixture["tasks"][0]["description"])
+        broken = json.loads(json.dumps(fixture))
+        broken["tasks"][0]["description"] = "🧭" * 1001
+        with self.assertRaises(BackupError):
+            validate(broken)
+        legacy = json.loads((Path(__file__).resolve().parents[2] /
+                             "fixtures/portable/schema1-synthetic.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate(legacy), legacy)
+
     def test_strict_timestamp_contract_prevents_cross_platform_restore_failure(self):
         matrix = json.loads((Path(__file__).resolve().parents[2] /
                              "fixtures/portable/timestamp-contract.json").read_text(encoding="utf-8"))

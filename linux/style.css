@@ -5,8 +5,18 @@ headerbar { background-color: @headerbar_bg_color; }
 list { border-radius: 18px; }
 row { min-height: 66px; }
 button.suggested-action {
-  background-color: #5145d9;
-  color: white;
+  min-height: 44px;
   border-radius: 12px;
 }
 entry { border-radius: 12px; min-height: 44px; }
+/* List-first GTK4 native navigation; accent selection comes from theme.py. */
+.task-navigation { border-right:1px solid alpha(@borders,0.45); }
+button.task-nav-item { min-height:43px; border-radius:10px; margin-top:2px; padding:8px 12px;  }
+button.task-nav-item:not(.task-nav-selected):hover { background-color:alpha(@window_fg_color,0.06); }
+.task-navigation .caption-heading { font-size:11px; font-weight:700; color:@window_fg_color; margin-bottom:10px; }
+
+/* The selection box stays square; completion is a separate circular control. */
+checkbutton.task-completion check { border-radius: 50%; border: 2px solid @accent_color; }
+checkbutton.task-priority-1 check { border-color: @error_color; }
+checkbutton.task-priority-2 check { border-color: @warning_color; }
+checkbutton.task-priority-3 check { border-color: @success_color; }

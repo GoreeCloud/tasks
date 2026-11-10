@@ -76,6 +76,45 @@ class PortableRestoreTest {
             ByteArrayInputStream(byteArrayOf(1, 2))).size)
     }
 
+    @Test fun acceptsSchema2DescriptionsAndRejectsBadUnicodeAndDowngrade() {
+        val fixture = PortableFixture.read("schema2-synthetic.json")
+        val restored = PortableRestore.parse(fixture)
+        assertEquals(2, restored.tasks.size)
+        assertEquals("Check accessibility 🧭\nFollow up on copy edits.",
+            restored.tasks.single { it.id == "task-notes" }.description)
+        assertEquals("", restored.tasks.single { it.id == "task-empty-notes" }.description)
+        val root = JSONObject(String(fixture, Charsets.UTF_8))
+        root.put("schema", 1)
+        rejects(root.toString()) // schema 1 must not drop descriptions
+        root.put("schema", 2)
+        root.getJSONArray("tasks").getJSONObject(0).remove("description")
+        rejects(root.toString()) // schema 2 requires explicit notes field
+        root.getJSONArray("tasks").getJSONObject(0).put("description", "🧭".repeat(1001))
+        rejects(root.toString()) // UTF-16 2000-unit cap
+    }
+
+    @Test fun unsupportedSchemaFourGraphFailsClosed() {
+        rejects(String(PortableFixture.read("schema4-proposed-synthetic.json"), Charsets.UTF_8))
+    }
+
+    @Test fun schemaThreeValidatesLabelsAndRefusesLegacyDowngrade() {
+        val fixture = PortableFixture.read("schema3-synthetic.json")
+        val result = PortableRestore.parse(fixture)
+        assertEquals(listOf("Work", "Design 🧭"), result.tasks.single { it.id == "task-notes" }.labels)
+        assertEquals(emptyList<String>(),result.tasks.single { it.id == "task-empty-notes" }.labels)
+        val root = JSONObject(String(fixture, Charsets.UTF_8))
+        root.put("schema", 2)
+        rejects(root.toString())
+        root.put("schema", 3)
+        val task = root.getJSONArray("tasks").getJSONObject(0)
+        task.put("labels", org.json.JSONArray(listOf("Work", "Work")))
+        rejects(root.toString())
+        task.put("labels", org.json.JSONArray(List(9) { "X" }))
+        rejects(root.toString())
+        task.remove("labels")
+        rejects(root.toString())
+    }
+
     private fun rejects(text: String) {
         try {
             parse(text)
@@ -97,7 +136,7 @@ class PortableRestoreTest {
     }
 
     @Test fun rejectsUnsupportedAndIncompleteSchema() {
-        rejects(fixture().replace("\"schema\": 1", "\"schema\": 2"))
+        rejects(fixture().replace("\"schema\": 1", "\"schema\": 4"))
         rejects(fixture().replace("\"tasks\": [", "\"missing\": ["))
         rejects(fixture().replace("\"priority\":2", "\"priority\":true"))
         rejects(fixture().replace("\"completed\":false", "\"completed\":0"))
