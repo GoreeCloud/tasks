@@ -36,7 +36,7 @@ def _summary(value: object) -> str:
         point = ord(ch)
         if (point in _UNSAFE_FORMAT or 0x202A <= point <= 0x202E
                 or 0x2066 <= point <= 0x2069 or 0xD800 <= point <= 0xDFFF
-                or (point < 32 and ch not in "\r\n") or point == 127):
+                or (point < 32 and ch not in "\r\n") or 127 <= point <= 159):
             raise OutboxError("Task summary contains an unsafe control")
     value = value.replace("\r\n", "\n").replace("\r", "\n")
     return (value.replace("\\", "\\\\").replace("\n", "\\n")
