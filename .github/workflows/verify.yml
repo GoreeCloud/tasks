@@ -23,14 +23,35 @@ jobs:
         run: python3 -m unittest discover -s linux/tests -v
       - name: Compile Python syntax
         run: python3 -m py_compile linux/app.py linux/store.py linux/backup.py linux/tests/gui_smoke.py
-      - name: Install native GTK test libraries
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 xvfb xauth
-      - name: Native GTK4/libadwaita runtime smoke
-        run: xvfb-run -a /usr/bin/python3 linux/tests/gui_smoke.py
       - name: Isolated Linux user install/uninstall smoke
         run: sh -n linux/install.sh && sh -n linux/uninstall.sh && sh linux/tests/test_install.sh
+
+  linux-gtk-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install GTK runtime dependencies with bounded APT network wait
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A DNS outage on the hosted Ubuntu mirror must report an explicit
+          # infrastructure error, not cancel unrelated web/Linux unit checks.
+          if ! sudo timeout -k 5s 180s apt-get -o Acquire::Retries=1 \
+              -o APT::Update::Error-Mode=any -o Acquire::http::Timeout=20 \
+              -o Acquire::https::Timeout=20 update -qq; then
+            echo "::error::GTK runtime APT index update failed (network/mirror); native smoke was not executed"
+            exit 1
+          fi
+          if ! sudo timeout -k 5s 180s apt-get -o Acquire::Retries=1 \
+              -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 \
+              install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 xvfb xauth; then
+            echo "::error::GTK runtime packages unavailable; native smoke was not executed"
+            exit 1
+          fi
+      - name: Native GTK4/libadwaita runtime smoke
+        run: xvfb-run -a /usr/bin/python3 linux/tests/gui_smoke.py
+
   api:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
