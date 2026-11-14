@@ -12,6 +12,14 @@ The preview includes the stable `UID:urn:uuid:<task-id>`, `DTSTAMP` derived from
 
 Task metadata not specifically allowlisted (including private notes or account identifiers) is **not exported**. The preview intentionally omits recurrence, priority, alarms, participants, attachments, rich descriptions, foreign DAV properties and inverse import. It does not flatten or overwrite existing independent DAV entries.
 
+## Calendar import preflight — development only (November 11, 2026)
+
+I require Tasks-to-Calendar transfers to fail closed rather than discard task semantics. `server/calendar_interop_preflight.py` implements a pure `calendar_import_preflight(selected_live_task)` diagnostic on top of the existing Tasks VTODO preview. It returns only fixed reason codes, profiles, and authorization warnings; it does **not** return task IDs, titles, notes, raw VTODO or a converted import and cannot grant consent or change storage.
+
+For the source-reviewed, unmerged GoreeCloud Calendar VTODO parser at commit `bea6665b31b81fc9bf4310c3fc071b3c2ed519e6`, the diagnostic reports unsupported `SEQUENCE` and `CLASS:PRIVATE` in **every** Tasks preview; date-only `DUE` is an additional blocker. It also flags Tasks titles exceeding Calendar's 160-character limit, non-P3 priorities omitted by Tasks's VTODO export, unproven priorities, and the destination's failure to retain the source update timestamp. A report of `blocked` is expected, **not a defect in the guard**. Even removal of the two unsupported properties for a test must never be portrayed as preserving revisions or privacy classification.
+
+Synthetic local tests exercise the diagnostic without user files or network. The separately pinned Calendar source-contract workflow tests the **actual** Calendar parser against the genuine Tasks serializer using disposable examples; it must fail if the source pin changes without review. An import, automated sync, migration or live Cross-Product Mesh connector is **not implemented**. Track actual interoperability under [Tasks issue #25](https://github.com/GoreeCloud/tasks/issues/25).
+
 ## Future authorized integration gates
 
 1. The user must explicitly choose which tasks and fields to share and preview the actual outgoing content. An internal serializer invocation does **not** constitute GoreeShield consent.
