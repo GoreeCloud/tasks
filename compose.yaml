@@ -1,0 +1,18 @@
+services:
+  tasks-api:
+    build: {context: ./server}
+    environment:
+      GOREECLOUD_TASKS_API_TOKEN: ${GOREECLOUD_TASKS_API_TOKEN:?Supply a random 32+ character token outside the repository}
+      GOREECLOUD_TASKS_DATABASE: /data/tasks.sqlite3
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - tasks_data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+volumes:
+  tasks_data:
