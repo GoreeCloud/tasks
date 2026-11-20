@@ -25,7 +25,7 @@ Python 3.11 or newer:
     python3 -m venv .venv
     . .venv/bin/activate
     pip install -e './server[test]'
-    uvicorn goreecloud_tasks.app:app --host 127.0.0.1 --port 8000
+    uvicorn goreecloud_tasks.app:create_app --factory --host 127.0.0.1 --port 8000
 
 Keep the token secret; a random 32+ character value is mandatory. The service binds to localhost. Never expose it to untrusted networks without HTTPS and additional security controls.
 

@@ -141,7 +141,7 @@ ApplicationWindow {
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
-                            Label { text: modelData.title; font.bold: true; color: window.gcText; elide: Text.ElideRight; Layout.fillWidth: true }
+                            Label { text: modelData.title; textFormat: Text.PlainText; font.bold: true; color: window.gcText; elide: Text.ElideRight; Layout.fillWidth: true }
                             Label { text: modelData.due_date || "No due date"; color: window.gcSoft; font.pixelSize: 12 }
                         }
                         Label { text: "P" + modelData.priority; color: window.gcSoft }

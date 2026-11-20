@@ -325,7 +325,6 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
     return app
 
 
-# Uvicorn import initializes the database and requires a secret before serving.
-app = None
-if os.environ.get("GOREECLOUD_TASKS_API_TOKEN"):
-    app = create_app()
+# Start with: uvicorn goreecloud_tasks.app:create_app --factory
+# Factory construction refuses missing/weak secrets before accepting requests.
+# Do not instantiate a fallback app when credentials are absent.
