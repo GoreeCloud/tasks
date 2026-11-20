@@ -30,7 +30,7 @@ ApplicationWindow {
                 Label { text: "T A S K S"; font.pixelSize: 9; color: window.gcSoft }
             }
             Item { Layout.fillWidth: true }
-            Label { text: tasksBackend.status; color: window.gcSoft }
+            Label { text: tasksBackend ? tasksBackend.status : "Disconnected"; color: window.gcSoft }
             Button { text: "Refresh"; onClicked: tasksBackend.refresh() }
         }
     }
@@ -108,8 +108,8 @@ ApplicationWindow {
             }
 
             Label {
-                visible: tasksBackend.error.length > 0
-                text: tasksBackend.error
+                visible: tasksBackend && tasksBackend.error.length > 0
+                text: tasksBackend ? tasksBackend.error : ""
                 color: "#B3261E"
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
@@ -122,7 +122,7 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 clip: true
                 spacing: 8
-                model: tasksBackend.tasks
+                model: tasksBackend ? tasksBackend.tasks : []
                 ScrollBar.vertical: ScrollBar {}
                 delegate: Rectangle {
                     required property var modelData

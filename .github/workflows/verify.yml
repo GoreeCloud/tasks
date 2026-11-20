@@ -54,7 +54,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
-      - run: sdkmanager --install "platforms;android-37.1"
+      - name: Install Android API 37.1 using runner SDK manager
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platforms;android-37.1"
       - working-directory: android
         run: ./gradlew :app:assembleDebug --no-daemon --console=plain
