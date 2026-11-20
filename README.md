@@ -66,7 +66,7 @@ Compose uses the approved GoreeCloud Material 3 Expressive theme as its outer ho
     python -m pytest server/tests -q
     cd web && npm ci && npm run build
 
-See GitHub workflow checks for build evidence at specific commits. No deployment is performed by this repository.
+See GitHub workflow checks for build evidence at specific commits. No deployment is performed by this repository. The [real-browser UI acceptance evidence](docs/REAL_BROWSER_UI_ACCEPTANCE_20261120.md) documents reproducible Chromium/Firefox/WebKit synthetic task workflows and the narrow mobile reflow fix. The optional `cd web && npm run browser:acceptance` test requires explicitly supplied, inspected local browser binaries and never logs into a real service.
 
 ## Privacy, security and licenses
 
