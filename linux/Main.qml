@@ -19,6 +19,36 @@ ApplicationWindow {
     property color gcSoft: "#505B70"
     property bool habitsMode: false
 
+    function clearPrivateInputs() {
+        // Dialogs may hold an unsaved title/description even after backend
+        // task rows were cleared. Erase those local UI buffers on disconnect.
+        editor.close()
+        editHabitDialog.close()
+        habitHistoryDialog.close()
+        deleteHabitConfirm.close()
+        deleteConfirm.close()
+        editor.editing = ({})
+        editHabitDialog.habit = ({})
+        habitHistoryDialog.habit = ({})
+        deleteHabitConfirm.habit = ({})
+        deleteConfirm.editing = ({})
+        projectName.text = ""
+        newTitle.text = ""
+        dueDate.text = ""
+        newTags.text = ""
+        habitName.text = ""
+        habitNotes.text = ""
+        editTitle.text = ""
+        editNotes.text = ""
+        editDue.text = ""
+        editTags.text = ""
+        editHabitName.text = ""
+        editHabitNotes.text = ""
+        search.text = ""
+        window.habitsMode = false
+        loginToken.text = ""
+    }
+
     function projectNames() {
         var output = ["Inbox"]
         var current = tasksBackend ? tasksBackend.projects : []
@@ -81,11 +111,24 @@ ApplicationWindow {
                 text: tasksBackend ? tasksBackend.status : "Disconnected"
                 color: window.gcSoft
             }
-            Button { text: "Refresh"; onClicked: tasksBackend.refresh() }
+            Button {
+                text: "Refresh"
+                enabled: tasksBackend ? tasksBackend.connected : false
+                onClicked: tasksBackend.refresh()
+            }
+            Button {
+                text: "Disconnect"
+                visible: tasksBackend ? tasksBackend.connected : false
+                onClicked: {
+                    window.clearPrivateInputs()
+                    tasksBackend.disconnect()
+                }
+            }
         }
     }
 
     RowLayout {
+        visible: tasksBackend ? tasksBackend.connected : false
         anchors.fill: parent
         anchors.margins: 20
         spacing: 20
@@ -444,6 +487,87 @@ ApplicationWindow {
                     text: "No daily habits yet."
                     color: window.gcSoft
                 }
+            }
+        }
+    }
+
+    Rectangle {
+        id: loginSurface
+        objectName: "taskLoginSurface"
+        anchors.fill: parent
+        visible: tasksBackend ? !tasksBackend.connected : true
+        color: window.gcCanvas
+        z: 2
+
+        ColumnLayout {
+            width: Math.min(parent.width - 40, 510)
+            anchors.centerIn: parent
+            spacing: 14
+            Label {
+                text: "GoreeCloud Tasks"
+                font.pixelSize: 29
+                font.bold: true
+                color: window.gcText
+                Layout.fillWidth: true
+            }
+            Label {
+                text: "Connect to your private self-hosted Tasks API."
+                color: window.gcSoft
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+            Label {
+                text: "Token and task data remain in memory. Never paste a token in a desktop launcher."
+                color: window.gcSoft
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+            TextField {
+                id: loginUrl
+                Accessible.name: "Tasks API server URL"
+                Layout.fillWidth: true
+                text: tasksBackend ? tasksBackend.serverUrl : "http://127.0.0.1:8000"
+                placeholderText: "https://tasks.example.com"
+                selectByMouse: true
+                inputMethodHints: Qt.ImhNoPredictiveText
+            }
+            TextField {
+                id: loginToken
+                objectName: "taskLoginToken"
+                Accessible.name: "Tasks API token"
+                Layout.fillWidth: true
+                maximumLength: 512
+                echoMode: TextInput.Password
+                readonly property bool passwordMasked: echoMode === TextInput.Password
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                placeholderText: "Paste your 32+ character API token"
+                onAccepted: loginButton.clicked()
+            }
+            Button {
+                id: loginButton
+                objectName: "taskLoginButton"
+                text: "Connect"
+                Layout.fillWidth: true
+                enabled: tasksBackend && loginToken.text.length >= 32
+                onClicked: {
+                    if (!tasksBackend) return
+                    tasksBackend.connectToServer(loginUrl.text, loginToken.text)
+                    loginToken.text = ""
+                }
+            }
+            Label {
+                text: tasksBackend ? tasksBackend.error : "Unavailable Tasks backend"
+                visible: text.length > 0
+                color: "#B3261E"
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+                Accessible.role: Accessible.AlertMessage
+            }
+            Label {
+                text: "Development preview · HTTPS required outside loopback"
+                color: window.gcSoft
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
             }
         }
     }

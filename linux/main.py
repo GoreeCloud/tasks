@@ -24,6 +24,7 @@ class TasksBackend(QObject):
     projectsChanged = Signal()
     habitsChanged = Signal()
     habitHistoryChanged = Signal()
+    connectedChanged = Signal()
     statusChanged = Signal()
     errorChanged = Signal()
 
@@ -37,10 +38,12 @@ class TasksBackend(QObject):
         self._habit_history_offset = 0
         self._habit_history_has_more = False
         self._habit_history_generation = 0
-        self._status = "Ready"
+        self._status = "Ready" if self._valid_token(token) else "Disconnected"
         self._error = ""
-        self._token = token
+        self._token = token if self._valid_token(token) else ""
         self._url = url.rstrip("/")
+        self._session_generation = 0
+        self._outstanding_replies = set()
         self._view = "inbox"
         self._project_filter: str | None = None
         self._query = ""
@@ -114,6 +117,80 @@ class TasksBackend(QObject):
                       "/checkins?limit=30&offset=" + str(offset),
                       callback=on_history)
 
+    @staticmethod
+    def _valid_token(token: str) -> bool:
+        return 32 <= len(token) <= 512 and all(33 <= ord(char) <= 126
+                                                for char in token)
+
+    @staticmethod
+    def _valid_url(value: str) -> bool:
+        if not value or len(value) > 2048 or any(ord(char) <= 32 for char in value):
+            return False
+        try:
+            parsed = urlsplit(value)
+            port = parsed.port
+            return (
+                parsed.scheme in ("https", "http") and bool(parsed.hostname)
+                and (port is None or 0 < port <= 65535)
+                and parsed.username is None and parsed.password is None
+                and not parsed.query and not parsed.fragment
+                and not value.endswith("/")
+                and (parsed.scheme == "https" or
+                     parsed.hostname in {"127.0.0.1", "::1", "localhost"})
+            )
+        except ValueError:
+            return False
+
+    @Property(bool, notify=connectedChanged)
+    def connected(self) -> bool:
+        return self._valid_token(self._token)
+
+    @Property(str, notify=connectedChanged)
+    def serverUrl(self) -> str:
+        return self._url
+
+    @Slot(str, str)
+    def connectToServer(self, url: str, token: str):
+        candidate = url.strip().rstrip("/")
+        if not self._valid_url(candidate):
+            self._set_error("Use an HTTPS server URL or a loopback HTTP address")
+            return
+        if not self._valid_token(token):
+            self._set_error("Token must contain 32–512 printable non-space ASCII characters")
+            return
+        self.disconnect()
+        self._url = candidate
+        self._token = token
+        self._set_error("")
+        self.connectedChanged.emit()
+        self.refresh()
+
+    @Slot()
+    def disconnect(self):
+        self._session_generation += 1
+        for reply in tuple(self._outstanding_replies):
+            reply.abort()
+        self._token = ""
+        self._all_tasks = []
+        self._tasks = []
+        self._projects = []
+        self._habits = []
+        self._habit_history = []
+        self._habit_history_generation += 1
+        self._habit_history_offset = 0
+        self._habit_history_has_more = False
+        self._project_filter = None
+        self._query = ""
+        self._view = "inbox"
+        self._status = "Disconnected"
+        self._set_error("")
+        self.tasksChanged.emit()
+        self.projectsChanged.emit()
+        self.habitsChanged.emit()
+        self.habitHistoryChanged.emit()
+        self.statusChanged.emit()
+        self.connectedChanged.emit()
+
     @Property(str, notify=statusChanged)
     def status(self):
         return self._status
@@ -174,9 +251,10 @@ class TasksBackend(QObject):
 
     def _request(self, method: str, path: str, payload=None, callback=None,
                  idempotency_key: str | None = None):
-        if len(self._token) < 32:
-            self._set_error("Set a 32+ character GOREECLOUD_TASKS_API_TOKEN")
+        if not self.connected:
+            self._set_error("Connect with a 32+ character API token")
             return
+        generation = self._session_generation
         request = QNetworkRequest(QUrl(self._url + "/api/v1" + path))
         request.setRawHeader(b"Authorization", ("Bearer " + self._token).encode())
         request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json")
@@ -185,8 +263,13 @@ class TasksBackend(QObject):
         request.setTransferTimeout(15_000)
         content = json.dumps(payload).encode("utf-8") if payload is not None else b""
         reply = self._network.sendCustomRequest(request, method.encode("ascii"), content)
+        self._outstanding_replies.add(reply)
 
         def finished():
+            self._outstanding_replies.discard(reply)
+            if generation != self._session_generation:
+                reply.deleteLater()
+                return
             data = bytes(reply.readAll())
             status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
             if reply.error() != QNetworkReply.NetworkError.NoError or not isinstance(status, int) or status >= 400:
@@ -385,13 +468,8 @@ class TasksBackend(QObject):
 
 def main():
     url = os.environ.get("GOREECLOUD_TASKS_URL", "http://127.0.0.1:8000").rstrip("/")
-    parsed = urlsplit(url)
-    if parsed.scheme not in ("https", "http") or not parsed.hostname or (
-        parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment
-    ):
-        raise SystemExit("Invalid GOREECLOUD_TASKS_URL")
-    if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "::1", "localhost"}:
-        raise SystemExit("Nonlocal API access requires HTTPS")
+    if not TasksBackend._valid_url(url):
+        raise SystemExit("GOREECLOUD_TASKS_URL must be HTTPS or loopback HTTP with no credentials")
     token = os.environ.get("GOREECLOUD_TASKS_API_TOKEN", "")
     app = QGuiApplication(sys.argv)
     backend = TasksBackend(url, token)
@@ -400,7 +478,8 @@ def main():
     engine.load(QUrl.fromLocalFile(str(Path(__file__).with_name("Main.qml"))))
     if not engine.rootObjects():
         return 1
-    backend.refresh()
+    if backend.connected:
+        backend.refresh()
     return app.exec()
 
 

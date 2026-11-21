@@ -9,7 +9,7 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 | Recurring tasks | Both | Date-only daily, weekdays, weekly, biweekly (14 days), monthly, yearly in API/React/Qt/Compose; simple previous-due-date step, no holidays, anchored RRULE, time zones or reminder engine | P1 richer scheduling/notifications |
 | Today, Upcoming, search | Both | Web, Android and Linux view filters; API bounded search | P1 saved filters |
 | Visual calendar, boards | Both | React month calendar and keyboard-accessible P1–P4 priority board with version-safe move buttons; drag-drop remains optional backlog | P1 |
-| Native Linux and Android | Platform-specific | Expanded Qt Quick/Compose CRUD and filters; device/runtime acceptance pending | P1 |
+| Native Linux and Android | Platform-specific | Expanded Qt Quick/Compose CRUD and filters; Qt supports in-memory masked sign-in/logout and non-installing XDG launcher file generator, but packaging, OS desktop integration, signed distribution and physical device/runtime acceptance remain pending | P1 |
 | Offline editing and cloud sync | Both | Cursor feed, redacted tombstones, retry receipts plus opt-in encrypted web manual queue for standalone creates/title edits and bounded manual incremental changefeed pulls; an explicitly opt-in public-static-only app shell permits tokenless encrypted-vault reopen while disconnected; native full sync and background replay remain unimplemented | P1 |
 | Notifications/reminders | Both | Not implemented | P1 |
 | Subtasks/sections/checklists | Both | Versioned parent-child subtasks on API, React and native clients; sections and checklists pending | P2 |
