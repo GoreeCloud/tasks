@@ -42,6 +42,10 @@ for(const [name,engine,binary]of engines){
        const method=request.method(), endpoint=path.replace(/^\/api\/v1/,"");
        const response=(body,status=200)=>route.fulfill({status,contentType:"application/json",body:JSON.stringify(body)});
        if(method==="GET"&&endpoint==="/tasks")return response(tasks.slice(0,1000));
+       if(method==="GET"&&/^\/tasks\/synthetic-task-\d+$/.test(endpoint)) {
+         const current=tasks.find(t=>endpoint.endsWith(t.id));
+         return response(current??{detail:"Task not found"},current?200:404);
+       }
        if(method==="GET"&&endpoint==="/sync/bootstrap")
          return response({format:"goreecloud-tasks-sync-1",cursor:tasks.length,
            tasks,projects});
@@ -300,9 +304,40 @@ for(const [name,engine,binary]of engines){
     await page.getByRole("region",{name:"Pending offline drafts"}).getByText("CONFLICT").waitFor({timeout:9000});
     assert.equal(tasks.length,4,"Earlier acknowledged create persists despite a later conflict");
     assert.equal(tasks[0].title,"Synthetic revised task","Conflict must not overwrite server data");
-    await page.getByRole("region",{name:"Pending offline drafts"}).getByRole("button",{name:"Discard draft"}).click();
-    await page.getByRole("button",{name:"Sync now"}).click();
-    await page.getByRole("status").filter({hasText:"Server sync completed"}).waitFor({timeout:12000});
+    if(name==="chromium"&&caseName==="desktop-light"){
+      // Simulate the server task being reopened online with a newer revision,
+      // making a user-confirmed title edit eligible for a safe retry.
+      tasks[0].completed_at=null;
+      tasks[0].version++;
+    }
+    await page.getByRole("region",{name:"Pending offline drafts"})
+      .getByRole("button",{name:"Compare with server"}).click();
+    await page.getByRole("region",{name:"Offline conflict review"})
+      .getByText("Synthetic revised task").waitFor({timeout:12000});
+    await page.getByRole("region",{name:"Offline conflict review"})
+      .getByText("Revision "+tasks[0].version).waitFor({timeout:9000});
+    if(name==="chromium"&&caseName==="desktop-light"){
+      page.once("dialog",dialog=>dialog.accept());
+      await page.getByRole("button",{name:"Queue my title against this revision"}).click();
+      await page.getByRole("region",{name:"Pending offline drafts"})
+        .getByText("This should never overwrite").waitFor({timeout:9000});
+      await page.getByRole("button",{name:"Sync now"}).click();
+      await page.getByRole("status").filter({hasText:"Server sync completed"}).waitFor({timeout:12000});
+      assert.equal(tasks[0].title,"This should never overwrite a newer server title");
+      await page.getByRole("button",{name:"My tasks",exact:true}).click();
+      await page.getByRole("button",{name:"Complete This should never overwrite a newer server title"}).click();
+      await page.getByRole("button",{name:"Offline",exact:true}).click();
+      // OfflineView is unmounted on navigation: decrypted keys are cleared.
+      // Returning to the feature requires another passphrase unlock.
+      await page.getByLabel("Offline vault passphrase").fill(offlinePass);
+      await page.getByRole("button",{name:"Unlock vault"}).click();
+      await page.getByRole("heading",{name:"Draft a standalone task"}).waitFor({timeout:12000});
+    }else{
+      await page.getByRole("button",{name:"Keep server state and discard my draft"}).click();
+      await page.getByRole("button",{name:"Sync now"}).click();
+      await page.getByRole("status").filter({hasText:"Server sync completed"}).waitFor({timeout:12000});
+      assert.equal(tasks[0].title,"Synthetic revised task");
+    }
     assert.equal(tasks.length,4,"Explicit sync must commit one draft exactly once");
     const newTask={id:"synthetic-task-"+(++serial),title:"From incremental sync",description:"",
       priority:2,project_id:null,parent_id:null,due_date:null,tags:[],recurrence:"none",
@@ -341,7 +376,7 @@ for(const [name,engine,binary]of engines){
     }));
     assert.ok(final.scroll<=final.client+1,"focus screen overflows viewport");
     assert.equal(tasks.length,4);
-    assert.equal(tasks[0].title,"Synthetic revised task");
+    assert.equal(tasks[0].title,name==="chromium"&&caseName==="desktop-light"?"This should never overwrite a newer server title":"Synthetic revised task");
     assert.ok(tasks.every(task=>task.completed_at));
     assert.equal(violations.length,0,JSON.stringify(violations));
     assert.equal(errors.length,0,JSON.stringify(errors));
