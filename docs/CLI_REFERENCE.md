@@ -9,7 +9,9 @@ All examples use explicit placeholders, not real tokens, hostnames, personal dat
 | --- | --- | --- | --- |
 | python -m pytest server/tests -q | Run deterministic API/security tests | Read-only test database | 60 API tests passed locally, including streamed-body cap, privacy and date-only recurrence |
 | npm ci && npm run build | Install pinned web dependencies and build | Changes developer workspace | Local web production build passed |
-| npm test | Check source/browser contract tests | Read-only | 3 local tests passed |
+| npm test | Check source/browser contract tests | Read-only | 5 local tests passed, including fail-closed offline shell cache generation |
+| npm run preview -- --port 18758 --strictPort | Serve built public web assets and offline-sw.js on localhost for isolated test only | Local network listener | Passed on 127.0.0.1 in synthetic Chromium acceptance; never expose test server publicly |
+| GC_PLAYWRIGHT_CORE_MODULE=... GC_CHROMIUM_BIN=... node tests/offline-shell-acceptance.mjs | Real Chromium browser test using explicit inspected local binaries, localhost fixture and synthetic API | Starts and destroys isolated browser | Passed opt-in worker, CacheStorage public-only, offline reload and tokenless vault; requires explicit preinstalled binary paths |
 | python linux/smoke.py | Offscreen Qt Quick launch smoke | UI-only | Passed with QT_QPA_PLATFORM=offscreen |
 | python -m unittest discover -s linux/tests -v | Native Linux filter/model tests | Read-only | 6 passed locally, including full-snapshot validation and refresh request |
 | ./gradlew :app:assembleDebug | Build Android debug APK | Changes local build directory | Local Gradle build succeeded; no device acceptance |
@@ -35,6 +37,10 @@ Run from repository root, only on an authorized development computer:
     npm ci
     npm run build
     npm test
+    # Optional offline browser acceptance: separately serve built dist on localhost
+    npm run preview -- --port 18758 --strictPort
+    # In another terminal after verifying existing browser binaries:
+    GC_PLAYWRIGHT_CORE_MODULE=/path/to/playwright-core/index.mjs GC_CHROMIUM_BIN=/path/to/verified/chrome node tests/offline-shell-acceptance.mjs
 
     cd android
     ./gradlew :app:assembleDebug --no-daemon --console=plain

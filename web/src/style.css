@@ -169,3 +169,9 @@ nav{display:grid;gap:4px}.nav-item{display:flex;gap:14px;align-items:center;text
 .offline-message{padding:12px;border-radius:9px;background:var(--gc-surface-tonal);font-size:13px}
 .offline-panel>.danger-btn{margin-top:18px}
 @media(max-width:740px){.offline-panel{padding:13px}.offline-queue li,.offline-tasks li{flex-wrap:wrap}.offline-status{align-items:stretch}.offline-actions{width:100%}}
+
+/* Local-only vault access preserves the existing GoreeCloud UI components. */
+.offline-local-mode { max-width: 980px; min-height: 100vh; margin: 0 auto; padding: 20px; display: grid; align-content: start; gap: 16px; }
+.offline-local-mode > header { padding: 20px; display: grid; justify-items: start; gap: 10px; }
+.offline-local-mode > header h1 { margin: 0; }
+@media (max-width: 480px) { .offline-local-mode { padding: 12px; } }
