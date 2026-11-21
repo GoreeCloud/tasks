@@ -52,6 +52,7 @@ function FocusTimer() {
 
 export function App() {
   const [token, setToken] = useState("");
+  const [offlineOnly, setOfflineOnly] = useState(false);
   const [entry, setEntry] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -128,6 +129,17 @@ export function App() {
   const labels = { inbox:"My tasks", today:"Today", upcoming:"Upcoming", completed:"Completed", all:"All tasks", calendar:"Calendar", board:"Board", habits:"Habits", import:"Import", offline:"Offline", focus:"Focus" };
   const counts = {today:tasks.filter(t=>!t.completed_at&&!!t.due_date&&t.due_date<=today()).length,upcoming:tasks.filter(t=>!t.completed_at&&!!t.due_date&&t.due_date>today()).length};
 
+  if (offlineOnly) return <main className="gc-app offline-local-mode">
+    <header className="gc-card">
+      <p className="eyebrow">PRIVATE · LOCAL DEVICE ONLY</p>
+      <h1>Encrypted offline vault</h1>
+      <p className="muted">Your task information remains encrypted in local browser storage. No server token or network connection is required to unlock a previously created vault or restore a matching-origin encrypted backup. Sync and server calls are disabled in this mode.</p>
+      <button className="secondary-btn" onClick={()=>{setOfflineOnly(false);setEntry("");}}>
+        Return to server sign-in
+      </button>
+    </header>
+    <OfflineView request={request} onSynced={async()=>{}} allowServerActions={false}/>
+  </main>;
   if (!token) return <main className="gc-app sign-in">
     <section className="gc-card auth-card">
       <span className="brand-mark" aria-hidden="true">◈</span><p className="eyebrow">GOREECLOUD · PRIVATE WORKSPACE</p>
@@ -137,7 +149,11 @@ export function App() {
         <label htmlFor="api-token">Server API token</label>
         <input id="api-token" autoComplete="off" type="password" required minLength={32} value={entry} onChange={e=>setEntry(e.target.value)} placeholder="Enter your API token" />
         <button className="primary-btn full-width" type="submit">Open workspace</button>
-      </form><small>Development preview · Use HTTPS outside localhost</small>
+      </form>
+      <button type="button" className="secondary-btn" onClick={()=>setOfflineOnly(true)}>
+        Open encrypted vault without server token
+      </button>
+      <small>Development preview · Use HTTPS outside localhost. Local vault access requires its separate passphrase.</small>
     </section>
   </main>;
 
