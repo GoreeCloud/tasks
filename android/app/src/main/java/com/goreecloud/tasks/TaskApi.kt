@@ -12,6 +12,11 @@ import java.util.UUID
 
 data class ProjectItem(val id: String, val name: String)
 
+/** Consistent server snapshot. Never expose only the first paginated task page. */
+data class WorkspaceSnapshot(
+    val tasks: List<TaskItem>, val projects: List<ProjectItem>, val cursor: Long
+)
+
 data class HabitItem(
     val id:String, val name:String, val description:String,
     val version:Int, val checkedInToday:Boolean, val currentStreak:Int,
@@ -93,17 +98,26 @@ class TaskApi(private val base: String, private val token: String) {
         )
     }
 
-    suspend fun listTasks(): List<TaskItem> {
-        val json = JSONArray(request("/tasks?status=all"))
-        return (0 until json.length()).map { parseTask(json.getJSONObject(it)) }
-    }
-
-    suspend fun listProjects(): List<ProjectItem> {
-        val json = JSONArray(request("/projects"))
-        return (0 until json.length()).map { index ->
-            val project = json.getJSONObject(index)
+    suspend fun loadWorkspace(): WorkspaceSnapshot {
+        // /tasks?status=all only serves the first 1000 rows. Fetch one
+        // transactionally consistent task/project snapshot instead so larger
+        // user workspaces cannot appear silently incomplete.
+        val data = JSONObject(request("/sync/bootstrap"))
+        if (data.optString("format") != "goreecloud-tasks-sync-1") {
+            throw IllegalStateException("Unsupported task synchronization format")
+        }
+        val cursor = data.getLong("cursor")
+        val allTasks = data.getJSONArray("tasks")
+        val allProjects = data.getJSONArray("projects")
+        if (cursor < 0 || allTasks.length() > 5000 || allProjects.length() > 5000) {
+            throw IllegalStateException("Task snapshot exceeds supported limits")
+        }
+        val tasks = (0 until allTasks.length()).map { parseTask(allTasks.getJSONObject(it)) }
+        val projects = (0 until allProjects.length()).map { index ->
+            val project = allProjects.getJSONObject(index)
             ProjectItem(project.getString("id"), project.getString("name"))
         }
+        return WorkspaceSnapshot(tasks, projects, cursor)
     }
 
     suspend fun createProject(name: String): ProjectItem {
