@@ -10,10 +10,11 @@ Send JSON for write operations. API is intended for one trusted operator. Do not
 | --- | --- | --- |
 | GET | /healthz | Minimal unauthenticated service liveness, no task content |
 | GET | /api/v1/projects | List projects |
+| GET | /api/v1/sync/bootstrap | Consistent authenticated snapshot of up to 5,000 tasks and 5,000 projects with change cursor; 413 on overflow, never a partial snapshot |
 | POST | /api/v1/projects | Create {"name":"Family"} |
 | GET | /api/v1/tasks?status=active | Active tasks, default 1000 per page |
 | GET | /api/v1/tasks?status=completed | Completed task instances |
-| GET | /api/v1/tasks?status=all | All tasks, max 1000 |
+| GET | /api/v1/tasks?status=all | First deterministic page of tasks, max 1000; clients must page or use bounded `/sync/bootstrap` to see more |
 | GET | /api/v1/tasks?project_id=...&search=...&due_before=YYYY-MM-DD&limit=100&offset=0 | Filtered, deterministic page |
 | POST | /api/v1/tasks | Create a task |
 | GET | /api/v1/tasks/{id} | Retrieve one |
