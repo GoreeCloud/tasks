@@ -289,10 +289,9 @@ private fun TasksScreen() {
     val scope = rememberCoroutineScope()
 
     suspend fun reload(client: TaskApi) {
-        val current = client.listTasks()
-        val folders = client.listProjects()
-        tasks = current
-        projects = folders
+        val snapshot = client.loadWorkspace()
+        tasks = snapshot.tasks
+        projects = snapshot.projects
     }
     suspend fun reloadHabits(client: TaskApi) {
         habits = client.listHabits(LocalDate.now().toString())

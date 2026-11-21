@@ -7,11 +7,11 @@ All examples use explicit placeholders, not real tokens, hostnames, personal dat
 
 | Command | Purpose | Risk | Verified boundary |
 | --- | --- | --- | --- |
-| python -m pytest server/tests -q | Run deterministic API/security tests | Read-only test database | 36 local API tests passed in isolated venv after restore-drill addition |
+| python -m pytest server/tests -q | Run deterministic API/security tests | Read-only test database | 45 API tests previously passed locally on this revision's backend; native client changes do not modify the server |
 | npm ci && npm run build | Install pinned web dependencies and build | Changes developer workspace | Local web production build passed |
 | npm test | Check source/browser contract tests | Read-only | 3 local tests passed |
 | python linux/smoke.py | Offscreen Qt Quick launch smoke | UI-only | Passed with QT_QPA_PLATFORM=offscreen |
-| python -m unittest discover -s linux/tests -v | Native Linux filter/model tests | Read-only | 3 passed |
+| python -m unittest discover -s linux/tests -v | Native Linux filter/model tests | Read-only | 6 passed locally, including full-snapshot validation and refresh request |
 | ./gradlew :app:assembleDebug | Build Android debug APK | Changes local build directory | Local Gradle build succeeded; no device acceptance |
 | python -m goreecloud_tasks.backup verify --database FILE | Verify SQLite integrity and FKs | Read-only, may hold read lock | Verified against ephemeral test database |
 | python -m goreecloud_tasks.backup backup --database FILE --output NEWFILE | Online backup to new private file | Writes backup; no overwrite | Verified against ephemeral test database |

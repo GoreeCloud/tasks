@@ -152,21 +152,36 @@ class TasksBackend(QObject):
     def refresh(self):
         self._status = "Refreshing"
         self.statusChanged.emit()
+        self._request("GET", "/sync/bootstrap", callback=self._apply_snapshot)
 
-        def loaded(data):
-            if not isinstance(data, list):
-                self._set_error("Invalid task list")
-                return
-            self._all_tasks = data
-            self._apply_filters()
+    def _apply_snapshot(self, data):
+        """Apply both task and project collections only after full validation.
 
-        self._request("GET", "/tasks?status=all", callback=loaded)
-        self._request("GET", "/projects", callback=self._update_projects)
-
-    def _update_projects(self, data):
-        if isinstance(data, list):
-            self._projects = data
-            self.projectsChanged.emit()
+        The paginated /tasks endpoint defaults to 1,000 items and cannot
+        represent a complete workspace. Do not silently truncate or mix two
+        independent server requests with mismatched revision points.
+        """
+        if not isinstance(data, dict) or data.get("format") != "goreecloud-tasks-sync-1":
+            self._set_error("Unsupported task snapshot format")
+            return
+        cursor, tasks, projects = data.get("cursor"), data.get("tasks"), data.get("projects")
+        if (not isinstance(cursor, int) or isinstance(cursor, bool) or cursor < 0
+                or not isinstance(tasks, list) or len(tasks) > 5000
+                or not isinstance(projects, list) or len(projects) > 5000
+                or any(not isinstance(item, dict)
+                       or not isinstance(item.get("id"), str)
+                       or not isinstance(item.get("title"), str)
+                       for item in tasks)
+                or any(not isinstance(item, dict)
+                       or not isinstance(item.get("id"), str)
+                       or not isinstance(item.get("name"), str)
+                       for item in projects)):
+            self._set_error("Invalid or oversized task snapshot; previous data preserved")
+            return
+        self._all_tasks = tasks
+        self._projects = projects
+        self.projectsChanged.emit()
+        self._apply_filters()
 
     @staticmethod
     def _task_data(title: str, description: str, priority: int, due_date: str,

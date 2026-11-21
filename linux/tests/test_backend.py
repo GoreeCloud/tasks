@@ -82,5 +82,43 @@ class TasksBackendTest(unittest.TestCase):
                 mk(*args)
 
 
+
+    def test_consistent_snapshot_full_and_fail_closed(self):
+        base = dict(id="placeholder", title="Private", description="", tags=[],
+                    project_id="project-1", due_date=None, completed_at=None)
+        tasks = [{**base, "id": f"synthetic-{i}", "title": f"Task {i}"} for i in range(1005)]
+        snapshot = dict(format="goreecloud-tasks-sync-1", cursor=42,
+                        tasks=tasks, projects=[dict(id="project-1", name="Testing")])
+        self.backend._apply_snapshot(snapshot)
+        self.assertEqual(len(self.backend.tasks), 1005)
+        self.assertEqual(len(self.backend.allTasks), 1005)
+        self.assertEqual(self.backend.projects[0]["name"], "Testing")
+
+        previous = list(self.backend.allTasks)
+        previous_projects = list(self.backend.projects)
+        for invalid in [
+            None,
+            dict(format="unknown", cursor=42, tasks=tasks, projects=[]),
+            dict(format="goreecloud-tasks-sync-1", cursor=-1, tasks=[], projects=[]),
+            dict(format="goreecloud-tasks-sync-1", cursor=42, tasks=tasks, projects=[{"id": 7}]),
+            dict(format="goreecloud-tasks-sync-1", cursor=42, tasks=tasks + [None], projects=[]),
+            dict(format="goreecloud-tasks-sync-1", cursor=42,
+                 tasks=tasks * 6, projects=[]),
+        ]:
+            with self.subTest(invalid_type=type(invalid).__name__):
+                self.backend._apply_snapshot(invalid)
+                self.assertEqual(self.backend.allTasks, previous)
+                self.assertEqual(self.backend.projects, previous_projects)
+
+    def test_refresh_uses_single_atomic_bootstrap_request(self):
+        calls = []
+        self.backend._request = lambda method, path, callback=None: calls.append(
+            (method, path, callback)
+        )
+        self.backend.refresh()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0:2], ("GET", "/sync/bootstrap"))
+        self.assertEqual(calls[0][2], self.backend._apply_snapshot)
+
 if __name__ == "__main__":
     unittest.main()
