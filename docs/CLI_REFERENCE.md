@@ -7,7 +7,7 @@ All examples use explicit placeholders, not real tokens, hostnames, personal dat
 
 | Command | Purpose | Risk | Verified boundary |
 | --- | --- | --- | --- |
-| python -m pytest server/tests -q | Run deterministic API/security tests | Read-only test database | 58 API tests passed locally, including safe weekday/biweekly/yearly successor generation |
+| python -m pytest server/tests -q | Run deterministic API/security tests | Read-only test database | 60 API tests passed locally, including streamed-body cap, privacy and date-only recurrence |
 | npm ci && npm run build | Install pinned web dependencies and build | Changes developer workspace | Local web production build passed |
 | npm test | Check source/browser contract tests | Read-only | 3 local tests passed |
 | python linux/smoke.py | Offscreen Qt Quick launch smoke | UI-only | Passed with QT_QPA_PLATFORM=offscreen |

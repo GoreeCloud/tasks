@@ -91,3 +91,41 @@ def test_validation_redacts_private_input_and_max_content_length(tmp_path):
     assert huge.status_code==413 and huge.headers["cache-control"]=="no-store"
     assert "Should not exist" not in huge.text
     assert client.get("/api/v1/tasks",headers=AUTH).json()==[]
+
+
+def test_actual_streamed_body_bound_not_only_advertised_length(tmp_path):
+    """A chunked/unknown-length request cannot bypass the one-megabyte gate."""
+    client=TestClient(create_app(str(tmp_path/"stream.sqlite3"),TOKEN))
+
+    # An iterable body is transported as a stream, not a prebuilt JSON upload.
+    valid=b'{"title":"Streaming accepted"}'
+    accepted=client.post("/api/v1/tasks",headers={**AUTH, "Content-Type":"application/json",
+        "Transfer-Encoding":"chunked"},content=iter([valid[:8],valid[8:]]))
+    assert accepted.status_code==201
+    assert accepted.json()["title"]=="Streaming accepted"
+
+    # A client may advertise a too-small Content-Length or send no length.
+    # Actual streamed size must always be checked before API handlers run.
+    prefix=b'{"title":"Do not create","description":"'
+    huge=[prefix,b"q"*1_048_577,b'"}']
+    for headers in [
+        {**AUTH,"Transfer-Encoding":"chunked"},
+        {**AUTH,"Content-Length":"32"},
+    ]:
+        too_large=client.post("/api/v1/tasks",headers=headers,content=iter(huge))
+        assert too_large.status_code==413
+        assert too_large.headers["cache-control"]=="no-store"
+        assert too_large.headers["x-content-type-options"]=="nosniff"
+        assert b"Do not create" not in too_large.content
+    assert [row["title"] for row in client.get("/api/v1/tasks",headers=AUTH).json()] == [
+        "Streaming accepted"
+    ]
+
+
+def test_invalid_advertised_body_length_fails_private(tmp_path):
+    client=TestClient(create_app(str(tmp_path/"invalid-length.sqlite3"),TOKEN))
+    res=client.post("/api/v1/tasks",
+                    headers={**AUTH, "Content-Length":"unknown"},
+                    content=b'{"title":"Do not create"}')
+    assert res.status_code==413 and res.headers["cache-control"]=="no-store"
+    assert client.get("/api/v1/tasks",headers=AUTH).json()==[]
