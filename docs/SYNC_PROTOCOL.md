@@ -20,7 +20,7 @@ PATCH, DELETE and reopen still require expected_version. Mutations acquire SQLit
 
 ## Web-only encrypted manual queue — development stage
 
-The optional React Offline view saves encrypted snapshots and bounded create/title-edit drafts in IndexedDB using a PBKDF2-derived AES-GCM key, protected by a user passphrase. Sync now sends creates with stable Idempotency-Key values and edits with the original expected_version; HTTP conflicts stop replay and require manual action. This does **not** use incremental changefeed replay, support native clients or background sync. See OFFLINE_WEB.md for supported workflow, privacy and limitations.
+The optional React Offline view saves encrypted snapshots and bounded create/title-edit drafts in IndexedDB using a PBKDF2-derived AES-GCM key, protected by a user passphrase. Sync now sends creates with stable Idempotency-Key values and edits with the original expected_version; HTTP conflicts stop replay and require manual action. The web vault can now manually pull up to 10 pages of 200 changefeed records into a single authenticated, encrypted cache update, including deletion tombstones and cursor checks. This does **not** provide continuous multi-device background synchronization, compaction, or native clients. See OFFLINE_WEB.md for supported workflow, privacy and limitations.
 
 ## Remaining offline roadmap — not implemented
 
