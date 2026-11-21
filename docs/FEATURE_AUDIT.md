@@ -13,7 +13,7 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 | Offline editing and cloud sync | Both | Cursor feed, redacted tombstones, retry receipts plus opt-in encrypted web manual queue for standalone creates/title edits and bounded manual incremental changefeed pulls; an explicitly opt-in public-static-only app shell permits tokenless encrypted-vault reopen while disconnected; native full sync and background replay remain unimplemented | P1 |
 | Notifications/reminders | Both | Not implemented | P1 |
 | Subtasks/sections/checklists | Both | Versioned parent-child subtasks on API, React and native clients; sections and checklists pending | P2 |
-| Habits | TickTick | Daily habit CRUD/check-ins/streaks in API and React; native Android/Linux create/list/version-safe name-and-notes editing/check-in/undo/delete; offline sync and history/calendar views pending | P2 |
+| Habits | TickTick | Daily habit CRUD/check-ins/streaks in API and React; native Android/Linux create/list/version-safe name-and-notes editing/check-in/undo/delete; user-triggered paginated native check-in history implemented; offline habit sync, heatmap calendar and advanced statistics pending | P2 |
 | Focus/Pomodoro | TickTick | Foreground-only web timer | P2 |
 | Collaboration/sharing | Both | Not implemented; needs Identity/ACLs | P2 |
 | Attachments, comments | Both | Not implemented | P2 |

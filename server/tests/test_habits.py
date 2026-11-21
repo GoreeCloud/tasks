@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -150,3 +151,27 @@ def test_habit_rename_and_notes_preserve_private_checkin_history(client):
     assert after["description"] == "Private revised"
     assert after["version"] == 3
     assert after["total_checkins"] == 1
+
+
+def test_habit_history_is_authenticated_bounded_and_newest_first(tmp_path):
+    path = tmp_path / "synthetic-history.sqlite3"
+    client = TestClient(create_app(str(path), TOKEN))
+    habit = client.post("/api/v1/habits", headers=AUTH,
+                        json={"name": "Synthetic routine"}).json()
+    dates = [(date(2026, 11, 20) - timedelta(days=i)).isoformat()
+             for i in range(65)]
+    with sqlite3.connect(path) as connection:
+        connection.executemany(
+            "INSERT INTO habit_checkins(habit_id,day,created_at) VALUES (?,?,?)",
+            [(habit["id"], day, "2026-11-20T00:00:00Z") for day in dates]
+        )
+    route = "/api/v1/habits/" + habit["id"] + "/checkins"
+    assert client.get(route).status_code == 401
+    for offset, expected in [(0, dates[:30]), (30, dates[30:60]),
+                             (60, dates[60:])]:
+        response = client.get(route + f"?limit=30&offset={offset}", headers=AUTH)
+        assert response.status_code == 200 and response.json() == expected
+        assert response.headers["cache-control"] == "no-store"
+    assert client.get(route + "?limit=0", headers=AUTH).status_code == 422
+    assert client.get(route + "?offset=1000001", headers=AUTH).status_code == 422
+    assert client.get(route + "?offset=65", headers=AUTH).json() == []

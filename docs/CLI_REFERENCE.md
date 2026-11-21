@@ -7,13 +7,13 @@ All examples use explicit placeholders, not real tokens, hostnames, personal dat
 
 | Command | Purpose | Risk | Verified boundary |
 | --- | --- | --- | --- |
-| python -m pytest server/tests -q | Run deterministic API/security tests | Disposable test database only | 66 API/security tests passed locally including streamed request bounds and bearer-only CSV export/formula injection guards |
+| python -m pytest server/tests -q | Run deterministic API/security tests | Disposable test databases only | 67 integrated backend tests expected after native habit history, API stream caps and CSV export; reverify on merged tree before merge |
 | npm ci && npm run build | Install pinned web dependencies and build | Changes developer workspace | Local web production build passed |
 | npm test | Check source/browser contract tests | Read-only | 5 local tests passed, including fail-closed offline shell cache generation |
 | npm run preview -- --port 18758 --strictPort | Serve built public web assets and offline-sw.js on localhost for isolated test only | Local network listener | Passed on 127.0.0.1 in synthetic Chromium acceptance; never expose test server publicly |
 | GC_PLAYWRIGHT_CORE_MODULE=... GC_CHROMIUM_BIN=... node tests/offline-shell-acceptance.mjs | Real Chromium browser test using explicit inspected local binaries, localhost fixture and synthetic API | Starts and destroys isolated browser | Passed opt-in worker, CacheStorage public-only, offline reload and tokenless vault; requires explicit preinstalled binary paths |
 | python linux/smoke.py | Offscreen Qt Quick launch smoke | UI-only | Passed with QT_QPA_PLATFORM=offscreen |
-| python -m unittest discover -s linux/tests -v | Native Linux filter/model tests | Read-only | 7 passed locally, including habit PATCH input/revision and existing full-snapshot validation |
+| python -m unittest discover -s linux/tests -v | Native Linux filter/model tests | Read-only | 8 passed locally, including version-safe habit edit, paginated history and stale callback suppression |
 | ./gradlew :app:assembleDebug | Build Android debug APK | Changes local build directory | Local Gradle build succeeded; no device acceptance |
 | python -m goreecloud_tasks.backup verify --database FILE | Verify SQLite integrity and FKs | Read-only, may hold read lock | Verified against ephemeral test database |
 | python -m goreecloud_tasks.backup backup --database FILE --output NEWFILE | Online backup to new private file | Writes backup; no overwrite | Verified against ephemeral test database |
