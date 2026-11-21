@@ -173,7 +173,8 @@ export function OfflineView({request,onSynced}:{
   async function forget() {
     if(!window.confirm("Permanently erase this browser's encrypted Tasks offline vault and ALL unsynced drafts?"))
       return;
-    await eraseVault();lock();setExists(false);
+    await eraseVault(session.current?.revision,session.current?.salt);
+    lock();setExists(false);
     setMessage("Local encrypted vault erased. Server tasks were not changed.");
   }
   return <section className="offline-panel gc-card" aria-label="Encrypted offline workspace">

@@ -20,14 +20,18 @@ export type VaultPayload = {
   format:"goreecloud-tasks-offline-data-1"; saved_at:string;
   cursor:number; tasks:CachedTask[]; projects:CachedProject[]; queue:QueueItem[];
 };
-type VaultEnvelope = {format:"goreecloud-tasks-offline-aesgcm-1"; salt:string; nonce:string; data:string};
+type VaultEnvelope = {format:"goreecloud-tasks-offline-aesgcm-1"; salt:string; nonce:string; data:string; revision?:number};
 const DB_NAME="goreecloud-tasks-offline-v1";
 const STORE="secrets";
 const ITEM="vault";
 const MAX_BYTES=5_000_000;
 const enc=new TextEncoder();
 const dec=new TextDecoder("utf-8",{fatal:true});
-const aad=()=>enc.encode("goreecloud-tasks-offline-v1|"+location.origin);
+// Legacy records used the origin-only AAD; newly written records also
+// authenticate their CAS revision to prevent unauthenticated version rollback.
+const aadForRevision=(revision:number)=>enc.encode(
+  "goreecloud-tasks-offline-v1|"+location.origin+(revision===0?"":"|rev="+revision)
+);
 
 function base64(bytes:Uint8Array):string {
   let text="";
@@ -73,16 +77,38 @@ async function readRaw():Promise<VaultEnvelope|null> {
     });
   }finally{database.close();}
 }
-async function putRaw(value:VaultEnvelope|null):Promise<void> {
+/** Atomic optimistic compare-and-swap inside one IndexedDB transaction.
+ * Prevents stale tabs from overwriting or recreating other tabs' draft queues.
+ * The encryption salt also acts as the per-vault instance identity, so a
+ * deleted-and-recreated vault cannot be modified by an unlocked old tab.
+ */
+async function compareAndSwapRaw(
+  value:VaultEnvelope|null,expectedRevision:number|null,expectedSalt:string|null
+):Promise<void> {
   const database=await db();
   try{
     await new Promise<void>((resolve,reject)=>{
       const tx=database.transaction(STORE,"readwrite");
+      const store=tx.objectStore(STORE);
+      let conflict=false;
       tx.oncomplete=()=>resolve();
-      tx.onerror=()=>reject(new Error("Unable to save offline storage"));
-      tx.onabort=()=>reject(new Error("Offline storage write aborted"));
-      if(value)tx.objectStore(STORE).put(value,ITEM);
-      else tx.objectStore(STORE).delete(ITEM);
+      tx.onabort=()=>reject(new Error(conflict
+        ?"Offline vault changed in another tab; lock and unlock to reload without overwriting"
+        :"Encrypted offline storage write aborted"));
+      const read=store.get(ITEM);
+      read.onsuccess=()=>{
+        const current=read.result as VaultEnvelope|undefined;
+        const revision=current?.revision===undefined?0:current.revision;
+        if((expectedRevision===null && current!==undefined)||
+           (expectedRevision!==null && (!current||
+             current.format!=="goreecloud-tasks-offline-aesgcm-1"||
+             !Number.isSafeInteger(revision)||revision<0||
+             revision!==expectedRevision||current.salt!==expectedSalt))) {
+          conflict=true;tx.abort();return;
+        }
+        if(value)store.put(value,ITEM);
+        else store.delete(ITEM);
+      };
     });
   }finally{database.close();}
 }
@@ -105,20 +131,27 @@ function validate(data:unknown):asserts data is VaultPayload {
     !["pending","conflict"].includes(q.status)||typeof q.id!=="string"))
     throw new Error("The offline queue contains unsupported operations");
 }
-async function persist(key:CryptoKey,salt:Uint8Array,payload:VaultPayload) {
+async function persist(
+  key:CryptoKey,salt:Uint8Array,payload:VaultPayload,expectedRevision:number|null
+):Promise<number> {
   validate(payload);
   const clear=enc.encode(JSON.stringify(payload));
   if(clear.byteLength>MAX_BYTES)
     throw new Error("Offline vault is full; reconcile or export data before adding more");
+  const revision=(expectedRevision??0)+1;
+  if(!Number.isSafeInteger(revision))throw new Error("Offline vault revision exhausted");
   const nonce=randomBytes(12);
   const cipher=await crypto.subtle.encrypt(
-    {name:"AES-GCM",iv:nonce,additionalData:aad()},key,clear
+    {name:"AES-GCM",iv:nonce,additionalData:aadForRevision(revision)},key,clear
   );
-  await putRaw({format:"goreecloud-tasks-offline-aesgcm-1",
-    salt:base64(salt),nonce:base64(nonce),data:base64(new Uint8Array(cipher))});
+  const saltText=base64(salt);
+  await compareAndSwapRaw({format:"goreecloud-tasks-offline-aesgcm-1",
+    revision,salt:saltText,nonce:base64(nonce),data:base64(new Uint8Array(cipher))},
+    expectedRevision,expectedRevision===null?null:saltText);
+  return revision;
 }
 export type VaultSession = {
-  key:CryptoKey;salt:Uint8Array;payload:VaultPayload;
+  key:CryptoKey;salt:Uint8Array;payload:VaultPayload;revision:number;
 };
 export function emptyPayload(tasks:CachedTask[],projects:CachedProject[],cursor:number):VaultPayload {
   return {format:"goreecloud-tasks-offline-data-1",saved_at:new Date().toISOString(),
@@ -128,11 +161,11 @@ export async function hasVault(){return !!(await readRaw());}
 export async function createVault(passphrase:string,payload:VaultPayload):Promise<VaultSession> {
   if(passphrase.length<12||passphrase.length>512)
     throw new Error("Choose a passphrase of at least 12 characters");
-  if(await readRaw())throw new Error("An offline vault already exists; unlock or erase it first");
   const salt=randomBytes(16);
   const key=await derive(passphrase,salt);
-  await persist(key,salt,payload);
-  return {key,salt,payload};
+  // Existence check and initial record creation are one exclusive write.
+  const revision=await persist(key,salt,payload,null);
+  return {key,salt,payload,revision};
 }
 export async function unlockVault(passphrase:string):Promise<VaultSession> {
   const raw=await readRaw();
@@ -140,24 +173,36 @@ export async function unlockVault(passphrase:string):Promise<VaultSession> {
     throw new Error("No compatible offline vault exists in this browser");
   try {
     const salt=unbase64(raw.salt),nonce=unbase64(raw.nonce);
-    if(salt.length!==16||nonce.length!==12)throw new Error("Invalid vault");
+    const revision=raw.revision??0; // Existing pre-CAS vaults migrate on first save.
+    if(salt.length!==16||nonce.length!==12||
+       !Number.isSafeInteger(revision)||revision<0||
+       (raw.revision!==undefined&&revision<1))throw new Error("Invalid vault");
     const key=await derive(passphrase,salt);
     const clear=await crypto.subtle.decrypt(
-      {name:"AES-GCM",iv:nonce,additionalData:aad()},key,unbase64(raw.data)
+      {name:"AES-GCM",iv:nonce,additionalData:aadForRevision(revision)},
+      key,unbase64(raw.data)
     );
     const payload:unknown=JSON.parse(dec.decode(clear));
     validate(payload);
-    return {key,salt,payload};
+    return {key,salt,payload,revision};
   }catch{
     throw new Error("Incorrect passphrase or damaged encrypted offline vault");
   }
 }
 export async function saveVault(session:VaultSession,payload:VaultPayload):Promise<VaultSession> {
   // Do not edit session until the authenticated encrypted write completes.
-  await persist(session.key,session.salt,payload);
-  return {...session,payload};
+  const revision=await persist(session.key,session.salt,payload,session.revision);
+  return {...session,payload,revision};
 }
-export async function eraseVault(){await putRaw(null);}
+/** Erasure must not silently destroy a newer tab's queue or resurrect a vault. */
+export async function eraseVault(expectedRevision?:number,expectedSalt?:Uint8Array) {
+  const raw=expectedRevision===undefined?await readRaw():null;
+  if(expectedRevision===undefined&&!raw)return;
+  const revision=expectedRevision??(raw!.revision??0);
+  const salt=expectedSalt?base64(expectedSalt):raw?.salt;
+  if(!salt)throw new Error("Offline vault identity is unavailable");
+  await compareAndSwapRaw(null,revision,salt);
+}
 
 
 /** Monotonic, bounded change-feed application. No writes until caller persists
