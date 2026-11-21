@@ -414,6 +414,14 @@ ApplicationWindow {
                             }
                         }
                         Button {
+                            text: "Edit..."
+                            Accessible.name: "Edit habit " + modelData.name
+                            onClicked: {
+                                editHabitDialog.habit = modelData
+                                editHabitDialog.open()
+                            }
+                        }
+                        Button {
                             text: "Delete..."
                             onClicked: {
                                 deleteHabitConfirm.habit = modelData
@@ -428,6 +436,48 @@ ApplicationWindow {
                     text: "No daily habits yet."
                     color: window.gcSoft
                 }
+            }
+        }
+    }
+
+    Dialog {
+        id: editHabitDialog
+        title: "Edit daily habit"
+        modal: true
+        x: Math.max(10, (window.width - width) / 2)
+        y: Math.max(10, (window.height - height) / 2)
+        width: Math.min(window.width - 30, 460)
+        standardButtons: Dialog.Save | Dialog.Cancel
+        property var habit: ({})
+        onOpened: {
+            editHabitName.text = habit.name || ""
+            editHabitNotes.text = habit.description || ""
+        }
+        onAccepted: tasksBackend.editHabit(
+            habit.id, habit.version, editHabitName.text, editHabitNotes.text
+        )
+        contentItem: ColumnLayout {
+            spacing: 10
+            TextField {
+                id: editHabitName
+                Layout.fillWidth: true
+                maximumLength: 120
+                Accessible.name: "Edit habit name"
+                placeholderText: "Habit name"
+            }
+            TextArea {
+                id: editHabitNotes
+                Layout.fillWidth: true
+                Layout.preferredHeight: 120
+                wrapMode: TextArea.Wrap
+                Accessible.name: "Edit habit notes"
+                placeholderText: "Notes (optional)"
+            }
+            Label {
+                Layout.fillWidth: true
+                text: "A stale habit revision will be rejected; existing check-ins are preserved."
+                wrapMode: Text.WordWrap
+                color: window.gcSoft
             }
         }
     }
