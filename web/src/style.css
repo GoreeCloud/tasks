@@ -75,3 +75,12 @@ nav{display:grid;gap:4px}.nav-item{display:flex;gap:14px;align-items:center;text
 /* Keep both private export actions reachable without viewport overflow. */
 .topbar-end{min-width:0;flex-wrap:wrap;gap:8px}
 @media(max-width:740px){.topbar{flex-wrap:wrap;gap:8px}.topbar-end{width:100%;gap:8px}.topbar-end .secondary-btn{flex:0 1 auto;font-size:12px;min-height:40px}}
+
+/* Task hierarchy supplements the verified GoreeCloud UI semantic tokens. */
+.task-row.is-subtask{padding-inline-start:clamp(23px,3vw,44px);border-inline-start:3px solid var(--gc-brand)}
+.subtasks{margin-top:20px;padding-top:14px;border-top:1px solid var(--gc-outline-soft)}
+.subtasks h3{font-size:15px;margin:0 0 10px}
+.subtasks ul{list-style:none;padding:0;margin:0 0 12px;display:grid;gap:5px}
+.subtasks li{border:1px solid var(--gc-outline-soft);padding:8px 10px;border-radius:9px;font-size:12px;overflow-wrap:anywhere}
+.subtasks form{display:grid;gap:8px}
+.subtasks form button{justify-self:start}

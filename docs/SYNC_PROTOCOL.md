@@ -1,6 +1,6 @@
 # GoreeCloud Tasks change-feed contract — development stage
 
-**Owner:** Tasks API, SQLite schema v2. **Status:** implemented and tested API infrastructure, *not* complete offline-device synchronization. None of the clients yet has an encrypted local queue, automatic replay, device identity, or background sync.
+**Owner:** Tasks API, SQLite schema v3. **Status:** implemented and tested API infrastructure, *not* complete offline-device synchronization. None of the clients yet has an encrypted local queue, automatic replay, device identity, or background sync.
 
 ## Snapshot and incremental feed
 

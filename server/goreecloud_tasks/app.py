@@ -46,6 +46,7 @@ class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     description: str = Field(default="", max_length=16000)
     project_id: str | None = None
+    parent_id: str | None = None
     due_date: date | None = None
     priority: int = Field(default=2, ge=1, le=4)
     tags: list[str] = Field(default_factory=list, max_length=12)
@@ -83,6 +84,7 @@ class TaskPatch(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=240)
     description: str | None = Field(default=None, max_length=16000)
     project_id: str | None = None
+    parent_id: str | None = None
     due_date: date | None = None
     priority: int | None = Field(default=None, ge=1, le=4)
     tags: list[str] | None = Field(default=None, max_length=12)
@@ -114,7 +116,7 @@ class Store:
         with self.open() as db:
             db.execute("PRAGMA journal_mode=WAL")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2):
+            if version not in (0, 1, 2, 3):
                 raise RuntimeError("Unsupported database version; do not downgrade the server")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS projects (
@@ -149,8 +151,15 @@ class Store:
                   response_json TEXT NOT NULL,
                   created_at TEXT NOT NULL
                 );
-                PRAGMA user_version=2;
             """)
+            # Idempotent, additive migration; old task/event/receipt data remains intact.
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
+            if "parent_id" not in columns:
+                db.execute(
+                    "ALTER TABLE tasks ADD COLUMN parent_id TEXT REFERENCES tasks(id) ON DELETE SET NULL"
+                )
+            db.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id)")
+            db.execute("PRAGMA user_version=3")
 
     @contextmanager
     def open(self):
@@ -228,6 +237,29 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
         if project_id and not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
             raise HTTPException(status_code=422, detail="Unknown project")
 
+    def ensure_parent(conn, parent_id: str | None, task_id: str | None = None):
+        """Reject self-parenting, cycles and attempts to nest under a completed task."""
+        if parent_id is None:
+            return
+        if task_id == parent_id:
+            raise HTTPException(status_code=422, detail="Task cannot be its own parent")
+        row = conn.execute("SELECT id,completed_at FROM tasks WHERE id=?", (parent_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=422, detail="Unknown parent task")
+        if row["completed_at"] is not None:
+            raise HTTPException(status_code=409, detail="Cannot nest under a completed task")
+        if task_id:
+            current = parent_id
+            checked: set[str] = set()
+            while current is not None:
+                if current == task_id or current in checked:
+                    raise HTTPException(status_code=422, detail="Parent hierarchy would contain a cycle")
+                checked.add(current)
+                ancestor = conn.execute("SELECT parent_id FROM tasks WHERE id=?", (current,)).fetchone()
+                current = ancestor["parent_id"] if ancestor else None
+            if len(checked) > 128:
+                raise HTTPException(status_code=422, detail="Hierarchy depth exceeds supported limit")
+
     @router.get("/tasks")
     def tasks(
         status: Literal["active", "completed", "all"] = "active",
@@ -271,12 +303,13 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
             result = dict(id=new_id(), **payload, series_id=None, completed_at=None,
                           created_at=now, updated_at=now, version=1)
             ensure_project(conn, result["project_id"])
+            ensure_parent(conn, result["parent_id"])
             conn.execute("""
                 INSERT INTO tasks
                 (id,title,description,project_id,due_date,priority,tags,recurrence,series_id,
-                 completed_at,created_at,updated_at,version)
+                 completed_at,created_at,updated_at,version,parent_id)
                 VALUES (:id,:title,:description,:project_id,:due_date,:priority,:tags,:recurrence,
-                        :series_id,:completed_at,:created_at,:updated_at,:version)
+                        :series_id,:completed_at,:created_at,:updated_at,:version,:parent_id)
             """, {**result, "tags": json.dumps(result["tags"])})
             record_change(conn, "task", result["id"], "upsert", result, now)
             save_receipt(conn, idempotency_key, scope, payload, result, now)
@@ -308,11 +341,12 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
             candidate = TaskCreate.model_validate({**{k: previous[k] for k in TaskCreate.model_fields}, **edits})
             data = candidate.model_dump(mode="json")
             ensure_project(conn, data["project_id"])
+            ensure_parent(conn, data["parent_id"], task_id=task_id)
             next_version, now = previous["version"] + 1, utc_now()
             conn.execute("""
                 UPDATE tasks SET title=:title,description=:description,project_id=:project_id,
                 due_date=:due_date,priority=:priority,tags=:tags,recurrence=:recurrence,
-                updated_at=:now,version=:version WHERE id=:id
+                parent_id=:parent_id,updated_at=:now,version=:version WHERE id=:id
             """, {**data, "id": task_id, "tags": json.dumps(data["tags"]),
                   "now": now, "version": next_version})
             changed = get_existing(conn, task_id)
@@ -334,6 +368,16 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
             check_revision(previous, check.expected_version)
             if previous["completed_at"]:
                 raise HTTPException(status_code=409, detail="Task already completed")
+            if conn.execute("""
+                WITH RECURSIVE descendants(id) AS (
+                    SELECT id FROM tasks WHERE parent_id=?
+                    UNION
+                    SELECT child.id FROM tasks child JOIN descendants ON child.parent_id=descendants.id
+                )
+                SELECT 1 FROM tasks WHERE id IN (SELECT id FROM descendants)
+                AND completed_at IS NULL LIMIT 1
+            """, (task_id,)).fetchone():
+                raise HTTPException(status_code=409, detail="Complete subtasks before parent")
             now = utc_now()
             conn.execute("UPDATE tasks SET completed_at=?,updated_at=?,version=version+1 WHERE id=?",
                          (now, now, task_id))
@@ -350,9 +394,13 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                            "series_id": previous["series_id"] or previous["id"],
                            "completed_at": None, "created_at": now, "updated_at": now, "version": 1}
                 conn.execute("""
-                    INSERT INTO tasks VALUES (:id,:title,:description,:project_id,:due_date,
-                    :priority,:tags,:recurrence,:series_id,:completed_at,:created_at,
-                    :updated_at,:version)
+                    INSERT INTO tasks (
+                        id,title,description,project_id,due_date,priority,tags,recurrence,
+                        series_id,completed_at,created_at,updated_at,version,parent_id
+                    ) VALUES (
+                        :id,:title,:description,:project_id,:due_date,:priority,:tags,:recurrence,
+                        :series_id,:completed_at,:created_at,:updated_at,:version,:parent_id
+                    )
                 """, {**new_row, "tags": json.dumps(new_row["tags"])})
                 next_task = new_row
                 record_change(conn, "task", new_row["id"], "upsert", next_task, now)
@@ -369,6 +417,8 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
             check_revision(previous, check.expected_version)
             if not previous["completed_at"]:
                 raise HTTPException(status_code=409, detail="Task is already active")
+            if previous["parent_id"] is not None:
+                ensure_parent(conn, previous["parent_id"], task_id=task_id)
             conn.execute("UPDATE tasks SET completed_at=NULL,updated_at=?,version=version+1 WHERE id=?",
                          (utc_now(), task_id))
             reopened = get_existing(conn, task_id)
@@ -380,6 +430,16 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
         with db.transaction() as conn:
             previous = get_existing(conn, task_id)
             check_revision(previous, expected_version)
+            # Detach direct children explicitly so sync devices see their parent changes.
+            children = conn.execute("SELECT id FROM tasks WHERE parent_id=?", (task_id,)).fetchall()
+            now = utc_now()
+            for child in children:
+                conn.execute(
+                    "UPDATE tasks SET parent_id=NULL,updated_at=?,version=version+1 WHERE id=?",
+                    (now, child["id"])
+                )
+                record_change(conn, "task", child["id"], "upsert",
+                              get_existing(conn, child["id"]), now)
             conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
             # Privacy removal must purge old sync payloads and cached retry responses,
             # while leaving tombstone cursor continuity to erase client copies.

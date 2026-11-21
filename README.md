@@ -8,10 +8,10 @@ GoreeCloud Tasks is an original, privacy-focused alternative to parts of Todoist
 
 ## Implemented foundation
 
-- Token-protected API, SQLite schema v2, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and migration from v1.
+- Token-protected API, SQLite schema v3, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and additive migration from v1/v2.
 - Tags, daily/weekly/monthly recurrence, server-side search and pagination, serialized HTTP 409 revision conflicts, JSON export and a verified local SQLite online-backup CLI.
-- React projects, Today/Upcoming/Completed lists, month calendar, task editor, search, tags/projects at creation, foreground focus timer and private VTODO calendar export.
-- Native Qt Quick Linux projects/search/filter and full task editing, deletion and completion; native Kotlin/Compose Android projects, filters, task editing/deletion, priority, recurrence and tags.
+- React projects, Today/Upcoming/Completed lists, month calendar, **subtasks/parent selection with a child-task panel**, task editor, search, tags/projects at creation, foreground focus timer and private VTODO calendar export.
+- Native Qt Quick Linux projects/search/filter, parent selection and task editing/deletion/completion; native Kotlin/Compose Android projects, filters, parent selection, task editing/deletion, priority, recurrence and tags.
 - In-repository GoreeCloud UI Material 3 Expressive plus Compose Multiplatform source adapters; design token CSS.
 
 See [features and backlog](docs/FEATURE_AUDIT.md), [API](docs/API.md), [sync protocol](docs/SYNC_PROTOCOL.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [calendar export](docs/ICAL_EXPORT.md), [source CLI reference](docs/CLI_REFERENCE.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md) and [dependency review](docs/DEPENDENCIES.md).

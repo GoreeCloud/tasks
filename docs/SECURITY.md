@@ -9,7 +9,7 @@
 - Qt GUI reads token from environment. Android keeps the token in RAM; after disconnect a new token must be entered. TLS certificate validation remains the platform's default.
 - Do not expose unencrypted HTTP beyond loopback, except emulator-specific Android debug test routing. Android release manifest disallows cleartext traffic.
 - Front-end API messages are generic and must not display internal stack traces. No product telemetry is implemented, but the host, proxy, OS and Android runtime may produce unrelated logs.
-- Concurrent edits use expected_version with SQLite BEGIN IMMEDIATE writer reservations; create/complete can use idempotent retry keys. Deleting a task redacts its previous change-event payloads and matching retry receipts. Backups and other clients may still retain copies; this is not full offline conflict resolution.
+- Versioned subtasks require active parents and reject parent cycles; parent completion refuses unfinished descendants, and deleting a parent detaches children with change-feed upserts. Concurrent edits use expected_version with SQLite BEGIN IMMEDIATE writer reservations; create/complete can use idempotent retry keys. Deleting a task redacts its previous change-event payloads and matching retry receipts. Backups and other clients may still retain copies; this is not full offline conflict resolution.
 
 ## Deployment gates
 

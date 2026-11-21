@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarView } from "./CalendarView";
 
 type Task = {
-  id: string; title: string; description: string; project_id: string | null;
+  id: string; title: string; description: string; project_id: string | null; parent_id: string | null;
   due_date: string | null; priority: number; tags: string[]; recurrence: "none"|"daily"|"weekly"|"monthly";
   completed_at: string | null; version: number; created_at: string;
 };
 type Project = { id: string; name: string };
 type Screen = "inbox"|"today"|"upcoming"|"calendar"|"completed"|"all"|"focus";
-type TaskForm = { title: string; description: string; due_date: string; priority: number; recurrence: Task["recurrence"]; project_id: string; tags: string };
-const emptyForm: TaskForm = { title: "", description: "", due_date: "", priority: 2, recurrence: "none", project_id: "", tags: "" };
+type TaskForm = { title: string; description: string; due_date: string; priority: number; recurrence: Task["recurrence"]; project_id: string; parent_id: string; tags: string };
+const emptyForm: TaskForm = { title: "", description: "", due_date: "", priority: 2, recurrence: "none", project_id: "", parent_id: "", tags: "" };
 const today = () => {
   const x = new Date();
   return [x.getFullYear(), String(x.getMonth()+1).padStart(2,"0"), String(x.getDate()).padStart(2,"0")].join("-");
@@ -100,6 +100,16 @@ export function App() {
     return true;
   }), [tasks, view, projectFilter, query]);
   const selected = tasks.find(x => x.id === editor);
+  const isDescendant = (candidate: Task, ancestorId: string) => {
+    let parent = candidate.parent_id;
+    const seen = new Set<string>();
+    while (parent && !seen.has(parent)) {
+      if (parent === ancestorId) return true;
+      seen.add(parent);
+      parent = tasks.find(task => task.id === parent)?.parent_id ?? null;
+    }
+    return false;
+  };
   const count = tasks.filter(x=>!x.completed_at).length;
   const navigate = (page: Screen, project: string|null = null) => {setView(page);setProjectFilter(project);setEditor(null);};
   const updateForm = (part: Partial<TaskForm>) => setForm(prev => ({...prev,...part}));
@@ -163,7 +173,7 @@ export function App() {
           {error && <div className="alert" role="alert">{error}<button onClick={()=>setError("")} aria-label="Dismiss error">×</button></div>}
           {view === "focus" ? <FocusTimer/> : <>
             <form className="task-composer gc-card" onSubmit={e=>{e.preventDefault();if(!form.title.trim())return;void execute(async()=>{
-              await request("/tasks",{method:"POST",body:JSON.stringify({title:form.title,description:form.description,priority:form.priority,due_date:form.due_date||null,recurrence:form.recurrence,project_id:form.project_id||projectFilter||null,tags:form.tags.split(",").map(x=>x.trim()).filter(Boolean)})});setForm(emptyForm);
+              await request("/tasks",{method:"POST",body:JSON.stringify({title:form.title,description:form.description,priority:form.priority,due_date:form.due_date||null,recurrence:form.recurrence,project_id:form.project_id||projectFilter||null,parent_id:form.parent_id||null,tags:form.tags.split(",").map(x=>x.trim()).filter(Boolean)})});setForm(emptyForm);
             });}}>
               <label className="sr-only" htmlFor="task-title">Task title</label>
               <input id="task-title" maxLength={240} required placeholder="What needs to get done?" value={form.title} onChange={e=>updateForm({title:e.target.value})}/>
@@ -172,6 +182,9 @@ export function App() {
                 <label>Priority <select aria-label="Priority" value={form.priority} onChange={e=>updateForm({priority:Number(e.target.value)})}><option value={1}>P1</option><option value={2}>P2</option><option value={3}>P3</option><option value={4}>P4</option></select></label>
                 <label>Repeat <select aria-label="Repeat" value={form.recurrence} onChange={e=>updateForm({recurrence:e.target.value as Task["recurrence"]})}><option value="none">Never</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
                 <label>Project <select aria-label="Task project" value={form.project_id || projectFilter || ""} onChange={e=>updateForm({project_id:e.target.value})}><option value="">Inbox</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                <label>Subtask of <select aria-label="Subtask parent" value={form.parent_id} onChange={e=>updateForm({parent_id:e.target.value})}>
+                  <option value="">No parent</option>{tasks.filter(x=>!x.completed_at).map(x=><option key={x.id} value={x.id}>{x.title}</option>)}
+                </select></label>
                 <label>Labels <input aria-label="Task labels" value={form.tags} onChange={e=>updateForm({tags:e.target.value})} placeholder="tag1, tag2" maxLength={480}/></label>
                 <button className="primary-btn" type="submit" disabled={busy}>+ Add task</button>
               </div>
@@ -179,12 +192,12 @@ export function App() {
             <div className="section-header"><h2>{view==="calendar"?"Monthly plan":view==="today"?"Scheduled for today":view==="upcoming"?"On the horizon":"Tasks"} <span className="count">{visible.length}</span></h2>
               <label className="sr-only" htmlFor="search-task">Search tasks</label><input id="search-task" type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search tasks" /></div>
             {view==="calendar" ? <CalendarView tasks={visible} onOpen={setEditor}/> : <div className="task-list">
-              {visible.map(task=><article className={"task-row "+(task.completed_at?"is-complete":"")} key={task.id}>
+              {visible.map(task=><article className={"task-row "+(task.completed_at?"is-complete ":"")+(task.parent_id?"is-subtask":"")} key={task.id}>
                 <button className="complete-button" disabled={busy} aria-label={(task.completed_at?"Reopen ":"Complete ")+task.title} title={task.completed_at?"Reopen":"Complete"} onClick={()=>void execute(async()=>{
                   await request("/tasks/"+encodeURIComponent(task.id)+"/"+(task.completed_at?"reopen":"complete"),{method:"POST",body:JSON.stringify({expected_version:task.version})});
                 })}>{task.completed_at?"✓":""}</button>
                 <button className="task-description" onClick={()=>setEditor(task.id)}>
-                  <strong>{task.title}</strong><span>{task.due_date||"No due date"}{task.recurrence!=="none"?" · ↻ "+task.recurrence:""}{task.tags.length?" · #"+task.tags.join(" #"):""}</span>
+                  <strong>{task.title}</strong><span>{task.parent_id ? "↳ "+(tasks.find(x=>x.id===task.parent_id)?.title||"Subtask")+" · ":""}{task.due_date||"No due date"}{task.recurrence!=="none"?" · ↻ "+task.recurrence:""}{task.tags.length?" · #"+task.tags.join(" #"):""}</span>
                 </button>
                 <span className={"priority p"+task.priority}>P{task.priority}</span>
               </article>)}
@@ -193,7 +206,12 @@ export function App() {
           </>}
         </section>
         <aside className="right-rail" aria-label="Task details and overview">
-          {selected ? <TaskDetails key={selected.id} task={selected} projects={projects} disabled={busy} onClose={()=>setEditor(null)} onSave={data=>void execute(async()=>{await request("/tasks/"+selected.id,{method:"PATCH",body:JSON.stringify({expected_version:selected.version,...data})});setEditor(null);})} onDelete={()=>{if(window.confirm("Permanently delete this task?"))void execute(async()=>{await request("/tasks/"+selected.id+"?expected_version="+selected.version,{method:"DELETE"});setEditor(null);});}}/> :
+          {selected ? <TaskDetails key={selected.id} task={selected} projects={projects} tasks={tasks}
+            allowedParents={tasks.filter(x=>!x.completed_at&&x.id!==selected.id&&!isDescendant(x,selected.id))}
+            disabled={busy} onClose={()=>setEditor(null)}
+            onCreateSubtask={title=>void execute(async()=>{await request("/tasks",{method:"POST",body:JSON.stringify({title,parent_id:selected.id,project_id:selected.project_id})});})}
+            onSave={data=>void execute(async()=>{await request("/tasks/"+selected.id,{method:"PATCH",body:JSON.stringify({expected_version:selected.version,...data})});setEditor(null);})}
+            onDelete={()=>{if(window.confirm("Permanently delete this task? Child tasks will become standalone tasks."))void execute(async()=>{await request("/tasks/"+selected.id+"?expected_version="+selected.version,{method:"DELETE"});setEditor(null);});}}/> :
           <><section className="gc-card overview"><p className="eyebrow">AT A GLANCE</p><h2>Keep the momentum.</h2><div className="stat-number">{count}</div><p className="muted">tasks on your plate</p><div className="stat-grid"><div><strong>{counts.today}</strong><span>Due now</span></div><div><strong>{counts.upcoming}</strong><span>Upcoming</span></div></div></section>
           <section className="tip-card"><span aria-hidden="true">✦</span><h3>One thing at a time.</h3><p>Choose your next meaningful step. Consistency builds clarity.</p><button onClick={()=>navigate("focus")}>Enter focus mode →</button></section></>}
         </aside>
@@ -202,22 +220,39 @@ export function App() {
   </div>;
 }
 
-function TaskDetails({task,projects,disabled,onSave,onDelete,onClose}:{
-  task:Task;projects:Project[];disabled:boolean;onSave:(value:Omit<Partial<TaskForm>,"tags"|"due_date"|"project_id">&{tags:string[];due_date:string|null;project_id:string|null})=>void;onDelete:()=>void;onClose:()=>void
+function TaskDetails({task,projects,tasks,allowedParents,disabled,onCreateSubtask,onSave,onDelete,onClose}:{
+  task:Task;projects:Project[];tasks:Task[];allowedParents:Task[];disabled:boolean;
+  onCreateSubtask:(title:string)=>void;
+  onSave:(value:Omit<Partial<TaskForm>,"tags"|"due_date"|"project_id"|"parent_id">&{tags:string[];due_date:string|null;project_id:string|null;parent_id:string|null})=>void;
+  onDelete:()=>void;onClose:()=>void
 }) {
-  const [data,setData]=useState<TaskForm>({title:task.title,description:task.description,due_date:task.due_date||"",priority:task.priority,project_id:task.project_id||"",recurrence:task.recurrence,tags:task.tags.join(", ")});
+  const [data,setData]=useState<TaskForm>({title:task.title,description:task.description,due_date:task.due_date||"",priority:task.priority,project_id:task.project_id||"",parent_id:task.parent_id||"",recurrence:task.recurrence,tags:task.tags.join(", ")});
+  const [newChild,setNewChild]=useState("");
+  const children=tasks.filter(x=>x.parent_id===task.id);
   return <section className="gc-card details">
     <div className="detail-header"><h2>Task details</h2><button className="secondary-btn" aria-label="Close task details" onClick={onClose}>×</button></div>
-    <form onSubmit={e=>{e.preventDefault();onSave({...data,due_date:data.due_date||null,project_id:data.project_id||null,tags:data.tags.split(",").map(x=>x.trim()).filter(Boolean)});}}>
+    <form onSubmit={e=>{e.preventDefault();onSave({...data,due_date:data.due_date||null,project_id:data.project_id||null,parent_id:data.parent_id||null,tags:data.tags.split(",").map(x=>x.trim()).filter(Boolean)});}}>
       <label>Title<input required maxLength={240} value={data.title} onChange={e=>setData({...data,title:e.target.value})}/></label>
       <label>Notes<textarea maxLength={16000} rows={5} value={data.description} onChange={e=>setData({...data,description:e.target.value})}/></label>
       <label>Project<select value={data.project_id} onChange={e=>setData({...data,project_id:e.target.value})}><option value="">Inbox</option>{projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
       <label>Due<input type="date" value={data.due_date} onChange={e=>setData({...data,due_date:e.target.value})}/></label>
       <label>Priority<select value={data.priority} onChange={e=>setData({...data,priority:Number(e.target.value)})}>{[1,2,3,4].map(n=><option value={n} key={n}>P{n}</option>)}</select></label>
       <label>Repeat<select value={data.recurrence} onChange={e=>setData({...data,recurrence:e.target.value as Task["recurrence"]})}>{["none","daily","weekly","monthly"].map(r=><option key={r} value={r}>{r}</option>)}</select></label>
+      <label>Parent task<select aria-label="Parent task" value={data.parent_id} onChange={e=>setData({...data,parent_id:e.target.value})}>
+        <option value="">Standalone task</option>{allowedParents.map(x=><option key={x.id} value={x.id}>{x.title}</option>)}
+      </select></label>
       <label>Tags (comma-separated)<input value={data.tags} onChange={e=>setData({...data,tags:e.target.value})}/></label>
       <button className="primary-btn full-width" type="submit" disabled={disabled}>Save changes</button>
       <button className="danger-btn" type="button" disabled={disabled} onClick={onDelete}>Delete task</button>
     </form>
+    <section className="subtasks" aria-label="Subtasks">
+      <h3>Subtasks <span className="count">{children.filter(x=>!x.completed_at).length} open</span></h3>
+      <ul>{children.map(x=><li key={x.id}><span>{x.completed_at?"✓ ":"○ "}{x.title}</span></li>)}</ul>
+      <form onSubmit={e=>{e.preventDefault();if(newChild.trim()){onCreateSubtask(newChild.trim());setNewChild("");}}}>
+        <label htmlFor="new-subtask">Add subtask</label>
+        <input id="new-subtask" aria-label="New subtask title" maxLength={240} required value={newChild} onChange={e=>setNewChild(e.target.value)} placeholder="A smaller next step" />
+        <button className="secondary-btn" type="submit" disabled={disabled||!newChild.trim()}>+ Add subtask</button>
+      </form>
+    </section>
   </section>;
 }

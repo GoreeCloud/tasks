@@ -26,6 +26,30 @@ ApplicationWindow {
         return output
     }
 
+    function taskNames() {
+        var output = ["Standalone task"]
+        var current = tasksBackend ? tasksBackend.allTasks : []
+        for (var i = 0; i < current.length; i++)
+            if (!current[i].completed_at) output.push(current[i].title)
+        return output
+    }
+    function taskId(index) {
+        var current = tasksBackend ? tasksBackend.allTasks : []
+        var active = []
+        for (var i = 0; i < current.length; i++)
+            if (!current[i].completed_at) active.push(current[i].id)
+        return index > 0 && index <= active.length ? active[index - 1] : ""
+    }
+    function taskIndex(id) {
+        var current = tasksBackend ? tasksBackend.allTasks : []
+        var position = 1
+        for (var i = 0; i < current.length; i++) {
+            if (current[i].completed_at) continue
+            if (current[i].id === id) return position
+            position++
+        }
+        return 0
+    }
     function projectId(index) {
         var current = tasksBackend ? tasksBackend.projects : []
         return index > 0 && index <= current.length ? current[index - 1].id : ""
@@ -145,7 +169,7 @@ ApplicationWindow {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 166
+                Layout.preferredHeight: 190
                 radius: 18
                 color: "white"
                 ColumnLayout {
@@ -176,6 +200,12 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
+                        ComboBox {
+                            id: taskParent
+                            Layout.preferredWidth: 165
+                            model: window.taskNames()
+                            Accessible.name: "Subtask parent"
+                        }
                         TextField {
                             id: newTags
                             Layout.fillWidth: true
@@ -189,7 +219,8 @@ ApplicationWindow {
                             onClicked: {
                                 tasksBackend.addTaskDetailed(newTitle.text, "", priority.currentIndex + 1,
                                     dueDate.text, repeat.currentText.toLowerCase(),
-                                    window.projectId(taskProject.currentIndex), newTags.text)
+                                    window.projectId(taskProject.currentIndex), newTags.text,
+                                    window.taskId(taskParent.currentIndex))
                                 newTitle.text = ""
                             }
                         }
@@ -244,7 +275,8 @@ ApplicationWindow {
                                 Accessible.name: "Edit " + modelData.title
                             }
                             Label {
-                                text: (modelData.due_date || "No due date") +
+                                text: (modelData.parent_id ? "↳ Subtask · " : "") +
+                                      (modelData.due_date || "No due date") +
                                     (modelData.recurrence !== "none" ? " · " + modelData.recurrence : "")
                                 textFormat: Text.PlainText
                                 color: window.gcSoft
@@ -283,13 +315,14 @@ ApplicationWindow {
             editPriority.currentIndex = task.priority - 1
             editRepeat.currentIndex = ["none","daily","weekly","monthly"].indexOf(task.recurrence)
             editProject.currentIndex = window.projectIndex(task.project_id)
+            editParent.currentIndex = window.taskIndex(task.parent_id)
             open()
         }
         onAccepted: {
             tasksBackend.editTaskDetailed(editing.id, editing.version, editTitle.text,
                 editNotes.text, editPriority.currentIndex + 1, editDue.text,
                 editRepeat.currentText.toLowerCase(), window.projectId(editProject.currentIndex),
-                editTags.text)
+                editTags.text, window.taskId(editParent.currentIndex))
         }
         contentItem: ScrollView {
             clip: true
@@ -313,6 +346,13 @@ ApplicationWindow {
                 ComboBox { id: editRepeat; Layout.fillWidth: true; model: ["None","Daily","Weekly","Monthly"] }
                 Label { text: "Project"; color: window.gcText }
                 ComboBox { id: editProject; Layout.fillWidth: true; model: window.projectNames() }
+                Label { text: "Parent task"; color: window.gcText }
+                ComboBox {
+                    id: editParent
+                    Layout.fillWidth: true
+                    model: window.taskNames()
+                    Accessible.name: "Parent task"
+                }
                 Label { text: "Tags (comma-separated)"; color: window.gcText }
                 TextField { id: editTags; Layout.fillWidth: true }
                 Button {

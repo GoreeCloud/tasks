@@ -47,7 +47,7 @@ for(const [name,engine,binary]of engines){
         const input=request.postDataJSON();
         const entry={id:"synthetic-task-"+(++serial),title:input.title,description:input.description??"",
          priority:input.priority??2,project_id:input.project_id??null,due_date:input.due_date??null,
-         tags:input.tags??[],recurrence:input.recurrence??"none",completed_at:null,version:1,created_at:"2026-11-20T14:00:00Z"};
+         tags:input.tags??[],parent_id:input.parent_id??null,recurrence:input.recurrence??"none",completed_at:null,version:1,created_at:"2026-11-20T14:00:00Z"};
         tasks.push(entry);return response(entry,201);
        }
        if(method==="PATCH"&&/^\/tasks\/synthetic-task-\d+$/.test(endpoint)){
@@ -110,6 +110,13 @@ for(const [name,engine,binary]of engines){
     await page.getByLabel("Title",{exact:true}).fill("Synthetic revised task");
     await page.getByRole("button",{name:"Save changes"}).click();
     await page.getByRole("button",{name:"Complete Synthetic revised task"}).waitFor({timeout:9000});
+    await page.locator(".task-description").filter({hasText:"Synthetic revised task"}).click();
+    await page.getByLabel("New subtask title").fill("Synthetic child task");
+    await page.getByRole("button",{name:"Add subtask"}).click();
+    await page.getByRole("button",{name:"Complete Synthetic child task"}).waitFor({timeout:9000});
+    assert.equal(tasks.find(t=>t.title==="Synthetic child task")?.parent_id,tasks[0].id);
+    await page.getByRole("button",{name:"Close task details"}).click();
+    await page.getByRole("button",{name:"Complete Synthetic child task"}).click();
     await page.getByRole("button",{name:"Calendar",exact:true}).click();
     await page.getByRole("region",{name:"Task calendar"}).waitFor({timeout:9000});
     const calendarWidth=await page.evaluate(()=>({
@@ -143,9 +150,9 @@ for(const [name,engine,binary]of engines){
       header:getComputedStyle(document.documentElement).colorScheme
     }));
     assert.ok(final.scroll<=final.client+1,"focus screen overflows viewport");
-    assert.equal(tasks.length,1);
+    assert.equal(tasks.length,2);
     assert.equal(tasks[0].title,"Synthetic revised task");
-    assert.ok(tasks[0].completed_at);
+    assert.ok(tasks.every(task=>task.completed_at));
     assert.equal(violations.length,0,JSON.stringify(violations));
     assert.equal(errors.length,0,JSON.stringify(errors));
     if(screenshotDir) {

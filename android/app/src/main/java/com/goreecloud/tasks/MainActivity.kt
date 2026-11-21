@@ -37,6 +37,7 @@ private data class TaskDraft(
     val dueDate: String = "",
     val priority: Int = 2,
     val projectId: String? = null,
+    val parentId: String? = null,
     val recurrence: String = "none",
     val tags: String = ""
 ) {
@@ -45,7 +46,7 @@ private data class TaskDraft(
     companion object {
         fun from(task: TaskItem) = TaskDraft(
             title = task.title, description = task.description, dueDate = task.dueDate ?: "",
-            priority = task.priority, projectId = task.projectId,
+            priority = task.priority, projectId = task.projectId, parentId = task.parentId,
             recurrence = task.recurrence, tags = task.tags.joinToString(", ")
         )
     }
@@ -55,7 +56,8 @@ private data class TaskDraft(
 private fun DraftFields(
     draft: TaskDraft,
     update: (TaskDraft) -> Unit,
-    projects: List<ProjectItem>
+    projects: List<ProjectItem>,
+    parents: List<TaskItem>
 ) {
     OutlinedTextField(
         value = draft.title, onValueChange = { update(draft.copy(title = it)) },
@@ -107,16 +109,44 @@ private fun DraftFields(
             }
         }
     }
+    var parentMenu by remember { mutableStateOf(false) }
+    Box {
+        val parentTitle = parents.find { it.id == draft.parentId }?.title ?: "Standalone task"
+        OutlinedButton(onClick = { parentMenu = true }) {
+            Text("Parent: " + parentTitle, maxLines = 1)
+        }
+        DropdownMenu(expanded = parentMenu, onDismissRequest = { parentMenu = false }) {
+            DropdownMenuItem(text = { Text("Standalone task") }, onClick = {
+                update(draft.copy(parentId = null)); parentMenu = false
+            })
+            parents.filter { !it.done }.forEach { parent ->
+                DropdownMenuItem(text = { Text(parent.title) }, onClick = {
+                    update(draft.copy(parentId = parent.id)); parentMenu = false
+                })
+            }
+        }
+    }
     OutlinedTextField(
         value = draft.tags, onValueChange = { update(draft.copy(tags = it)) },
         label = { Text("Tags (comma-separated)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
     )
 }
 
+private fun isDescendant(candidate: TaskItem, ancestorId: String, all: List<TaskItem>): Boolean {
+    var current = candidate.parentId
+    val visited = mutableSetOf<String>()
+    while (current != null && visited.add(current)) {
+        if (current == ancestorId) return true
+        current = all.find { it.id == current }?.parentId
+    }
+    return false
+}
+
 @Composable
 private fun EditTaskDialog(
     task: TaskItem,
     projects: List<ProjectItem>,
+    tasks: List<TaskItem>,
     loading: Boolean,
     onDismiss: () -> Unit,
     onSave: (TaskDraft) -> Unit,
@@ -145,7 +175,8 @@ private fun EditTaskDialog(
                     Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    DraftFields(draft, { draft = it }, projects)
+                    DraftFields(draft, { draft = it }, projects,
+                        tasks.filter { !it.done && it.id != task.id && !isDescendant(it, task.id, tasks) })
                     TextButton(onClick = { confirmDelete = true }, enabled = !loading) {
                         Text("Delete task", color = MaterialTheme.colorScheme.error)
                     }
@@ -292,14 +323,14 @@ private fun TasksScreen() {
                         Column(Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Plan a task", style = MaterialTheme.typography.titleMedium)
-                            DraftFields(draft, { draft = it }, projects)
+                            DraftFields(draft, { draft = it }, projects, tasks.filter { !it.done })
                             GoreeCloudAction(label = "Add task", enabled = !loading && draft.title.isNotBlank(),
                                 onClick = {
                                     execute {
                                         val client = requireNotNull(api)
                                         client.createTask(draft.title, draft.description,
                                             draft.dueDate.ifBlank { null }, draft.priority,
-                                            draft.projectId, draft.recurrence, draft.tagsList())
+                                            draft.projectId, draft.parentId, draft.recurrence, draft.tagsList())
                                         reload(client)
                                         draft = TaskDraft()
                                     }
@@ -348,7 +379,8 @@ private fun TasksScreen() {
                                 TextButton(onClick = { selectedTask = task }) {
                                     Text(task.title, style = MaterialTheme.typography.titleMedium)
                                 }
-                                Text((task.dueDate ?: "No due date") + " · P" + task.priority +
+                                Text((task.parentId?.let { parentId -> tasks.find { it.id == parentId }?.title?.let { "↳ " + it + " · " } } ?: "") +
+                                    (task.dueDate ?: "No due date") + " · P" + task.priority +
                                     (if (task.recurrence != "none") " · " + task.recurrence else ""),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -374,13 +406,13 @@ private fun TasksScreen() {
     }
     val edit = selectedTask
     if (edit != null && api != null) {
-        EditTaskDialog(task = edit, projects = projects, loading = loading,
+        EditTaskDialog(task = edit, projects = projects, tasks = tasks, loading = loading,
             onDismiss = { selectedTask = null },
             onSave = { form ->
                 execute {
                     val client = requireNotNull(api)
                     client.updateTask(edit, form.title, form.description, form.dueDate.ifBlank { null },
-                        form.priority, form.projectId, form.recurrence, form.tagsList())
+                        form.priority, form.projectId, form.parentId, form.recurrence, form.tagsList())
                     reload(client)
                     selectedTask = null
                 }

@@ -38,7 +38,7 @@ Create example:
       "recurrence": "weekly"
     }
 
-Task data returned also includes UUID id, version, timestamps, completed_at and series_id. Duplicate tag names are normalized case-insensitively. Supported recurrence: none, daily, weekly, monthly; recurrence requires due_date. Priority range 1 (highest) through 4 (lowest).
+Task data returned also includes UUID id, version, timestamps, completed_at, series_id and optional parent_id. Creating/updating a child uses parent_id, which must reference an active task; cycles and self-parenting return HTTP 422. Parent completion with unfinished descendants returns HTTP 409. Deleting a parent detaches children, increments their versions and emits sync changes. Duplicate tag names are normalized case-insensitively. Supported recurrence: none, daily, weekly, monthly; recurrence requires due_date. Priority range 1 (highest) through 4 (lowest).
 
 Update example:
 
