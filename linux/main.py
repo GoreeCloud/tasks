@@ -1,15 +1,17 @@
 """Native Qt Quick 6.12.0 GoreeCloud Tasks Linux desktop client.
 
-API token is read from the environment (never persisted). HTTP is allowed
-only on loopback; nonlocal servers must use TLS.
+A user-supplied API token stays in process memory and is never saved.
+Only loopback HTTP or HTTPS with normal platform certificate validation is allowed.
 """
 from __future__ import annotations
 
 import json
 import os
 import sys
+from datetime import date
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
+from uuid import uuid4
 
 from PySide6.QtCore import QObject, Property, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication
@@ -25,12 +27,16 @@ class TasksBackend(QObject):
 
     def __init__(self, url: str, token: str):
         super().__init__()
+        self._all_tasks: list[dict] = []
         self._tasks: list[dict] = []
         self._projects: list[dict] = []
         self._status = "Ready"
         self._error = ""
         self._token = token
         self._url = url.rstrip("/")
+        self._view = "inbox"
+        self._project_filter: str | None = None
+        self._query = ""
         self._network = QNetworkAccessManager(self)
 
     @Property("QVariantList", notify=tasksChanged)
@@ -53,29 +59,81 @@ class TasksBackend(QObject):
         self._error = message
         self.errorChanged.emit()
 
-    def _request(self, method: str, path: str, payload=None, callback=None):
-        if not self._token:
-            self._set_error("Set GOREECLOUD_TASKS_API_TOKEN before starting the app")
+    def _apply_filters(self):
+        today = date.today().isoformat()
+        result = []
+        for task in self._all_tasks:
+            if self._project_filter and task.get("project_id") != self._project_filter:
+                continue
+            if self._query and self._query not in " ".join([
+                task.get("title", ""), task.get("description", ""),
+                " ".join(task.get("tags") or [])
+            ]).casefold():
+                continue
+            completed = bool(task.get("completed_at"))
+            due = task.get("due_date")
+            if self._view == "completed":
+                if not completed:
+                    continue
+            elif completed:
+                continue
+            elif self._view == "today" and (not due or due > today):
+                continue
+            elif self._view == "upcoming" and (not due or due <= today):
+                continue
+            result.append(task)
+        self._tasks = result
+        self.tasksChanged.emit()
+        self._status = str(len(result)) + " tasks in this view"
+        self.statusChanged.emit()
+
+    @Slot(str)
+    def setView(self, value: str):
+        if value not in {"inbox", "today", "upcoming", "completed"}:
+            self._set_error("Unknown task view")
+            return
+        self._view = value
+        self._apply_filters()
+
+    @Slot(str)
+    def setProjectFilter(self, project_id: str):
+        self._project_filter = project_id or None
+        self._apply_filters()
+
+    @Slot(str)
+    def setSearch(self, value: str):
+        self._query = value.casefold()[:120]
+        self._apply_filters()
+
+    def _request(self, method: str, path: str, payload=None, callback=None,
+                 idempotency_key: str | None = None):
+        if len(self._token) < 32:
+            self._set_error("Set a 32+ character GOREECLOUD_TASKS_API_TOKEN")
             return
         request = QNetworkRequest(QUrl(self._url + "/api/v1" + path))
         request.setRawHeader(b"Authorization", ("Bearer " + self._token).encode())
         request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json")
-        request.setTransferTimeout(15000)
-        content = json.dumps(payload).encode() if payload is not None else b""
-        reply = self._network.sendCustomRequest(request, method.encode(), content)
+        if idempotency_key:
+            request.setRawHeader(b"Idempotency-Key", idempotency_key.encode("ascii"))
+        request.setTransferTimeout(15_000)
+        content = json.dumps(payload).encode("utf-8") if payload is not None else b""
+        reply = self._network.sendCustomRequest(request, method.encode("ascii"), content)
 
         def finished():
             data = bytes(reply.readAll())
-            code = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
-            if reply.error() != QNetworkReply.NetworkError.NoError or not isinstance(code, int) or code >= 400:
-                self._set_error("Request failed (" + str(code or reply.errorString()) + ")")
+            status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+            if reply.error() != QNetworkReply.NetworkError.NoError or not isinstance(status, int) or status >= 400:
+                if status == 409:
+                    self._set_error("Task changed on the server. Refresh before editing.")
+                else:
+                    self._set_error("Request failed (" + str(status or reply.errorString()) + ")")
             else:
                 self._set_error("")
-                if callback:
+                if callback is not None:
                     try:
                         callback(json.loads(data) if data else None)
                     except (ValueError, TypeError) as exc:
-                        self._set_error("Invalid server response: " + str(exc))
+                        self._set_error("Invalid API response: " + type(exc).__name__)
             reply.deleteLater()
 
         reply.finished.connect(finished)
@@ -87,14 +145,12 @@ class TasksBackend(QObject):
 
         def loaded(data):
             if not isinstance(data, list):
-                self._set_error("Invalid task response")
+                self._set_error("Invalid task list")
                 return
-            self._tasks = data
-            self.tasksChanged.emit()
-            self._status = str(len(data)) + " tasks"
-            self.statusChanged.emit()
+            self._all_tasks = data
+            self._apply_filters()
 
-        self._request("GET", "/tasks?status=active", callback=loaded)
+        self._request("GET", "/tasks?status=all", callback=loaded)
         self._request("GET", "/projects", callback=self._update_projects)
 
     def _update_projects(self, data):
@@ -102,38 +158,102 @@ class TasksBackend(QObject):
             self._projects = data
             self.projectsChanged.emit()
 
+    @staticmethod
+    def _task_data(title: str, description: str, priority: int, due_date: str,
+                   recurrence: str, project_id: str, tags_csv: str) -> dict:
+        title = title.strip()
+        if not 1 <= len(title) <= 240:
+            raise ValueError("Task title must contain 1–240 characters")
+        if len(description) > 16000:
+            raise ValueError("Task notes are too long")
+        if priority not in (1, 2, 3, 4):
+            raise ValueError("Priority must be P1 through P4")
+        if recurrence not in {"none", "daily", "weekly", "monthly"}:
+            raise ValueError("Unknown recurrence")
+        if recurrence != "none" and not due_date:
+            raise ValueError("Recurring tasks need a due date")
+        if due_date:
+            try:
+                if date.fromisoformat(due_date).isoformat() != due_date:
+                    raise ValueError()
+            except ValueError:
+                raise ValueError("Use YYYY-MM-DD for due dates") from None
+        tags = []
+        for value in tags_csv.split(","):
+            tag = value.strip().casefold()
+            if not tag:
+                continue
+            if len(tag) > 36:
+                raise ValueError("Tag must have at most 36 characters")
+            if tag not in tags:
+                tags.append(tag)
+        if len(tags) > 12:
+            raise ValueError("Too many tags; maximum 12")
+        return dict(title=title, description=description, due_date=due_date or None,
+                    priority=priority, recurrence=recurrence, project_id=project_id or None,
+                    tags=tags)
+
     @Slot(str, int, str, str)
     def addTask(self, title: str, priority: int, due_date: str, recurrence: str):
-        title = title.strip()
-        if not title or len(title) > 240:
-            self._set_error("Task title must be 1–240 characters")
+        self.addTaskDetailed(title, "", priority, due_date, recurrence, "", "")
+
+    @Slot(str, str, int, str, str, str, str)
+    def addTaskDetailed(self, title: str, description: str, priority: int,
+                        due_date: str, recurrence: str, project_id: str, tags: str):
+        try:
+            data = self._task_data(title, description, priority, due_date,
+                                   recurrence, project_id, tags)
+        except ValueError as exc:
+            self._set_error(str(exc))
             return
-        if due_date:
-            from datetime import date
-            try:
-                date.fromisoformat(due_date)
-            except ValueError:
-                self._set_error("Due date must be YYYY-MM-DD")
-                return
-        if recurrence != "none" and not due_date:
-            self._set_error("Recurring tasks require a due date")
+        self._request("POST", "/tasks", data, lambda _: self.refresh(),
+                      idempotency_key=str(uuid4()))
+
+    @Slot(str, int, str, str, int, str, str, str, str)
+    def editTaskDetailed(self, task_id: str, version: int, title: str,
+                         description: str, priority: int, due_date: str,
+                         recurrence: str, project_id: str, tags: str):
+        try:
+            data = self._task_data(title, description, priority, due_date,
+                                   recurrence, project_id, tags)
+        except ValueError as exc:
+            self._set_error(str(exc))
             return
-        self._request("POST", "/tasks", {
-            "title": title, "priority": priority, "due_date": due_date or None,
-            "recurrence": recurrence
-        }, lambda _: self.refresh())
+        data["expected_version"] = version
+        self._request("PATCH", "/tasks/" + quote(task_id, safe=""),
+                      data, lambda _: self.refresh())
+
+    @Slot(str)
+    def addProject(self, name: str):
+        if not 1 <= len(name.strip()) <= 120:
+            self._set_error("Project name must contain 1–120 characters")
+            return
+        self._request("POST", "/projects", {"name": name.strip()}, lambda _: self.refresh(),
+                      idempotency_key=str(uuid4()))
 
     @Slot(str, int)
     def completeTask(self, task_id: str, version: int):
-        from urllib.parse import quote
         self._request("POST", "/tasks/" + quote(task_id, safe="") + "/complete",
+                      {"expected_version": version}, lambda _: self.refresh(),
+                      idempotency_key=str(uuid4()))
+
+    @Slot(str, int)
+    def reopenTask(self, task_id: str, version: int):
+        self._request("POST", "/tasks/" + quote(task_id, safe="") + "/reopen",
                       {"expected_version": version}, lambda _: self.refresh())
+
+    @Slot(str, int)
+    def deleteTask(self, task_id: str, version: int):
+        self._request("DELETE", "/tasks/" + quote(task_id, safe="") +
+                      "?expected_version=" + str(version), callback=lambda _: self.refresh())
 
 
 def main():
     url = os.environ.get("GOREECLOUD_TASKS_URL", "http://127.0.0.1:8000").rstrip("/")
     parsed = urlsplit(url)
-    if parsed.scheme not in ("https", "http") or not parsed.hostname:
+    if parsed.scheme not in ("https", "http") or not parsed.hostname or (
+        parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment
+    ):
         raise SystemExit("Invalid GOREECLOUD_TASKS_URL")
     if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "::1", "localhost"}:
         raise SystemExit("Nonlocal API access requires HTTPS")

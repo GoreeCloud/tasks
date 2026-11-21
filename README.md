@@ -4,17 +4,17 @@
 
 GoreeCloud Tasks is an original, privacy-focused alternative to parts of Todoist and TickTick. This repository contains a **FastAPI + SQLite server**, **React web app**, **native Qt Quick 6.12 Linux app**, **native Kotlin/Compose Android app**, reviewed GoreeCloud UI source, tests, build scripts, workflow files and documentation.
 
-**Not yet:** full competitor feature parity, client offline edits, Identity integration, secure multiuser sync, a production service, signed Android release, packaged Linux installer, habits, notifications or calendar grid. Platform source code does not establish hardware acceptance.
+**Not yet:** full competitor feature parity, offline client edits, Identity integration, multiuser sync, production deployment, signed Android release, packaged Linux installer, habits, reminders and RFC 5545 recurrence. A basic month calendar is now implemented. Platform source code does not establish hardware acceptance.
 
 ## Implemented foundation
 
-- Token-protected versioned API and SQLite database, projects, task CRUD, description, priorities and date-only due dates.
-- Tags, simple daily/weekly/monthly recurrence, server-side status/due/search filters, HTTP 409 revision conflicts, JSON export.
-- React list, projects, Today/Upcoming/Completed, task editor, search, foreground focus timer.
-- Native Qt Quick Linux list/create/complete and Android Jetpack Compose list/create/complete.
+- Token-protected API, SQLite schema v2, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and migration from v1.
+- Tags, daily/weekly/monthly recurrence, server-side search and pagination, serialized HTTP 409 revision conflicts, JSON export and a verified local SQLite online-backup CLI.
+- React projects, Today/Upcoming/Completed lists, month calendar, task editor, search, tags/projects at creation and foreground focus timer.
+- Native Qt Quick Linux projects/search/filter and full task editing, deletion and completion; native Kotlin/Compose Android projects, filters, task editing/deletion, priority, recurrence and tags.
 - In-repository GoreeCloud UI Material 3 Expressive plus Compose Multiplatform source adapters; design token CSS.
 
-See [features and backlog](docs/FEATURE_AUDIT.md), [API](docs/API.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md) and [dependency review](docs/DEPENDENCIES.md).
+See [features and backlog](docs/FEATURE_AUDIT.md), [API](docs/API.md), [sync protocol](docs/SYNC_PROTOCOL.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [source CLI reference](docs/CLI_REFERENCE.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md) and [dependency review](docs/DEPENDENCIES.md).
 
 ## Start the local server
 
@@ -64,7 +64,7 @@ Compose uses the approved GoreeCloud Material 3 Expressive theme as its outer ho
 ## Tests
 
     python -m pytest server/tests -q
-    cd web && npm ci && npm run build
+    cd web && npm ci && npm run build && npm test
 
 See GitHub workflow checks for build evidence at specific commits. No deployment is performed by this repository. The [real-browser UI acceptance evidence](docs/REAL_BROWSER_UI_ACCEPTANCE_20261120.md) documents reproducible Chromium/Firefox/WebKit synthetic task workflows and the narrow mobile reflow fix. The optional `cd web && npm run browser:acceptance` test requires explicitly supplied, inspected local browser binaries and never logs into a real service.
 

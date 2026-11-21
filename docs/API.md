@@ -11,10 +11,10 @@ Send JSON for write operations. API is intended for one trusted operator. Do not
 | GET | /healthz | Minimal unauthenticated service liveness, no task content |
 | GET | /api/v1/projects | List projects |
 | POST | /api/v1/projects | Create {"name":"Family"} |
-| GET | /api/v1/tasks?status=active | Active tasks, max 1000 |
+| GET | /api/v1/tasks?status=active | Active tasks, default 1000 per page |
 | GET | /api/v1/tasks?status=completed | Completed task instances |
 | GET | /api/v1/tasks?status=all | All tasks, max 1000 |
-| GET | /api/v1/tasks?project_id=...&search=...&due_before=YYYY-MM-DD | Filter results |
+| GET | /api/v1/tasks?project_id=...&search=...&due_before=YYYY-MM-DD&limit=100&offset=0 | Filtered, deterministic page |
 | POST | /api/v1/tasks | Create a task |
 | GET | /api/v1/tasks/{id} | Retrieve one |
 | PATCH | /api/v1/tasks/{id} | Update with required expected_version |
@@ -22,6 +22,8 @@ Send JSON for write operations. API is intended for one trusted operator. Do not
 | POST | /api/v1/tasks/{id}/reopen | Reopen a completed instance |
 | DELETE | /api/v1/tasks/{id}?expected_version=N | Permanently delete |
 | GET | /api/v1/export | Complete portable JSON snapshot |
+| GET | /api/v1/sync/bootstrap | Consistent task/project snapshot with cursor; up to 5000 entities each |
+| GET | /api/v1/sync/changes?after=0&limit=100 | Incremental cursor feed with updates and deletion tombstones |
 
 Create example:
 
@@ -45,4 +47,4 @@ Complete example:
 
     {"expected_version":2}
 
-A 409 means stale version, already completed, or invalid task state. Reload and reconcile; never blindly retry an edit with a different revision. A 422 means invalid input/missing project; a 401 is a missing or wrong bearer token; a 404 is a nonexistent task. Deletion is irreversible, so maintain a server backup. Authentication and TLS/rate limiting are not included in the web application itself.
+Optional Idempotency-Key on project/task creation and completion allows safe identical retries; a changed payload for a reused key produces 409 and a deleted task's scrubbed receipt produces 410. A 409 also means stale version, already completed, or invalid task state. Reload and reconcile; never blindly retry an edit with a different revision. A 422 means invalid input/missing project; a 401 is a missing or wrong bearer token; a 404 is a nonexistent task. Deletion scrubs previous task feed payloads and matching retry receipts while retaining tombstones; it is irreversible, so maintain an independently verified backup under an approved retention policy. Authentication and TLS/rate limiting are not included in the web application itself.

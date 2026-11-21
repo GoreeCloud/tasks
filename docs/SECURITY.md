@@ -9,11 +9,11 @@
 - Qt GUI reads token from environment. Android keeps the token in RAM; after disconnect a new token must be entered. TLS certificate validation remains the platform's default.
 - Do not expose unencrypted HTTP beyond loopback, except emulator-specific Android debug test routing. Android release manifest disallows cleartext traffic.
 - Front-end API messages are generic and must not display internal stack traces. No product telemetry is implemented, but the host, proxy, OS and Android runtime may produce unrelated logs.
-- Concurrent edits use an expected-version field, avoiding silent lost updates. This is not full offline conflict resolution.
+- Concurrent edits use expected_version with SQLite BEGIN IMMEDIATE writer reservations; create/complete can use idempotent retry keys. Deleting a task redacts its previous change-event payloads and matching retry receipts. Backups and other clients may still retain copies; this is not full offline conflict resolution.
 
 ## Deployment gates
 
-1. Choose a validated self-hosted node or Containers-managed workload, use a dedicated unprivileged account, restrict network and file permissions, and provide an operator-owned backup/restore test.
+1. Choose a validated self-hosted node or Containers-managed workload, use a dedicated unprivileged account, restrict network and file permissions, run the included online backup/verify CLI, and independently rehearse a restore on an isolated test host.
 2. Generate the secret in an external manager or environment; verify that API requests reject absent/wrong secrets. Rotate via controlled client reconnect.
 3. Terminate HTTPS at a trusted gateway and apply network access control, request/body limits, rate limits, CSRF protections if adding cookie auth, and security headers.
 4. Confirm an authenticated health/backup model without exposing private content on health endpoints.

@@ -42,3 +42,32 @@ nav{display:grid;gap:4px}.nav-item{display:flex;gap:14px;align-items:center;text
 @media(max-width:1150px){.content-grid{grid-template-columns:minmax(0,1fr)}.right-rail{padding-top:0;max-width:100%}.content-grid{gap:22px}}
 @media(max-width:740px){.workspace{grid-template-columns:minmax(0,1fr)}.sidebar{min-width:0;min-height:auto;padding:14px;position:static}.logo{margin:0 0 15px}.sidebar-label,.sidebar nav[aria-label="Projects"],.project-label,.new-project,.sidebar-bottom{display:none}.sidebar nav[aria-label="Views"]{display:flex;min-width:0;max-width:100%;overflow-x:auto;gap:5px}.nav-item{white-space:nowrap;padding:11px 13px;font-size:12px}.topbar{padding:13px 20px}.topbar .subtle{display:none}.content-grid{padding:28px 18px}.page-heading{margin-bottom:25px}.task-composer{padding:15px}.composer-details .primary-btn{margin-left:0}.section-header{align-items:flex-start;flex-direction:column}.section-header input{max-width:none}}
 @media(prefers-reduced-motion:reduce){button{transition:none}}
+
+/* Calendar planning surface uses approved GoreeCloud UI semantic roles. */
+.calendar-panel{padding:clamp(12px,2vw,25px);max-width:100%;min-width:0;overflow:hidden}
+.calendar-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:22px}
+.calendar-heading .eyebrow{margin-bottom:7px}.calendar-heading h3{margin:0;font-size:22px;letter-spacing:-.025em}
+.calendar-actions{display:flex;gap:6px;align-items:center}
+.calendar-actions .secondary-btn{min-width:40px;padding:7px 10px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--gc-outline-soft);border-radius:var(--gc-radius-sm);overflow:hidden}
+.calendar-weekday{font-size:11px;font-weight:750;text-align:center;padding:10px 3px;background:var(--gc-surface-tonal);color:var(--gc-text-soft)}
+.calendar-cell{min-width:0;min-height:112px;border-top:1px solid var(--gc-outline-soft);border-right:1px solid var(--gc-outline-soft);padding:5px;background:var(--gc-surface)}
+.calendar-cell:nth-child(7n){border-right:0}
+.calendar-other{background:var(--gc-surface-tonal)}
+.calendar-other .calendar-date{opacity:.65}
+.calendar-selected{background:var(--gc-brand-container)}
+.calendar-date{width:100%;min-height:35px;display:flex;justify-content:space-between;align-items:center;text-align:left;border:0;background:transparent;color:var(--gc-text);padding:5px 6px;border-radius:8px;font-size:13px;font-weight:650}
+.calendar-date[aria-pressed="true"]{outline:2px solid var(--gc-brand);outline-offset:-2px}
+.calendar-day-count{font-size:10px;min-width:17px;padding:2px 4px;border-radius:99px;background:var(--gc-brand);color:var(--gc-on-brand);text-align:center}
+.calendar-events{display:grid;gap:4px;padding:4px 2px}
+.calendar-event{min-width:0;width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;border:0;border-radius:5px;padding:4px 5px;font-size:10px;font-weight:600;color:var(--gc-brand);background:var(--gc-brand-container);text-align:left}
+.calendar-event.priority-1{color:var(--gc-negative);background:var(--gc-surface-tonal)}
+.calendar-more{font-size:10px;color:var(--gc-text-soft);padding-left:5px}
+.calendar-agenda{border-top:1px solid var(--gc-outline-soft);margin-top:18px;padding-top:16px}
+.calendar-agenda h4{font-size:15px;margin:0 0 12px}
+.calendar-agenda .muted{margin:0;font-size:13px}
+.calendar-agenda-list{display:grid;gap:8px}
+.calendar-agenda-task{display:flex;justify-content:space-between;gap:15px;align-items:center;width:100%;min-height:44px;padding:9px 13px;background:var(--gc-surface-tonal);border:1px solid var(--gc-outline-soft);border-radius:10px;text-align:left;color:var(--gc-text);font-weight:650}
+.calendar-agenda-task>span:first-child{overflow-wrap:anywhere}
+@media(max-width:740px){.calendar-panel{padding:12px}.calendar-heading{margin-bottom:12px}.calendar-heading h3{font-size:19px}.calendar-cell{min-height:64px;padding:2px}.calendar-date{font-size:11px;padding:3px;min-height:39px}.calendar-day-count{font-size:9px;min-width:15px}.calendar-events{display:none}.calendar-weekday{font-size:9px;padding:7px 2px}}
+@media(forced-colors:active){.calendar-selected{outline:2px solid Highlight}.calendar-day-count{border:1px solid CanvasText}.calendar-date[aria-pressed="true"]{outline-color:Highlight}}

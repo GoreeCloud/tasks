@@ -106,6 +106,14 @@ for(const [name,engine,binary]of engines){
     await page.getByLabel("Title",{exact:true}).fill("Synthetic revised task");
     await page.getByRole("button",{name:"Save changes"}).click();
     await page.getByRole("button",{name:"Complete Synthetic revised task"}).waitFor({timeout:9000});
+    await page.getByRole("button",{name:"Calendar",exact:true}).click();
+    await page.getByRole("region",{name:"Task calendar"}).waitFor({timeout:9000});
+    const calendarWidth=await page.evaluate(()=>({
+      scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth
+    }));
+    assert.ok(calendarWidth.scroll<=calendarWidth.client+1,
+      "calendar should fit the viewport: "+JSON.stringify(calendarWidth));
+    await page.getByRole("button",{name:"My tasks",exact:true}).click();
     if(screenshotDir){
       await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:join(screenshotDir,"tasks-"+name+"-"+caseName+"-tasklist.png"),fullPage:true});
