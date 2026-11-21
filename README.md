@@ -4,17 +4,17 @@
 
 GoreeCloud Tasks is an original, privacy-focused alternative to parts of Todoist and TickTick. This repository contains a **FastAPI + SQLite server**, **React web app**, **native Qt Quick 6.12 Linux app**, **native Kotlin/Compose Android app**, reviewed GoreeCloud UI source, tests, build scripts, workflow files and documentation.
 
-**Not yet:** full competitor feature parity, offline client edits, Identity integration, multiuser sync, production deployment, signed Android release, packaged Linux installer, habits, reminders and RFC 5545 recurrence. A basic month calendar is now implemented. Platform source code does not establish hardware acceptance.
+**Not yet:** full competitor feature parity, offline client edits, Identity integration, multiuser sync, production deployment, signed Android release, packaged Linux installer, native habit parity, reminders and RFC 5545 recurrence. A basic month calendar is now implemented. Platform source code does not establish hardware acceptance.
 
 ## Implemented foundation
 
-- Token-protected API, SQLite schema v3, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and additive migration from v1/v2.
+- Token-protected API, SQLite schema v4, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and additive migration from v1/v2.
 - Tags, daily/weekly/monthly recurrence, server-side search and pagination, serialized HTTP 409 revision conflicts, JSON export and a verified local SQLite online-backup CLI.
-- React projects, Today/Upcoming/Completed lists, month calendar, **accessible P1–P4 priority board**, **subtasks/parent selection with a child-task panel**, task editor, search, tags/projects at creation, foreground focus timer and private VTODO calendar export.
+- React projects, Today/Upcoming/Completed lists, month calendar, **accessible P1–P4 priority board**, **subtasks/parent selection with a child-task panel**, **daily habit check-ins with streaks**,  task editor, search, tags/projects at creation, foreground focus timer and private VTODO calendar export.
 - Native Qt Quick Linux projects/search/filter, parent selection and task editing/deletion/completion; native Kotlin/Compose Android projects, filters, parent selection, task editing/deletion, priority, recurrence and tags.
 - In-repository GoreeCloud UI Material 3 Expressive plus Compose Multiplatform source adapters; design token CSS.
 
-See [features and backlog](docs/FEATURE_AUDIT.md), [API](docs/API.md), [sync protocol](docs/SYNC_PROTOCOL.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [calendar export](docs/ICAL_EXPORT.md), [source CLI reference](docs/CLI_REFERENCE.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md) and [dependency review](docs/DEPENDENCIES.md).
+See [features and backlog](docs/FEATURE_AUDIT.md), [API](docs/API.md), [sync protocol](docs/SYNC_PROTOCOL.md), [daily habits](docs/HABITS.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [calendar export](docs/ICAL_EXPORT.md), [source CLI reference](docs/CLI_REFERENCE.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md) and [dependency review](docs/DEPENDENCIES.md).
 
 ## Start the local server
 

@@ -23,6 +23,13 @@ Send JSON for write operations. API is intended for one trusted operator. Do not
 | DELETE | /api/v1/tasks/{id}?expected_version=N | Permanently delete |
 | GET | /api/v1/export | Complete portable JSON snapshot |
 | GET | /api/v1/export.ics | Authenticated VTODO iCalendar download (max 5000 tasks) |
+| GET | /api/v1/habits?as_of=YYYY-MM-DD&limit=100&offset=0 | List daily habits, check-in status, total count and bounded streak as of local date |
+| POST | /api/v1/habits | Create a daily habit with name and optional description |
+| PATCH | /api/v1/habits/{id} | Edit with expected_version |
+| DELETE | /api/v1/habits/{id}?expected_version=N | Erase habit and its check-in history |
+| GET | /api/v1/habits/{id}/checkins | List recorded dates, bounded pagination |
+| POST | /api/v1/habits/{id}/checkins | Add check-in with JSON day and expected_version |
+| DELETE | /api/v1/habits/{id}/checkins/{day}?expected_version=N | Undo one check-in |
 | GET | /api/v1/sync/bootstrap | Consistent task/project snapshot with cursor; up to 5000 entities each |
 | GET | /api/v1/sync/changes?after=0&limit=100 | Incremental cursor feed with updates and deletion tombstones |
 
