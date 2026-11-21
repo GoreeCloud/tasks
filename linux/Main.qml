@@ -17,6 +17,7 @@ ApplicationWindow {
     property color gcCanvas: "#F6F7FB"
     property color gcText: "#1B2030"
     property color gcSoft: "#505B70"
+    property bool habitsMode: false
 
     function projectNames() {
         var output = ["Inbox"]
@@ -99,10 +100,16 @@ ApplicationWindow {
                 anchors.margins: 18
                 spacing: 8
                 Label { text: "WORKSPACE"; font.bold: true; font.pixelSize: 11; color: window.gcSoft }
-                Button { text: "Inbox"; Layout.fillWidth: true; onClicked: tasksBackend.setView("inbox") }
-                Button { text: "Today"; Layout.fillWidth: true; onClicked: tasksBackend.setView("today") }
-                Button { text: "Upcoming"; Layout.fillWidth: true; onClicked: tasksBackend.setView("upcoming") }
-                Button { text: "Completed"; Layout.fillWidth: true; onClicked: tasksBackend.setView("completed") }
+                Button { text: "Inbox"; Layout.fillWidth: true; onClicked: {window.habitsMode=false;tasksBackend.setView("inbox")} }
+                Button { text: "Today"; Layout.fillWidth: true; onClicked: {window.habitsMode=false;tasksBackend.setView("today")} }
+                Button { text: "Upcoming"; Layout.fillWidth: true; onClicked: {window.habitsMode=false;tasksBackend.setView("upcoming")} }
+                Button { text: "Completed"; Layout.fillWidth: true; onClicked: {window.habitsMode=false;tasksBackend.setView("completed")} }
+                Button {
+                    text: "Daily habits"
+                    Layout.fillWidth: true
+                    Accessible.name: "Open daily habits"
+                    onClicked: {window.habitsMode=true;tasksBackend.refreshHabits()}
+                }
                 Label {
                     text: "PROJECTS"; font.bold: true; font.pixelSize: 11
                     color: window.gcSoft; Layout.topMargin: 20
@@ -153,6 +160,7 @@ ApplicationWindow {
         }
 
         ColumnLayout {
+            visible: !window.habitsMode
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 13
@@ -293,6 +301,151 @@ ApplicationWindow {
                     color: window.gcSoft
                 }
             }
+        }
+
+        ColumnLayout {
+            visible: window.habitsMode
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 13
+            Label {
+                text: "Daily habits"
+                font.pixelSize: 32
+                font.bold: true
+                color: window.gcText
+            }
+            Label {
+                text: "Private daily check-ins, stored on your self-hosted server."
+                color: window.gcSoft
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 135
+                color: "white"
+                radius: 16
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 8
+                    TextField {
+                        id: habitName
+                        Layout.fillWidth: true
+                        maximumLength: 120
+                        placeholderText: "A new habit, e.g. reading"
+                        Accessible.name: "Habit name"
+                        onAccepted: addHabitButton.clicked()
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        TextField {
+                            id: habitNotes
+                            Layout.fillWidth: true
+                            maximumLength: 16000
+                            placeholderText: "Notes (optional)"
+                            Accessible.name: "Habit notes"
+                        }
+                        Button {
+                            id: addHabitButton
+                            text: "+ Add habit"
+                            enabled: habitName.text.trim().length > 0
+                            onClicked: {
+                                tasksBackend.addHabit(habitName.text, habitNotes.text)
+                                habitName.text = ""; habitNotes.text = ""
+                            }
+                        }
+                    }
+                }
+            }
+            RowLayout {
+                Label {
+                    text: "Check-ins"
+                    font.bold: true; font.pixelSize: 18
+                    color: window.gcText
+                    Layout.fillWidth: true
+                }
+                Button { text: "Refresh habits"; onClicked: tasksBackend.refreshHabits() }
+            }
+            ListView {
+                id: habitsList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 8
+                model: tasksBackend ? tasksBackend.habits : []
+                ScrollBar.vertical: ScrollBar {}
+                delegate: Rectangle {
+                    required property var modelData
+                    width: habitsList.width
+                    height: 91
+                    color: "white"
+                    radius: 14
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 10
+                        CheckBox {
+                            checked: Boolean(modelData.checked_in_today)
+                            Accessible.name: (checked ? "Undo today's check-in for " : "Check in today for ") + modelData.name
+                            onClicked: tasksBackend.toggleHabit(
+                                modelData.id, modelData.version, !checked
+                            )
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Label {
+                                text: modelData.name
+                                font.bold: true
+                                font.pixelSize: 15
+                                textFormat: Text.PlainText
+                                color: window.gcText
+                            }
+                            Label {
+                                text: modelData.current_streak + " day streak · " + modelData.total_checkins + " check-ins"
+                                font.pixelSize: 12
+                                color: window.gcSoft
+                            }
+                            Label {
+                                text: modelData.description
+                                visible: Boolean(modelData.description)
+                                font.pixelSize: 11
+                                color: window.gcSoft
+                                elide: Label.ElideRight
+                                Layout.maximumWidth: 500
+                            }
+                        }
+                        Button {
+                            text: "Delete..."
+                            onClicked: {
+                                deleteHabitConfirm.habit = modelData
+                                deleteHabitConfirm.open()
+                            }
+                        }
+                    }
+                }
+                Label {
+                    anchors.centerIn: parent
+                    visible: habitsList.count === 0
+                    text: "No daily habits yet."
+                    color: window.gcSoft
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: deleteHabitConfirm
+        title: "Delete habit and all check-ins?"
+        modal: true
+        x: Math.max(10, (window.width - width) / 2)
+        y: Math.max(10, (window.height - height) / 2)
+        width: Math.min(window.width - 30, 420)
+        standardButtons: Dialog.Yes | Dialog.No
+        property var habit: ({})
+        onAccepted: tasksBackend.deleteHabit(habit.id, habit.version)
+        Label {
+            text: "This permanently erases the habit history."
+            wrapMode: Text.WordWrap
+            color: window.gcText
         }
     }
 

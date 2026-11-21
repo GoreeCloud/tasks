@@ -23,3 +23,6 @@ local.properties
 *.jks
 .idea/
 *.iml
+
+# Kotlin compiler incremental caches generated inside vendored composite builds.
+**/.kotlin/

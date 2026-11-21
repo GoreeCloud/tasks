@@ -53,6 +53,16 @@ class TasksBackendTest(unittest.TestCase):
         self.backend.setView("no-such-view")
         self.assertEqual(self.backend.error, "Unknown task view")
 
+    def test_habit_response_and_empty_model(self):
+        self.assertEqual(self.backend.habits, [])
+        sample = {"id": "fixture", "name": "Read", "checked_in_today": False,
+                  "current_streak": 3, "total_checkins": 7, "version": 2}
+        self.backend._update_habits([sample])
+        self.assertEqual(self.backend.habits[0]["current_streak"], 3)
+        self.backend._update_habits({"bad": "shape"})
+        self.assertEqual(self.backend.error, "Invalid habit list response")
+        self.assertEqual(self.backend.habits[0]["name"], "Read")
+
     def test_task_fields_reject_bad_inputs(self):
         mk = TasksBackend._task_data
         value = mk(" Task ", "notes", 2, "2026-11-21", "weekly", "", "Home,home")
