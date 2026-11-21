@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarView } from "./CalendarView";
+import { PriorityBoard } from "./PriorityBoard";
 
 type Task = {
   id: string; title: string; description: string; project_id: string | null; parent_id: string | null;
@@ -7,7 +8,7 @@ type Task = {
   completed_at: string | null; version: number; created_at: string;
 };
 type Project = { id: string; name: string };
-type Screen = "inbox"|"today"|"upcoming"|"calendar"|"completed"|"all"|"focus";
+type Screen = "inbox"|"today"|"upcoming"|"calendar"|"board"|"completed"|"all"|"focus";
 type TaskForm = { title: string; description: string; due_date: string; priority: number; recurrence: Task["recurrence"]; project_id: string; parent_id: string; tags: string };
 const emptyForm: TaskForm = { title: "", description: "", due_date: "", priority: 2, recurrence: "none", project_id: "", parent_id: "", tags: "" };
 const today = () => {
@@ -113,7 +114,7 @@ export function App() {
   const count = tasks.filter(x=>!x.completed_at).length;
   const navigate = (page: Screen, project: string|null = null) => {setView(page);setProjectFilter(project);setEditor(null);};
   const updateForm = (part: Partial<TaskForm>) => setForm(prev => ({...prev,...part}));
-  const labels = { inbox:"My tasks", today:"Today", upcoming:"Upcoming", completed:"Completed", all:"All tasks", calendar:"Calendar", focus:"Focus" };
+  const labels = { inbox:"My tasks", today:"Today", upcoming:"Upcoming", completed:"Completed", all:"All tasks", calendar:"Calendar", board:"Board", focus:"Focus" };
   const counts = {today:tasks.filter(t=>!t.completed_at&&!!t.due_date&&t.due_date<=today()).length,upcoming:tasks.filter(t=>!t.completed_at&&!!t.due_date&&t.due_date>today()).length};
 
   if (!token) return <main className="gc-app sign-in">
@@ -134,9 +135,9 @@ export function App() {
       <div className="logo"><span className="brand-mark" aria-hidden="true">◈</span><div><strong>GoreeCloud</strong><small>TASKS</small></div></div>
       <div className="sidebar-label">WORKSPACE</div>
       <nav aria-label="Views">
-        {(["inbox","today","upcoming","calendar","completed","all","focus"] as Screen[]).map((screen,i)=>
+        {(["inbox","today","upcoming","calendar","board","completed","all","focus"] as Screen[]).map((screen,i)=>
           <button key={screen} className={"nav-item "+(view===screen&&projectFilter===null?"active":"")} onClick={()=>navigate(screen)} aria-current={view===screen&&projectFilter===null?"page":undefined}>
-            <span aria-hidden="true">{["☷","◷","▦","▣","✓","≡","◎"][i]}</span>{labels[screen]}
+            <span aria-hidden="true">{["☷","◷","▦","▣","▤","✓","≡","◎"][i]}</span>{labels[screen]}
             {screen==="today"&&counts.today>0&&<b>{counts.today}</b>}
           </button>)}
       </nav>
@@ -189,9 +190,16 @@ export function App() {
                 <button className="primary-btn" type="submit" disabled={busy}>+ Add task</button>
               </div>
             </form>
-            <div className="section-header"><h2>{view==="calendar"?"Monthly plan":view==="today"?"Scheduled for today":view==="upcoming"?"On the horizon":"Tasks"} <span className="count">{visible.length}</span></h2>
+            <div className="section-header"><h2>{view==="board"?"Priority board":view==="calendar"?"Monthly plan":view==="today"?"Scheduled for today":view==="upcoming"?"On the horizon":"Tasks"} <span className="count">{visible.length}</span></h2>
               <label className="sr-only" htmlFor="search-task">Search tasks</label><input id="search-task" type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search tasks" /></div>
-            {view==="calendar" ? <CalendarView tasks={visible} onOpen={setEditor}/> : <div className="task-list">
+            {view==="calendar" ? <CalendarView tasks={visible} onOpen={setEditor}/> :
+              view==="board" ? <PriorityBoard tasks={visible} busy={busy} onOpen={setEditor}
+              onMove={(id,currentPriority,priority)=>void execute(async()=>{
+                const task=tasks.find(item=>item.id===id);
+                if (!task||task.priority!==currentPriority) throw new Error("Task changed; refresh and retry");
+                await request("/tasks/"+encodeURIComponent(id),{method:"PATCH",
+                  body:JSON.stringify({expected_version:task.version,priority})});
+              })}/> : <div className="task-list">
               {visible.map(task=><article className={"task-row "+(task.completed_at?"is-complete ":"")+(task.parent_id?"is-subtask":"")} key={task.id}>
                 <button className="complete-button" disabled={busy} aria-label={(task.completed_at?"Reopen ":"Complete ")+task.title} title={task.completed_at?"Reopen":"Complete"} onClick={()=>void execute(async()=>{
                   await request("/tasks/"+encodeURIComponent(task.id)+"/"+(task.completed_at?"reopen":"complete"),{method:"POST",body:JSON.stringify({expected_version:task.version})});
