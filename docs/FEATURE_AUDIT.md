@@ -12,7 +12,7 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 | Native Linux and Android | Platform-specific | Expanded Qt Quick/Compose CRUD and filters; device/runtime acceptance pending | P1 |
 | Offline editing and cloud sync | Both | Server cursor feed, redacted tombstones, retry receipts; device offline editing/sync remains unimplemented | P1 |
 | Notifications/reminders | Both | Not implemented | P1 |
-| Subtasks/sections/checklists | Both | Not implemented | P2 |
+| Subtasks/sections/checklists | Both | Versioned parent-child subtasks on API, React and native clients; sections and checklists pending | P2 |
 | Habits | TickTick | Not implemented | P2 |
 | Focus/Pomodoro | TickTick | Foreground-only web timer | P2 |
 | Collaboration/sharing | Both | Not implemented; needs Identity/ACLs | P2 |

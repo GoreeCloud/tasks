@@ -20,6 +20,7 @@ data class TaskItem(
     val priority: Int,
     val version: Int,
     val projectId: String?,
+    val parentId: String?,
     val recurrence: String,
     val tags: List<String>,
     val completedAt: String?
@@ -79,6 +80,7 @@ class TaskApi(private val base: String, private val token: String) {
             priority = json.getInt("priority"),
             version = json.getInt("version"),
             projectId = json.optString("project_id").takeIf { it.isNotBlank() && it != "null" },
+            parentId = json.optString("parent_id").takeIf { it.isNotBlank() && it != "null" },
             recurrence = json.optString("recurrence", "none"),
             tags = (0 until tagsArray.length()).map { tagsArray.getString(it) },
             completedAt = json.optString("completed_at").takeIf { it.isNotBlank() && it != "null" }
@@ -113,7 +115,7 @@ class TaskApi(private val base: String, private val token: String) {
     }
 
     private fun toJson(title: String, description: String, dueDate: String?, priority: Int,
-                       projectId: String?, recurrence: String, tags: List<String>): JSONObject {
+                       projectId: String?, parentId: String?, recurrence: String, tags: List<String>): JSONObject {
         require(title.trim().length in 1..240) { "Task title must contain 1–240 characters" }
         require(priority in 1..4) { "Priority must be P1 to P4" }
         require(recurrence in listOf("none", "daily", "weekly", "monthly")) { "Unknown recurrence" }
@@ -127,21 +129,22 @@ class TaskApi(private val base: String, private val token: String) {
             .put("due_date", if (dueDate.isNullOrBlank()) JSONObject.NULL else dueDate.trim())
             .put("priority", priority)
             .put("project_id", if (projectId == null) JSONObject.NULL else projectId)
+            .put("parent_id", if (parentId == null) JSONObject.NULL else parentId)
             .put("recurrence", recurrence)
             .put("tags", JSONArray(tags.map { it.trim() }.filter { it.isNotBlank() }))
     }
 
     suspend fun createTask(title: String, description: String, dueDate: String?,
-                           priority: Int, projectId: String?, recurrence: String,
+                           priority: Int, projectId: String?, parentId: String?, recurrence: String,
                            tags: List<String>): TaskItem {
-        val content = toJson(title, description, dueDate, priority, projectId, recurrence, tags)
+        val content = toJson(title, description, dueDate, priority, projectId, parentId, recurrence, tags)
         return parseTask(JSONObject(request("/tasks", "POST", content, UUID.randomUUID().toString())))
     }
 
     suspend fun updateTask(previous: TaskItem, title: String, description: String,
                            dueDate: String?, priority: Int, projectId: String?,
-                           recurrence: String, tags: List<String>): TaskItem {
-        val content = toJson(title, description, dueDate, priority, projectId, recurrence, tags)
+                           parentId: String?, recurrence: String, tags: List<String>): TaskItem {
+        val content = toJson(title, description, dueDate, priority, projectId, parentId, recurrence, tags)
             .put("expected_version", previous.version)
         return parseTask(JSONObject(request("/tasks/" + encoded(previous.id), "PATCH", content)))
     }

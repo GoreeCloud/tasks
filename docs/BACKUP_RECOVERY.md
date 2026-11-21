@@ -12,4 +12,4 @@ These are reference commands, not claims they ran against user task data. Choose
 
 **Recovery acceptance (manual, test-only):** Use a disposable test directory and a fresh isolated process. Verify a backup, place it under a new test filename, launch the API against that copy, and compare expected task/project counts and API behavior. Do not replace a live DB or delete its WAL files without an approved maintenance and rollback plan. JSON export is not equivalent to a historical SQLite backup.
 
-**Limitations:** No automated schedule, remote replication, encryption-at-rest, full restore CLI, host snapshot management, monitoring, disaster-recovery drill or production deployment. SQLite current schema version 2. Test and verify against the actual environment before relying on backups.
+**Limitations:** No automated schedule, remote replication, encryption-at-rest, full restore CLI, host snapshot management, monitoring, disaster-recovery drill or production deployment. SQLite current schema version 3. Test and verify against the actual environment before relying on backups.

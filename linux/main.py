@@ -43,6 +43,10 @@ class TasksBackend(QObject):
     def tasks(self):
         return self._tasks
 
+    @Property("QVariantList", notify=tasksChanged)
+    def allTasks(self):
+        return self._all_tasks
+
     @Property("QVariantList", notify=projectsChanged)
     def projects(self):
         return self._projects
@@ -160,7 +164,7 @@ class TasksBackend(QObject):
 
     @staticmethod
     def _task_data(title: str, description: str, priority: int, due_date: str,
-                   recurrence: str, project_id: str, tags_csv: str) -> dict:
+                   recurrence: str, project_id: str, tags_csv: str, parent_id: str = "") -> dict:
         title = title.strip()
         if not 1 <= len(title) <= 240:
             raise ValueError("Task title must contain 1–240 characters")
@@ -191,31 +195,32 @@ class TasksBackend(QObject):
             raise ValueError("Too many tags; maximum 12")
         return dict(title=title, description=description, due_date=due_date or None,
                     priority=priority, recurrence=recurrence, project_id=project_id or None,
-                    tags=tags)
+                    tags=tags, parent_id=parent_id or None)
 
     @Slot(str, int, str, str)
     def addTask(self, title: str, priority: int, due_date: str, recurrence: str):
-        self.addTaskDetailed(title, "", priority, due_date, recurrence, "", "")
+        self.addTaskDetailed(title, "", priority, due_date, recurrence, "", "", "")
 
-    @Slot(str, str, int, str, str, str, str)
+    @Slot(str, str, int, str, str, str, str, str)
     def addTaskDetailed(self, title: str, description: str, priority: int,
-                        due_date: str, recurrence: str, project_id: str, tags: str):
+                        due_date: str, recurrence: str, project_id: str, tags: str,
+                        parent_id: str):
         try:
             data = self._task_data(title, description, priority, due_date,
-                                   recurrence, project_id, tags)
+                                   recurrence, project_id, tags, parent_id)
         except ValueError as exc:
             self._set_error(str(exc))
             return
         self._request("POST", "/tasks", data, lambda _: self.refresh(),
                       idempotency_key=str(uuid4()))
 
-    @Slot(str, int, str, str, int, str, str, str, str)
+    @Slot(str, int, str, str, int, str, str, str, str, str)
     def editTaskDetailed(self, task_id: str, version: int, title: str,
                          description: str, priority: int, due_date: str,
-                         recurrence: str, project_id: str, tags: str):
+                         recurrence: str, project_id: str, tags: str, parent_id: str):
         try:
             data = self._task_data(title, description, priority, due_date,
-                                   recurrence, project_id, tags)
+                                   recurrence, project_id, tags, parent_id)
         except ValueError as exc:
             self._set_error(str(exc))
             return

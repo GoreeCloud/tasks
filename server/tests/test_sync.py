@@ -133,7 +133,7 @@ def test_v1_migration_preserves_existing_task(tmp_path):
     assert result["cursor"] == 0
     assert result["tasks"][0]["id"] == task["id"]
     with sqlite3.connect(dbfile) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
 
 
 def test_stable_pagination(client):

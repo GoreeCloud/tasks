@@ -58,6 +58,8 @@ class TasksBackendTest(unittest.TestCase):
         value = mk(" Task ", "notes", 2, "2026-11-21", "weekly", "", "Home,home")
         self.assertEqual(value["tags"], ["home"])
         self.assertEqual(value["title"], "Task")
+        subtask = mk("Child", "", 2, "", "none", "", "", "existing-parent-id")
+        self.assertEqual(subtask["parent_id"], "existing-parent-id")
         self.assertIsNone(value["project_id"])
         for args in [
             (" ", "", 2, "", "none", "", ""),
