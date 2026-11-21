@@ -126,5 +126,30 @@ class TasksBackendTest(unittest.TestCase):
         self.assertEqual(calls[0][0:2], ("GET", "/sync/bootstrap"))
         self.assertEqual(calls[0][2], self.backend._apply_snapshot)
 
+    def test_habit_edit_validates_input_and_sends_one_versioned_patch(self):
+        calls = []
+        self.backend._request = lambda method, path, payload=None, callback=None: (
+            calls.append((method, path, payload, callback))
+        )
+        self.backend.editHabit("habit with spaces", 4, "  Read  ", "Daily notes")
+        self.assertEqual(len(calls), 1)
+        method, path, payload, callback = calls[0]
+        self.assertEqual((method, path), ("PATCH", "/habits/habit%20with%20spaces"))
+        self.assertEqual(payload, {
+            "expected_version": 4, "name": "Read", "description": "Daily notes"
+        })
+        self.assertTrue(callable(callback))
+        for bad in [
+            ("habit-1", 4, "  ", "notes"),
+            ("habit-1", 0, "Read", "notes"),
+            ("habit-1", 4, "Read", "x" * 16001),
+            ("habit-1", 4, "x" * 121, "notes"),
+            ("", 4, "Read", "notes"),
+        ]:
+            with self.subTest(bad=bad[:3]):
+                self.backend.editHabit(*bad)
+                self.assertEqual(len(calls), 1, "Invalid input must not issue an API call")
+
+
 if __name__ == "__main__":
     unittest.main()

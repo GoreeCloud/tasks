@@ -123,3 +123,30 @@ def test_habit_list_pagination_and_today_as_of(client):
     assert len(one)==2 and len(two)==1
     assert [x["name"] for x in one+two] == ["Hydrate","Read","Stretch"]
     assert client.get("/api/v1/habits?limit=101", headers=AUTH).status_code == 422
+
+
+def test_habit_rename_and_notes_preserve_private_checkin_history(client):
+    habit = client.post("/api/v1/habits", headers=AUTH,
+                        json={"name": "Walk", "description": "Private original"}).json()
+    item = client.post("/api/v1/habits/" + habit["id"] + "/checkins",
+                       headers=AUTH,
+                       json={"day": "2026-11-19", "expected_version": 1})
+    assert item.status_code == 201 and item.json()["version"] == 2
+    edited = client.patch("/api/v1/habits/" + habit["id"], headers=AUTH,
+                          json={"expected_version": 2,
+                                "name": "  Evening walk  ", "description": "Private revised"})
+    assert edited.status_code == 200
+    assert edited.json()["name"] == "Evening walk"
+    assert edited.json()["description"] == "Private revised"
+    assert edited.json()["version"] == 3 and edited.json()["total_checkins"] == 1
+    assert client.get("/api/v1/habits/" + habit["id"] + "/checkins",
+                      headers=AUTH).json() == ["2026-11-19"]
+    assert client.patch("/api/v1/habits/" + habit["id"], headers=AUTH,
+                        json={"expected_version": 2, "name": "Stale"}).status_code == 409
+    assert client.patch("/api/v1/habits/" + habit["id"], headers=AUTH,
+                        json={"expected_version": 3, "description": "x" * 16001}).status_code == 422
+    after = client.get("/api/v1/habits", headers=AUTH).json()[0]
+    assert after["name"] == "Evening walk"
+    assert after["description"] == "Private revised"
+    assert after["version"] == 3
+    assert after["total_checkins"] == 1

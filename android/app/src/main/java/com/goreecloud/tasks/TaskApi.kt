@@ -204,6 +204,15 @@ class TaskApi(private val base: String, private val token: String) {
             JSONObject().put("name",name.trim()).put("description",description))))
     }
 
+    /** An explicit, revision-safe habit rename/notes edit preserves check-in history. */
+    suspend fun editHabit(previous:HabitItem, name:String, description:String):HabitItem {
+        require(name.trim().length in 1..120) { "Habit name must be 1–120 characters" }
+        require(description.length <= 16000) { "Habit notes must not exceed 16,000 characters" }
+        val body = JSONObject().put("expected_version",previous.version)
+            .put("name",name.trim()).put("description",description)
+        return parseHabit(JSONObject(request("/habits/"+encoded(previous.id),"PATCH",body)))
+    }
+
     suspend fun checkIn(habit:HabitItem, localDay:String) {
         request("/habits/"+encoded(habit.id)+"/checkins","POST",
             JSONObject().put("day",localDay).put("expected_version",habit.version))
