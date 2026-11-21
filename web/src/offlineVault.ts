@@ -157,6 +157,82 @@ export function emptyPayload(tasks:CachedTask[],projects:CachedProject[],cursor:
   return {format:"goreecloud-tasks-offline-data-1",saved_at:new Date().toISOString(),
     tasks,projects,cursor,queue:[]};
 }
+/** Portable within one trusted origin: ciphertext only, never a token or key.
+ * Import is non-overwriting and re-encrypts to a NEW salt/revision identity to
+ * prevent old browser tabs from resurrecting or modifying a restored vault.
+ */
+const BACKUP_FORMAT="goreecloud-tasks-offline-backup-1";
+const BACKUP_MAX_BYTES=7_500_000;
+function backupEnvelope(input:unknown):VaultEnvelope {
+  if(!input||typeof input!=="object")throw new Error("Unsupported encrypted backup file");
+  const raw=input as VaultEnvelope;
+  if(raw.format!=="goreecloud-tasks-offline-aesgcm-1"||
+     typeof raw.salt!=="string"||typeof raw.nonce!=="string"||
+     typeof raw.data!=="string"||raw.data.length>7_000_000||
+     (raw.revision!==undefined&&(!Number.isSafeInteger(raw.revision)||raw.revision<1)))
+    throw new Error("Unsupported encrypted backup envelope");
+  return {format:"goreecloud-tasks-offline-aesgcm-1",
+    salt:raw.salt,nonce:raw.nonce,data:raw.data,revision:raw.revision};
+}
+async function decryptedPayload(raw:VaultEnvelope,passphrase:string):Promise<VaultPayload> {
+  if(passphrase.length<12||passphrase.length>512)
+    throw new Error("Enter the 12+ character vault passphrase");
+  const salt=unbase64(raw.salt),nonce=unbase64(raw.nonce);
+  const revision=raw.revision??0;
+  if(salt.length!==16||nonce.length!==12||
+     !Number.isSafeInteger(revision)||revision<0)
+    throw new Error("Incorrect passphrase or damaged backup");
+  const key=await derive(passphrase,salt);
+  const clear=await crypto.subtle.decrypt(
+    {name:"AES-GCM",iv:nonce,additionalData:aadForRevision(revision)},
+    key,unbase64(raw.data)
+  );
+  if(clear.byteLength>MAX_BYTES)
+    throw new Error("Encrypted backup exceeds the vault data limit");
+  const payload:unknown=JSON.parse(dec.decode(clear));
+  validate(payload);
+  return payload;
+}
+export async function encryptedVaultBackup(session:VaultSession):Promise<Blob> {
+  const raw=await readRaw();
+  if(!raw||(raw.revision??0)!==session.revision||
+     raw.salt!==base64(session.salt))
+    throw new Error("Vault changed in another tab; lock and unlock before exporting");
+  const envelope=backupEnvelope(raw);
+  // Check authenticated metadata/ciphertext before creating any download.
+  const nonce=unbase64(envelope.nonce);
+  await crypto.subtle.decrypt(
+    {name:"AES-GCM",iv:nonce,additionalData:aadForRevision(session.revision)},
+    session.key,unbase64(envelope.data)
+  );
+  const contents=JSON.stringify({format:BACKUP_FORMAT,origin:location.origin,
+    exported_at:new Date().toISOString(),vault:envelope});
+  if(enc.encode(contents).byteLength>BACKUP_MAX_BYTES)
+    throw new Error("Encrypted backup exceeds the maximum file size");
+  return new Blob([contents],{type:"application/json"});
+}
+export async function restoreEncryptedVault(file:File,passphrase:string):Promise<VaultSession> {
+  checkBrowser();
+  if(!file||file.size===0||file.size>BACKUP_MAX_BYTES)
+    throw new Error("Select an encrypted backup smaller than 7.5 MB");
+  if(await readRaw())
+    throw new Error("An offline vault already exists; backup restore cannot overwrite it");
+  let payload:VaultPayload;
+  try {
+    const doc:unknown=JSON.parse(await file.text());
+    if(!doc||typeof doc!=="object")throw new Error("Unsupported file");
+    const backup=doc as {format?:unknown;origin?:unknown;vault?:unknown};
+    if(backup.format!==BACKUP_FORMAT||backup.origin!==location.origin)
+      throw new Error("This backup belongs to another site origin or unsupported format");
+    payload=await decryptedPayload(backupEnvelope(backup.vault),passphrase);
+  }catch {
+    throw new Error("Encrypted backup cannot be verified with this passphrase and site origin");
+  }
+  // Fresh random salt and revision 1; transaction refuses existing vault even
+  // if another tab created one after the read above.
+  return createVault(passphrase,payload);
+}
+
 export async function hasVault(){return !!(await readRaw());}
 export async function createVault(passphrase:string,payload:VaultPayload):Promise<VaultSession> {
   if(passphrase.length<12||passphrase.length>512)

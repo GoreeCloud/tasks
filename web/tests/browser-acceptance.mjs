@@ -2,6 +2,7 @@
 // Opt-in, read-only-network QA: all Tasks data is synthesized in memory.
 // No application credentials, production API, browser installation, or real task writes.
 import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
 import {existsSync,statSync} from "node:fs";
 import {join,isAbsolute} from "node:path";
 import {pathToFileURL} from "node:url";
@@ -261,6 +262,20 @@ for(const [name,engine,binary]of engines){
     });
     assert.equal(stored.format,"goreecloud-tasks-offline-aesgcm-1");
     assert.ok(stored.salt&&stored.nonce&&stored.data);
+    let savedOfflineArchive=null;
+    if(name==="chromium"&&caseName==="desktop-light"){
+      const promised=page.waitForEvent("download");
+      await page.getByRole("button",{name:"Download encrypted backup"}).click();
+      const download=await promised;
+      assert.equal(download.suggestedFilename(),"goreecloud-tasks-offline-encrypted-backup.json");
+      savedOfflineArchive=await readFile(await download.path());
+      const text=savedOfflineArchive.toString("utf8");
+      assert.match(text,/goreecloud-tasks-offline-backup-1/);
+      assert.ok(!text.includes("Drafted while offline"),
+        "The downloaded backup must contain ciphertext, never task text");
+      assert.ok(!text.includes("fake-synthetic-token"),
+        "An exported encrypted vault must never contain the server token");
+    }
     assert.ok(Number.isSafeInteger(stored.revision)&&stored.revision>=1);
     assert.ok(!JSON.stringify(stored).includes("Drafted while offline"),
       "IndexedDB must contain ciphertext, not plaintext task titles");
@@ -367,6 +382,40 @@ for(const [name,engine,binary]of engines){
     page.once("dialog",dialog=>dialog.accept());
     await page.getByRole("button",{name:/Erase offline vault and unsynced drafts/}).click();
     await page.getByRole("heading",{name:"Enable encrypted offline vault"}).waitFor({timeout:9000});
+    if(savedOfflineArchive){
+      // The archive contains the initial unsynced draft. No server mutation
+      // occurs when restoring, and an erased vault is re-encrypted with a
+      // fresh salt so stale unlocked tabs cannot overwrite it.
+      await page.getByLabel("Encrypted vault backup file").setInputFiles({
+        name:"encrypted-vault-backup.json",mimeType:"application/json",buffer:savedOfflineArchive
+      });
+      await page.getByLabel("Offline vault passphrase").fill("incorrect-passphrase-for-backup");
+      await page.getByLabel("Confirm offline passphrase").fill("incorrect-passphrase-for-backup");
+      await page.getByRole("button",{name:"Restore encrypted backup"}).click();
+      await page.getByRole("alert")
+        .filter({hasText:"Encrypted backup cannot be verified"}).waitFor({timeout:12000});
+      await page.getByLabel("Offline vault passphrase").fill(offlinePass);
+      await page.getByLabel("Confirm offline passphrase").fill(offlinePass);
+      await page.getByRole("button",{name:"Restore encrypted backup"}).click();
+      await page.getByRole("region",{name:"Pending offline drafts"})
+        .getByText("Drafted while offline").waitFor({timeout:12000});
+      assert.equal(tasks.length,4,"Restoring encrypted drafts must never mutate the server");
+      const restoredSalt=await page.evaluate(async()=>{
+        const db=await new Promise((resolve,reject)=>{
+          const req=indexedDB.open("goreecloud-tasks-offline-v1");
+          req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+        });
+        const item=await new Promise((resolve,reject)=>{
+          const req=db.transaction("secrets").objectStore("secrets").get("vault");
+          req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+        });
+        db.close();return item.salt;
+      });
+      assert.notEqual(restoredSalt,stored.salt,"Restore must generate a new vault salt");
+      page.once("dialog",dialog=>dialog.accept());
+      await page.getByRole("button",{name:/Erase offline vault and unsynced drafts/}).click();
+      await page.getByRole("heading",{name:"Enable encrypted offline vault"}).waitFor();
+    }
     await page.getByRole("button",{name:"My tasks",exact:true}).click();
     await page.getByRole("button",{name:"Complete Drafted while offline"}).click();
     await page.getByRole("button",{name:"Focus",exact:true}).click();
