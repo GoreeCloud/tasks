@@ -17,7 +17,7 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 | Focus/Pomodoro | TickTick | Foreground-only web timer | P2 |
 | Collaboration/sharing | Both | Not implemented; needs Identity/ACLs | P2 |
 | Attachments, comments | Both | Not implemented | P2 |
-| Import from Todoist/CSV, ICS/CalDAV | Interoperability | Authenticated JSON and VTODO .ics export; import/CalDAV not implemented | P2 |
+| Import from Todoist/CSV, ICS/CalDAV | Interoperability | JSON/.ics VTODO export; generic CSV and limited Todoist project CSV preview/atomic import, with explicit date and unsupported-column warnings; TickTick/ICS import and CalDAV pending | P2 |
 | Smart text entry, streaks, analytics | Varies | Not implemented | P3 |
 
 **Component choices:** Original FastAPI + SQLite API and approved React, Qt Quick and Kotlin/Compose clients minimize coupling and licensing surprises. GoreeCloud UI MIT source is vendored and attributed. TaskChampion (MIT, https://github.com/GothenburgBitFactory/taskchampion) is a candidate for future sync evaluation, **not incorporated**. Vikunja (AGPL, https://github.com/go-vikunja/vikunja) is a competitor reference, **not incorporated**. RFC 5545 (https://www.rfc-editor.org/rfc/rfc5545.html) VTODO export is implemented; RRULE scheduling, import and CalDAV remain future work.

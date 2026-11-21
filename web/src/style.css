@@ -120,3 +120,28 @@ nav{display:grid;gap:4px}.nav-item{display:flex;gap:14px;align-items:center;text
 .habit-edit{display:grid;gap:10px;border-top:1px solid var(--gc-outline-soft);padding-top:14px;margin-top:14px}
 .habit-empty{padding:18px;background:var(--gc-surface-tonal);border-radius:12px}
 @media(max-width:740px){.habit-main{gap:9px}.habit-day-label{white-space:normal;text-align:right;max-width:60px}.habit-item,.habit-composer{padding:12px}}
+
+/* Explicit, preview-first CSV migration; no new branded color values. */
+.csv-import-panel{padding:clamp(18px,3vw,32px);max-width:100%;min-width:0}
+.csv-import-panel h2{font-size:25px;letter-spacing:-.03em;margin:7px 0 12px}
+.csv-import-panel>.muted{font-size:13px;line-height:1.65}
+.csv-form{display:grid;gap:14px;margin-top:22px}
+.csv-form label{display:grid;gap:6px;font-size:12px;font-weight:700}
+.csv-form select,.csv-form input[type=file]{width:100%;min-width:0;max-width:100%;padding:11px;border:1px solid var(--gc-outline-soft);border-radius:10px;background:var(--gc-surface);color:var(--gc-text)}
+.csv-form .csv-checkbox{display:flex;align-items:flex-start;gap:9px;font-weight:500;line-height:1.4}
+.csv-form .csv-checkbox input{width:18px;height:18px;flex:none}
+.csv-form .primary-btn{justify-self:start}
+.csv-note{font-size:12px;line-height:1.6}
+.csv-preview{border-top:1px solid var(--gc-outline-soft);margin-top:25px;padding-top:18px}
+.csv-preview h3{font-size:19px}
+.csv-preview ol{padding-inline-start:26px}
+.csv-preview li{padding:7px 0;overflow-wrap:anywhere}
+.csv-preview li>span{font-size:12px;display:block;margin-top:3px}
+.csv-warnings{background:var(--gc-surface-tonal);padding:14px;border-radius:10px}
+.csv-warnings h4{margin:0 0 8px;font-size:13px}
+.csv-warnings ul{padding-inline-start:18px;font-size:12px;overflow-wrap:anywhere;line-height:1.6}
+.csv-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}
+.csv-success{padding:12px;border:1px solid var(--gc-positive);color:var(--gc-text);border-radius:9px;font-size:13px}
+@media(max-width:740px){.csv-import-panel{padding:14px}.csv-preview ol{padding-inline-start:22px}}
+
+.csv-form .muted{overflow-wrap:anywhere}
