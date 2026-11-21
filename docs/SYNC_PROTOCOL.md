@@ -1,6 +1,6 @@
 # GoreeCloud Tasks change-feed contract — development stage
 
-**Owner:** Tasks API, SQLite schema v4. **Status:** implemented and tested API infrastructure, *not* complete offline-device synchronization. None of the clients yet has an encrypted local queue, automatic replay, device identity, or background sync.
+**Owner:** Tasks API, SQLite schema v4. **Status:** tested API changefeed and web-only, opt-in encrypted manual queue for standalone task creates and title edits; *not* complete offline-device synchronization. Native clients have no encrypted local queue, and no client has automatic background replay or device identity.
 
 ## Snapshot and incremental feed
 
@@ -18,7 +18,11 @@ Optional Idempotency-Key header (8–128 characters; ASCII letters, digits, dot,
 
 PATCH, DELETE and reopen still require expected_version. Mutations acquire SQLite BEGIN IMMEDIATE before loading the expected revision. Concurrent writers sharing a revision cannot both overwrite a task: one succeeds, one receives HTTP 409.
 
-## Offline roadmap — not implemented
+## Web-only encrypted manual queue — development stage
+
+The optional React Offline view saves encrypted snapshots and bounded create/title-edit drafts in IndexedDB using a PBKDF2-derived AES-GCM key, protected by a user passphrase. Sync now sends creates with stable Idempotency-Key values and edits with the original expected_version; HTTP conflicts stop replay and require manual action. This does **not** use incremental changefeed replay, support native clients or background sync. See OFFLINE_WEB.md for supported workflow, privacy and limitations.
+
+## Remaining offline roadmap — not implemented
 
 A future client must securely store a per-device identity and encrypted local cache; persist original idempotency keys through restarts; reconcile cursors and deletion tombstones; expose deterministic conflict resolution UI; support bounded snapshots/pagination, schema negotiation and compaction; enforce Identity subject scopes, GoreeShield consent/retention and Wardveil security requirements; and test loss, delays, clock skew, crashes, deletion and recovery. GoreeCloud Mesh must not publish task details to other products without separately verified authorization.
 

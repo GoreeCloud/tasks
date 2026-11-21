@@ -10,7 +10,7 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 | Today, Upcoming, search | Both | Web, Android and Linux view filters; API bounded search | P1 saved filters |
 | Visual calendar, boards | Both | React month calendar and keyboard-accessible P1–P4 priority board with version-safe move buttons; drag-drop remains optional backlog | P1 |
 | Native Linux and Android | Platform-specific | Expanded Qt Quick/Compose CRUD and filters; device/runtime acceptance pending | P1 |
-| Offline editing and cloud sync | Both | Server cursor feed, redacted tombstones, retry receipts; device offline editing/sync remains unimplemented | P1 |
+| Offline editing and cloud sync | Both | Cursor feed, redacted tombstones, retry receipts plus opt-in encrypted web manual queue for standalone creates/title edits; native full sync and background replay remain unimplemented | P1 |
 | Notifications/reminders | Both | Not implemented | P1 |
 | Subtasks/sections/checklists | Both | Versioned parent-child subtasks on API, React and native clients; sections and checklists pending | P2 |
 | Habits | TickTick | Daily habit CRUD/check-ins/streaks in API and React; native Android/Linux create/list/check-in/undo/delete; offline sync and native advanced edit pending | P2 |

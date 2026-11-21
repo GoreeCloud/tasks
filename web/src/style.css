@@ -145,3 +145,27 @@ nav{display:grid;gap:4px}.nav-item{display:flex;gap:14px;align-items:center;text
 @media(max-width:740px){.csv-import-panel{padding:14px}.csv-preview ol{padding-inline-start:22px}}
 
 .csv-form .muted{overflow-wrap:anywhere}
+
+/* Opt-in encrypted offline vault: use only the existing GoreeCloud UI semantic tokens. */
+.offline-panel{padding:clamp(14px,3vw,28px);min-width:0;max-width:100%}
+.offline-panel h2{font-size:24px;letter-spacing:-.03em;margin:10px 0}
+.offline-panel>p.muted,.offline-tasks>p{font-size:12px;line-height:1.6}
+.offline-unlock,.offline-composer{display:grid;gap:12px;margin-top:18px;padding:16px;background:var(--gc-surface-tonal);border-radius:13px}
+.offline-unlock h3,.offline-composer h3,.offline-queue h3,.offline-tasks h3{margin:0;font-size:16px}
+.offline-unlock label,.offline-composer label{display:grid;gap:7px;font-size:12px;font-weight:680}
+.offline-unlock input,.offline-composer input,.offline-composer select,.offline-tasks input{width:100%;min-width:0;padding:10px;border:1px solid var(--gc-outline-soft);border-radius:9px;background:var(--gc-surface);color:var(--gc-text)}
+.offline-unlock button,.offline-composer button{justify-self:start}
+.offline-status{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 0;border-top:1px solid var(--gc-outline-soft);border-bottom:1px solid var(--gc-outline-soft);font-size:12px}
+.offline-actions,.offline-fields{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.offline-fields>label{min-width:120px;flex:1}
+.offline-queue,.offline-tasks{margin-top:22px;max-width:100%}
+.offline-queue ul,.offline-tasks ul{list-style:none;padding:0;display:grid;gap:9px}
+.offline-queue li,.offline-tasks li{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:11px;border:1px solid var(--gc-outline-soft);border-radius:10px;overflow-wrap:anywhere}
+.offline-queue li>span,.offline-tasks li>div{min-width:0;flex:1}
+.offline-tasks li .muted{display:block;font-size:11px;margin-top:4px}
+.offline-tasks li form{display:flex;gap:6px;flex-wrap:wrap;width:100%;min-width:0}
+.offline-tasks li form input{flex:1;min-width:110px}
+.offline-tasks li button,.offline-queue li button{font-size:12px;min-height:38px;flex:none}
+.offline-message{padding:12px;border-radius:9px;background:var(--gc-surface-tonal);font-size:13px}
+.offline-panel>.danger-btn{margin-top:18px}
+@media(max-width:740px){.offline-panel{padding:13px}.offline-queue li,.offline-tasks li{flex-wrap:wrap}.offline-status{align-items:stretch}.offline-actions{width:100%}}
