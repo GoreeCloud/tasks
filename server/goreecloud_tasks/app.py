@@ -11,13 +11,14 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from .changefeed import record_change, replay_receipt, save_receipt, scrub_task_history
+from .ical import build_calendar
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import uuid4
 
 from dateutil.relativedelta import relativedelta
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -419,6 +420,20 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                          "created_at": row["created_at"]}
                         for row in page
                     ]}
+
+    @router.get("/export.ics")
+    def export_ical():
+        """Authenticated VTODO file. This is an explicit export, not a public feed."""
+        with db.open() as conn:
+            rows = conn.execute("SELECT * FROM tasks ORDER BY id LIMIT 5001").fetchall()
+            if len(rows) > 5000:
+                raise HTTPException(status_code=413, detail="Calendar export exceeds 5000 tasks")
+            calendar = build_calendar([task_dict(row) for row in rows])
+        return Response(
+            content=calendar, media_type="text/calendar; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="goreecloud-tasks.ics"',
+                     "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+        )
 
     @router.get("/export")
     def export_data():

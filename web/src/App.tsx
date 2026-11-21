@@ -144,7 +144,19 @@ export function App() {
       </div>
     </aside>
     <main className="main-content">
-      <header className="topbar"><span>{today()}</span><div className="topbar-end"><span className="subtle">Self-hosted workspace</span><button className="secondary-btn" onClick={()=>void execute(async()=>{const data=await request<unknown>("/export");const file=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(file);const a=document.createElement("a");a.href=url;a.download="goreecloud-tasks-export.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);})}>Export JSON</button></div></header>
+      <header className="topbar"><span>{today()}</span><div className="topbar-end">
+        <span className="subtle">Self-hosted workspace</span>
+        <button className="secondary-btn" disabled={busy} onClick={()=>void execute(async()=>{const data=await request<unknown>("/export");const file=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(file);const a=document.createElement("a");a.href=url;a.download="goreecloud-tasks-export.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);})}>Export JSON</button>
+        <button className="secondary-btn" disabled={busy} onClick={()=>void execute(async()=>{
+          const result=await fetch("/api/v1/export.ics",{headers:{"Authorization":"Bearer "+token}});
+          if(!result.ok)throw new Error("Calendar export unavailable ("+result.status+")");
+          const file=await result.blob();
+          const url=URL.createObjectURL(file);
+          const anchor=document.createElement("a");
+          anchor.href=url;anchor.download="goreecloud-tasks.ics";anchor.click();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        })}>Export calendar</button>
+      </div></header>
       <div className="content-grid">
         <section className="primary-column">
           <div className="page-heading"><p className="eyebrow">YOUR DAY, YOUR PACE</p><h1>{projectFilter?projects.find(p=>p.id===projectFilter)?.name||"Project":labels[view]}</h1><p className="muted">{count} active tasks across your workspace. A little progress counts.</p></div>

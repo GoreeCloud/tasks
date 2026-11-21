@@ -65,6 +65,10 @@ for(const [name,engine,binary]of engines){
          task.version++;return response(task);
        }
        if(method==="GET"&&endpoint==="/export")return response({projects,tasks});
+       if(method==="GET"&&endpoint==="/export.ics")
+         return route.fulfill({status:200,contentType:"text/calendar; charset=utf-8",
+           headers:{"Content-Disposition":'attachment; filename="goreecloud-tasks.ics"'},
+           body:"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n"});
        violations.push("unexpected API "+method+" "+endpoint);return response({detail:"unexpected mock call"},500);
       }
       if(request.method()!=="GET"){violations.push("unexpected content mutation");return route.abort("blockedbyclient")}
@@ -114,6 +118,10 @@ for(const [name,engine,binary]of engines){
     assert.ok(calendarWidth.scroll<=calendarWidth.client+1,
       "calendar should fit the viewport: "+JSON.stringify(calendarWidth));
     await page.getByRole("button",{name:"My tasks",exact:true}).click();
+    const promisedExport=page.waitForEvent("download");
+    await page.getByRole("button",{name:"Export calendar",exact:true}).click();
+    const downloaded=await promisedExport;
+    assert.equal(downloaded.suggestedFilename(),"goreecloud-tasks.ics");
     if(screenshotDir){
       await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:join(screenshotDir,"tasks-"+name+"-"+caseName+"-tasklist.png"),fullPage:true});
