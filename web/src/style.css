@@ -71,3 +71,7 @@ nav{display:grid;gap:4px}.nav-item{display:flex;gap:14px;align-items:center;text
 .calendar-agenda-task>span:first-child{overflow-wrap:anywhere}
 @media(max-width:740px){.calendar-panel{padding:12px}.calendar-heading{margin-bottom:12px}.calendar-heading h3{font-size:19px}.calendar-cell{min-height:64px;padding:2px}.calendar-date{font-size:11px;padding:3px;min-height:39px}.calendar-day-count{font-size:9px;min-width:15px}.calendar-events{display:none}.calendar-weekday{font-size:9px;padding:7px 2px}}
 @media(forced-colors:active){.calendar-selected{outline:2px solid Highlight}.calendar-day-count{border:1px solid CanvasText}.calendar-date[aria-pressed="true"]{outline-color:Highlight}}
+
+/* Keep both private export actions reachable without viewport overflow. */
+.topbar-end{min-width:0;flex-wrap:wrap;gap:8px}
+@media(max-width:740px){.topbar{flex-wrap:wrap;gap:8px}.topbar-end{width:100%;gap:8px}.topbar-end .secondary-btn{flex:0 1 auto;font-size:12px;min-height:40px}}
