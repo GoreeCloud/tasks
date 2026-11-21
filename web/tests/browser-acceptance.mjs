@@ -120,6 +120,10 @@ for(const [name,engine,binary]of engines){
          task.version++;return response(task);
        }
        if(method==="GET"&&endpoint==="/export")return response({projects,tasks});
+       if(method==="GET"&&endpoint==="/export.csv")
+         return route.fulfill({status:200,contentType:"text/csv; charset=utf-8",
+           headers:{"Content-Disposition":'attachment; filename="goreecloud-tasks.csv"'},
+           body:"id,title\r\nsynthetic-1,Synthetic CSV export\r\n"});
        if(method==="GET"&&endpoint==="/export.ics")
          return route.fulfill({status:200,contentType:"text/calendar; charset=utf-8",
            headers:{"Content-Disposition":'attachment; filename="goreecloud-tasks.ics"'},
@@ -229,6 +233,14 @@ for(const [name,engine,binary]of engines){
     await page.getByRole("button",{name:"Export calendar",exact:true}).click();
     const downloaded=await promisedExport;
     assert.equal(downloaded.suggestedFilename(),"goreecloud-tasks.ics");
+    const promisedCSV=page.waitForEvent("download");
+    await page.getByRole("button",{name:"Export CSV",exact:true}).click();
+    const csvFile=await promisedCSV;
+    assert.equal(csvFile.suggestedFilename(),"goreecloud-tasks.csv");
+    const csvContents=(await readFile(await csvFile.path())).toString("utf8");
+    assert.match(csvContents,/Synthetic CSV export/);
+    assert.ok(!csvContents.includes("fake-synthetic-token"),
+      "Explicit CSV download cannot leak the in-memory API token");
     if(screenshotDir){
       await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:join(screenshotDir,"tasks-"+name+"-"+caseName+"-tasklist.png"),fullPage:true});
