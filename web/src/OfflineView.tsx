@@ -27,6 +27,7 @@ export function OfflineView({request,onSynced}:{
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
+  const [conflictPreview,setConflictPreview]=useState<{id:string;localTitle:string;server:CachedTask|null}|null>(null);
   const load=useCallback((vault:VaultSession)=>{
     session.current=vault;
     setTasks(vault.payload.tasks);
@@ -43,7 +44,7 @@ export function OfflineView({request,onSynced}:{
   const lock=()=>{
     session.current=null;setTasks([]);setProjects([]);setPending([]);setLocked(true);
     setDraft("");setDueDate("");setEditing(null);setPassphrase("");setVerify("");
-    setMessage("");setError("");
+    setMessage("");setError("");setConflictPreview(null);
   };
   async function mutate(work:()=>Promise<void>) {
     setBusy(true);setError("");setMessage("");
@@ -60,6 +61,7 @@ export function OfflineView({request,onSynced}:{
       cursor:cursor??current.payload.cursor};
     const updated=await saveVault(current,payload);
     load(updated);
+    setConflictPreview(null);
   }
   async function setup() {
     if(passphrase!==verify)throw new Error("Passphrase confirmation does not match");
@@ -102,6 +104,41 @@ export function OfflineView({request,onSynced}:{
   async function discard(op:QueueItem) {
     await store(pending.filter(item=>item.id!==op.id));
     setMessage("Discarded the selected offline draft; no server data was changed.");
+  }
+  async function reviewConflict(op:QueueItem) {
+    if(op.kind!=="edit"||!op.task_id||op.status!=="conflict")
+      throw new Error("Only conflicting existing-task title edits can be reviewed");
+    try {
+      const latest=await request<CachedTask>("/tasks/"+encodeURIComponent(op.task_id));
+      if(!latest||latest.id!==op.task_id||
+         !Number.isSafeInteger(latest.version)||latest.version<1||
+         typeof latest.title!=="string")
+        throw new Error("Server returned an invalid task revision");
+      setConflictPreview({id:op.id,localTitle:String(op.payload.title||""),server:latest});
+      setMessage("Compare the current server title against the encrypted offline draft.");
+    } catch(err) {
+      const detail=err instanceof Error?err.message:"Unable to inspect server task";
+      if(/\(404\)|\(410\)/.test(detail)) {
+        setConflictPreview({id:op.id,localTitle:String(op.payload.title||""),server:null});
+        setMessage("The server task no longer exists. The local edit cannot be retried.");
+      } else throw err;
+    }
+  }
+  async function prepareRetry(op:QueueItem) {
+    const current=conflictPreview;
+    if(!current||current.id!==op.id||!current.server||
+       op.kind!=="edit"||!op.task_id||op.status!=="conflict")
+      throw new Error("Inspect the current server revision before retrying");
+    if(current.server.completed_at)
+      throw new Error("A completed server task must be reopened online before editing");
+    if(!window.confirm("Queue your local title against the observed server revision? This does not write to the server until you explicitly select Sync now."))
+      return;
+    const updated=pending.map(item=>item.id===op.id?{
+      ...item,id:crypto.randomUUID(),expected_version:current.server!.version,
+      status:"pending" as const
+    }:item);
+    await store(updated);
+    setMessage("The edit is queued against the observed revision. Review it, then select Sync now. A newer server change will still be rejected.");
   }
   async function syncNow() {
     const current=session.current;
@@ -233,10 +270,30 @@ export function OfflineView({request,onSynced}:{
         <ul>{pending.map(item=><li key={item.id}>
           <span><strong>{item.kind==="create"?"Create task":"Edit title"}</strong> · {String(item.payload.title||"Task")}
             {item.status==="conflict"?" · CONFLICT":""}</span>
+          {item.kind==="edit"&&item.status==="conflict"&&
+            <button type="button" className="secondary-btn" disabled={busy}
+              onClick={()=>void mutate(()=>reviewConflict(item))}>Compare with server</button>}
           <button type="button" className="secondary-btn" disabled={busy}
             onClick={()=>void mutate(()=>discard(item))}>Discard draft</button>
         </li>)}</ul>
       </section>}
+      {conflictPreview&&pending.some(item=>item.id===conflictPreview.id)&&
+        <section className="offline-queue" aria-label="Offline conflict review">
+          <h3>Compare conflicting title</h3>
+          <p className="muted">Local encrypted title draft: <strong>{conflictPreview.localTitle}</strong></p>
+          {conflictPreview.server ? <>
+            <p className="muted">Current server title: <strong>{conflictPreview.server.title}</strong> · Revision {conflictPreview.server.version}</p>
+            <p className="muted">The server may change again before you sync. Re-queueing does not automatically write or overwrite anything.</p>
+            <button type="button" className="secondary-btn" disabled={busy||!!conflictPreview.server.completed_at}
+              onClick={()=>void mutate(()=>prepareRetry(pending.find(x=>x.id===conflictPreview.id)!))}>
+              Queue my title against this revision
+            </button>
+          </> : <p className="muted">The server task was deleted. You may discard this local draft; automatic restoration is not supported.</p>}
+          <button type="button" className="secondary-btn" disabled={busy}
+            onClick={()=>void mutate(()=>discard(pending.find(x=>x.id===conflictPreview.id)!))}>
+            Keep server state and discard my draft
+          </button>
+        </section>}
       <section className="offline-tasks" aria-label="Cached task titles">
         <h3>Cached tasks (last saved snapshot)</h3>
         <p className="muted">Offline edits are limited to the title of an existing task or drafting new standalone tasks. After a server conflict, review the current task in the online workspace before discarding the local edit.</p>
