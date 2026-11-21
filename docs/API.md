@@ -4,7 +4,7 @@ All routes below except /healthz require header:
 
     Authorization: Bearer <32+ character secret>
 
-Send JSON for write operations. API is intended for one trusted operator. Do not bind 0.0.0.0 on an untrusted network. Interactive OpenAPI is provided by FastAPI at /docs on the bound host.
+Send JSON for write operations. All private POST/PUT/PATCH request bodies are limited to **1 MiB of actual streamed bytes**, regardless of Content-Length. Oversized bodies return generic HTTP 413 with no-cache headers before API mutation; malformed or interrupted streams return a generic 400. Reverse-proxy request timeouts and connection/rate limits remain separately required before exposure. API is intended for one trusted operator. Do not bind 0.0.0.0 on an untrusted network. Interactive OpenAPI is provided by FastAPI at /docs on the bound host.
 
 | Method | Path | Behavior |
 | --- | --- | --- |

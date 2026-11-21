@@ -254,28 +254,50 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
 
     @app.middleware("http")
     async def private_api_headers(request: Request, call_next):
-        """Defense-in-depth headers and advertised content length rejection.
+        """Strict 1 MiB API write bound including requests without Content-Length.
 
-        Header check is not a streaming-body gateway limit: reverse proxies
-        must impose their own request-size and rate controls before this API.
+        Read private write bodies in bounded chunks *before* FastAPI/Pydantic
+        parse or handlers run. The Starlette cached Request body is replayed
+        to downstream consumers. Reverse proxies must still cap connections,
+        decompression, requests per client and upload timeouts.
         """
         is_private = request.url.path.startswith("/api/v1/")
         if is_private and request.method in {"POST", "PUT", "PATCH"}:
+            maximum = 1_048_576
             declared = request.headers.get("content-length")
-            if declared is not None:
+            try:
+                advertised = int(declared) if declared is not None else 0
+            except ValueError:
+                advertised = -1
+            if advertised < 0 or advertised > maximum:
+                response = JSONResponse(
+                    status_code=413, content={"detail": "Request body exceeds the API limit"}
+                )
+            else:
+                received = bytearray()
+                too_large = False
                 try:
-                    length = int(declared)
-                    too_large = length < 0 or length > 1_048_576
-                except ValueError:
-                    too_large = True
-                if too_large:
+                    async for chunk in request.stream():
+                        if len(received) + len(chunk) > maximum:
+                            too_large = True
+                            break
+                        received.extend(chunk)
+                except Exception:
+                    # An incomplete request must never be parsed as a valid
+                    # mutation; do not echo, log or serialize its contents.
                     response = JSONResponse(
-                        status_code=413, content={"detail": "Request body exceeds the API limit"}
+                        status_code=400, content={"detail": "Incomplete API request body"}
                     )
                 else:
-                    response = await call_next(request)
-            else:
-                response = await call_next(request)
+                    if too_large:
+                        response = JSONResponse(
+                            status_code=413, content={"detail": "Request body exceeds the API limit"}
+                        )
+                    else:
+                        # Starlette's cached-body replay avoids re-reading the
+                        # one-shot ASGI stream in application handlers.
+                        request._body = bytes(received)
+                        response = await call_next(request)
         else:
             response = await call_next(request)
         if is_private:
