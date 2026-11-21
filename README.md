@@ -8,7 +8,7 @@ GoreeCloud Tasks is an original, privacy-focused alternative to parts of Todoist
 
 ## Implemented foundation
 
-- Token-protected API, SQLite schema v4, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and additive migration from v1/v2.
+- Token-protected API with no-store private responses and redacted validation errors, owner-only newly created SQLite files, SQLite schema v4, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and additive migration from v1/v2.
 - Tags, daily/weekly/monthly recurrence, server-side search and pagination, serialized HTTP 409 revision conflicts, JSON export, explicit checksum-protected generic/Todoist-subset CSV task import, and verified synthetic online-backup / non-overwriting restore-drill CLI.
 - React opt-in encrypted offline vault for manual standalone task drafts/title edits and conflict-safe replay; projects, Today/Upcoming/Completed lists, month calendar, **accessible P1–P4 priority board**, **subtasks/parent selection with a child-task panel**, **daily habit check-ins with streaks** (web, Android, Linux), task editor, search, tags/projects at creation, foreground focus timer and private VTODO calendar export.
 - Native Qt Quick Linux projects/search/filter, parent selection and task editing/deletion/completion; native Kotlin/Compose Android projects, filters, parent selection, task editing/deletion, priority, recurrence and tags.

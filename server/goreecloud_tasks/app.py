@@ -116,8 +116,25 @@ class Store:
     """Versioned SQLite storage with serialized mutations and auditable change feed."""
 
     def __init__(self, path: str):
-        self.path = str(Path(path).expanduser())
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        path_obj = Path(path).expanduser()
+        # Protect newly-created databases despite a permissive host umask.
+        # Do not modify existing operator-owned directory or DB permissions:
+        # that requires a separately reviewed migration.
+        path_obj.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if path_obj.is_symlink():
+            raise RuntimeError("Symlinked Tasks database paths are unsupported")
+        if not path_obj.exists():
+            try:
+                flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+                fd = os.open(path_obj, flags, 0o600)
+            except FileExistsError:
+                # A parallel instance may have reserved the database first.
+                if path_obj.is_symlink():
+                    raise RuntimeError("Symlinked Tasks database paths are unsupported")
+            else:
+                os.close(fd)
+        self.path = str(path_obj)
         with self.open() as db:
             db.execute("PRAGMA journal_mode=WAL")
             version = db.execute("PRAGMA user_version").fetchone()[0]
@@ -188,6 +205,7 @@ class Store:
         db = sqlite3.connect(self.path, timeout=5, isolation_level="DEFERRED")
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
+        db.execute("PRAGMA secure_delete=ON")
         db.execute("PRAGMA busy_timeout=5000")
         try:
             yield db
@@ -222,16 +240,53 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                   description="Single-user development API; require TLS before network exposure.")
 
     @app.exception_handler(RequestValidationError)
-    async def redact_csv_validation_errors(request: Request, exc: RequestValidationError):
-        # The default FastAPI 422 error embeds invalid input, which may contain
-        # the entire private CSV when it exceeds a Pydantic size constraint.
-        if request.url.path.startswith("/api/v1/import/csv"):
-            return JSONResponse(
-                status_code=422,
-                content={"detail": "Invalid CSV request. Review its size, format and fields."},
-                headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
-            )
+    async def redact_private_validation_errors(request: Request, exc: RequestValidationError):
+        # Pydantic/FastAPI 422 defaults may echo full rejected values and
+        # private descriptions. Never reflect input for authenticated APIs.
+        if request.url.path.startswith("/api/v1/"):
+            message = ("Invalid CSV request. Review its size, format and fields."
+                       if request.url.path.startswith("/api/v1/import/csv")
+                       else "Invalid API request. Review field constraints.")
+            return JSONResponse(status_code=422, content={"detail": message},
+                                headers={"Cache-Control": "no-store",
+                                         "X-Content-Type-Options": "nosniff"})
         return await request_validation_exception_handler(request, exc)
+
+    @app.middleware("http")
+    async def private_api_headers(request: Request, call_next):
+        """Defense-in-depth headers and advertised content length rejection.
+
+        Header check is not a streaming-body gateway limit: reverse proxies
+        must impose their own request-size and rate controls before this API.
+        """
+        is_private = request.url.path.startswith("/api/v1/")
+        if is_private and request.method in {"POST", "PUT", "PATCH"}:
+            declared = request.headers.get("content-length")
+            if declared is not None:
+                try:
+                    length = int(declared)
+                    too_large = length < 0 or length > 1_048_576
+                except ValueError:
+                    too_large = True
+                if too_large:
+                    response = JSONResponse(
+                        status_code=413, content={"detail": "Request body exceeds the API limit"}
+                    )
+                else:
+                    response = await call_next(request)
+            else:
+                response = await call_next(request)
+        else:
+            response = await call_next(request)
+        if is_private:
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        return response
 
     router = APIRouter(prefix="/api/v1")
 
