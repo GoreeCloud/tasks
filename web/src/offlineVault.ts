@@ -7,7 +7,7 @@
 export type CachedTask = {
   id: string; title: string; description: string; project_id: string|null;
   parent_id: string|null; due_date: string|null; priority: number; tags: string[];
-  recurrence: "none"|"daily"|"weekly"|"monthly"; completed_at: string|null;
+  recurrence: "none"|"daily"|"weekdays"|"weekly"|"biweekly"|"monthly"|"yearly"; completed_at: string|null;
   version: number; created_at: string;
 };
 export type CachedProject = {id:string;name:string};

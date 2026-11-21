@@ -193,7 +193,7 @@ class TasksBackend(QObject):
             raise ValueError("Task notes are too long")
         if priority not in (1, 2, 3, 4):
             raise ValueError("Priority must be P1 through P4")
-        if recurrence not in {"none", "daily", "weekly", "monthly"}:
+        if recurrence not in {"none", "daily", "weekdays", "weekly", "biweekly", "monthly", "yearly"}:
             raise ValueError("Unknown recurrence")
         if recurrence != "none" and not due_date:
             raise ValueError("Recurring tasks need a due date")

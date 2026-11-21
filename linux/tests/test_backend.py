@@ -71,6 +71,12 @@ class TasksBackendTest(unittest.TestCase):
         subtask = mk("Child", "", 2, "", "none", "", "", "existing-parent-id")
         self.assertEqual(subtask["parent_id"], "existing-parent-id")
         self.assertIsNone(value["project_id"])
+        for cadence in ("weekdays", "biweekly", "yearly"):
+            with self.subTest(cadence=cadence):
+                new = mk("Recurring", "", 2, "2026-11-20", cadence, "", "")
+                self.assertEqual(new["recurrence"], cadence)
+                with self.assertRaises(ValueError):
+                    mk("Missing due", "", 2, "", cadence, "", "")
         for args in [
             (" ", "", 2, "", "none", "", ""),
             ("Hi", "", 8, "", "none", "", ""),

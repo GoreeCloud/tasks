@@ -202,7 +202,7 @@ ApplicationWindow {
                             Accessible.name: "Task due date"
                         }
                         ComboBox { id: priority; model: ["P1","P2","P3","P4"]; currentIndex: 1 }
-                        ComboBox { id: repeat; model: ["None","Daily","Weekly","Monthly"] }
+                        ComboBox { id: repeat; model: ["None","Daily","Weekdays","Weekly","Every 2 weeks","Monthly","Yearly"] }
                         ComboBox { id: taskProject; Layout.fillWidth: true; model: window.projectNames() }
                     }
                     RowLayout {
@@ -226,7 +226,7 @@ ApplicationWindow {
                             enabled: newTitle.text.trim().length > 0
                             onClicked: {
                                 tasksBackend.addTaskDetailed(newTitle.text, "", priority.currentIndex + 1,
-                                    dueDate.text, repeat.currentText.toLowerCase(),
+                                    dueDate.text, ["none","daily","weekdays","weekly","biweekly","monthly","yearly"][repeat.currentIndex],
                                     window.projectId(taskProject.currentIndex), newTags.text,
                                     window.taskId(taskParent.currentIndex))
                                 newTitle.text = ""
@@ -466,7 +466,7 @@ ApplicationWindow {
             editDue.text = task.due_date || ""
             editTags.text = (task.tags || []).join(", ")
             editPriority.currentIndex = task.priority - 1
-            editRepeat.currentIndex = ["none","daily","weekly","monthly"].indexOf(task.recurrence)
+            editRepeat.currentIndex = ["none","daily","weekdays","weekly","biweekly","monthly","yearly"].indexOf(task.recurrence)
             editProject.currentIndex = window.projectIndex(task.project_id)
             editParent.currentIndex = window.taskIndex(task.parent_id)
             open()
@@ -474,7 +474,7 @@ ApplicationWindow {
         onAccepted: {
             tasksBackend.editTaskDetailed(editing.id, editing.version, editTitle.text,
                 editNotes.text, editPriority.currentIndex + 1, editDue.text,
-                editRepeat.currentText.toLowerCase(), window.projectId(editProject.currentIndex),
+                ["none","daily","weekdays","weekly","biweekly","monthly","yearly"][editRepeat.currentIndex], window.projectId(editProject.currentIndex),
                 editTags.text, window.taskId(editParent.currentIndex))
         }
         contentItem: ScrollView {
@@ -496,7 +496,7 @@ ApplicationWindow {
                 Label { text: "Priority"; color: window.gcText }
                 ComboBox { id: editPriority; Layout.fillWidth: true; model: ["P1","P2","P3","P4"] }
                 Label { text: "Repeat"; color: window.gcText }
-                ComboBox { id: editRepeat; Layout.fillWidth: true; model: ["None","Daily","Weekly","Monthly"] }
+                ComboBox { id: editRepeat; Layout.fillWidth: true; model: ["None","Daily","Weekdays","Weekly","Every 2 weeks","Monthly","Yearly"] }
                 Label { text: "Project"; color: window.gcText }
                 ComboBox { id: editProject; Layout.fillWidth: true; model: window.projectNames() }
                 Label { text: "Parent task"; color: window.gcText }

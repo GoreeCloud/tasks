@@ -86,8 +86,8 @@ private fun DraftFields(
                 Text("Repeat: " + draft.recurrence)
             }
             DropdownMenu(expanded = recurrenceMenu, onDismissRequest = { recurrenceMenu = false }) {
-                listOf("none", "daily", "weekly", "monthly").forEach { option ->
-                    DropdownMenuItem(text = { Text(option) }, onClick = {
+                listOf("none", "daily", "weekdays", "weekly", "biweekly", "monthly", "yearly").forEach { option ->
+                    DropdownMenuItem(text = { Text(if (option == "biweekly") "Every 2 weeks" else option) }, onClick = {
                         update(draft.copy(recurrence = option)); recurrenceMenu = false
                     })
                 }

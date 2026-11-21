@@ -55,7 +55,7 @@ class TaskCreate(BaseModel):
     due_date: date | None = None
     priority: int = Field(default=2, ge=1, le=4)
     tags: list[str] = Field(default_factory=list, max_length=12)
-    recurrence: Literal["none", "daily", "weekly", "monthly"] = "none"
+    recurrence: Literal["none", "daily", "weekdays", "weekly", "biweekly", "monthly", "yearly"] = "none"
 
     @field_validator("title")
     @classmethod
@@ -93,7 +93,7 @@ class TaskPatch(BaseModel):
     due_date: date | None = None
     priority: int | None = Field(default=None, ge=1, le=4)
     tags: list[str] | None = Field(default=None, max_length=12)
-    recurrence: Literal["none", "daily", "weekly", "monthly"] | None = None
+    recurrence: Literal["none", "daily", "weekdays", "weekly", "biweekly", "monthly", "yearly"] | None = None
 
     @field_validator("title")
     @classmethod
@@ -488,10 +488,20 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                 due = date.fromisoformat(previous["due_date"])
                 if previous["recurrence"] == "daily":
                     due += relativedelta(days=1)
+                elif previous["recurrence"] == "weekdays":
+                    due += relativedelta(days=1)
+                    while due.weekday() >= 5:
+                        due += relativedelta(days=1)
                 elif previous["recurrence"] == "weekly":
                     due += relativedelta(weeks=1)
-                else:
+                elif previous["recurrence"] == "biweekly":
+                    due += relativedelta(weeks=2)
+                elif previous["recurrence"] == "monthly":
                     due += relativedelta(months=1)
+                elif previous["recurrence"] == "yearly":
+                    due += relativedelta(years=1)
+                else:
+                    raise HTTPException(status_code=422, detail="Unknown task recurrence")
                 new_row = {**previous, "id": new_id(), "due_date": due.isoformat(),
                            "series_id": previous["series_id"] or previous["id"],
                            "completed_at": None, "created_at": now, "updated_at": now, "version": 1}
