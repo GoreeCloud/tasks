@@ -32,7 +32,7 @@ for(const [name,engine,binary]of engines){
    try{
     const page=await context.newPage();
     page.on("pageerror",e=>errors.push(e.message));
-    await page.route("**/*",async route=>{
+    await context.route("**/*",async route=>{
       const request=route.request(), url=new URL(request.url()), path=url.pathname;
       if(url.origin!==origin){violations.push("external request");return route.abort("blockedbyclient")}
       if(path.startsWith("/api/")){
@@ -252,8 +252,37 @@ for(const [name,engine,binary]of engines){
     });
     assert.equal(stored.format,"goreecloud-tasks-offline-aesgcm-1");
     assert.ok(stored.salt&&stored.nonce&&stored.data);
+    assert.ok(Number.isSafeInteger(stored.revision)&&stored.revision>=1);
     assert.ok(!JSON.stringify(stored).includes("Drafted while offline"),
       "IndexedDB must contain ciphertext, not plaintext task titles");
+    if(name==="chromium"&&caseName==="desktop-light"){
+      // Two authenticated tabs see the same vault. One must never silently
+      // clobber the other's newer offline queue.
+      const other=await context.newPage();
+      other.on("pageerror",err=>errors.push(err.message));
+      await other.goto(origin);
+      await other.getByLabel("Server API token").fill("fake-synthetic-token-0000000000000000");
+      await other.getByRole("button",{name:"Open workspace"}).click();
+      await other.getByRole("button",{name:"Offline",exact:true}).click();
+      await other.getByLabel("Offline vault passphrase").fill(offlinePass);
+      await other.getByRole("button",{name:"Unlock vault"}).click();
+      await other.getByRole("heading",{name:"Draft a standalone task"}).waitFor({timeout:12000});
+      await other.getByLabel("Offline task title").fill("Other tab unsynced draft");
+      await other.getByRole("button",{name:"Save encrypted draft"}).click();
+      await other.getByRole("region",{name:"Pending offline drafts"})
+        .getByText("Other tab unsynced draft").waitFor({timeout:12000});
+      await page.getByLabel("Offline task title").fill("Unsafe overwriting draft");
+      await page.getByRole("button",{name:"Save encrypted draft"}).click();
+      await page.getByRole("alert").filter({hasText:"changed in another tab"}).waitFor({timeout:12000});
+      await page.getByRole("button",{name:"Lock",exact:true}).click();
+      await page.getByLabel("Offline vault passphrase").fill(offlinePass);
+      await page.getByRole("button",{name:"Unlock vault"}).click();
+      await page.getByRole("region",{name:"Pending offline drafts"})
+        .getByText("Other tab unsynced draft").waitFor({timeout:12000});
+      await page.getByRole("region",{name:"Pending offline drafts"})
+        .getByRole("button",{name:"Discard draft"}).last().click();
+      await other.close();
+    }
     await page.getByRole("button",{name:"Lock",exact:true}).click();
     await page.getByLabel("Offline vault passphrase").fill("wrong-password-that-is-long-enough");
     await page.getByRole("button",{name:"Unlock vault"}).click();
