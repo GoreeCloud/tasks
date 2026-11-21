@@ -366,8 +366,19 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
             return get_existing(conn, task_id)
 
     @router.patch("/tasks/{task_id}")
-    def edit_task(task_id: str, patch: TaskPatch):
+    def edit_task(
+        task_id: str, patch: TaskPatch,
+        idempotency_key: str | None = Header(default=None, min_length=8, max_length=128,
+                                             pattern=r"^[A-Za-z0-9._~-]+$")
+    ):
+        # Replaying the same exact PATCH must return its original revision
+        # even if the server incremented version but its HTTP response was lost.
+        scope = "PATCH /tasks/" + task_id
+        payload = patch.model_dump(exclude_unset=True, mode="json")
         with db.transaction() as conn:
+            replay = replay_receipt(conn, idempotency_key, scope, payload)
+            if replay is not None:
+                return replay
             previous = get_existing(conn, task_id)
             check_revision(previous, patch.expected_version)
             if previous["completed_at"]:
@@ -386,6 +397,7 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                   "now": now, "version": next_version})
             changed = get_existing(conn, task_id)
             record_change(conn, "task", task_id, "upsert", changed, now)
+            save_receipt(conn, idempotency_key, scope, payload, changed, now)
             return changed
 
     @router.post("/tasks/{task_id}/complete")

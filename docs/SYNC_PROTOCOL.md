@@ -14,9 +14,9 @@ Every endpoint requires the usual single-user Authorization: Bearer token. No pu
 
 ## Idempotent mutation retries
 
-Optional Idempotency-Key header (8–128 characters; ASCII letters, digits, dot, underscore, tilde, hyphen) is supported on POST /projects, POST /tasks, and POST /tasks/{id}/complete. With the same route and JSON content, a repeated key returns the stored response without duplicate creation or recurrence. A different route or payload with the same key returns HTTP 409. Erasure scrubs affected receipt responses; repeating a deleted task's original create/complete operation with its key returns HTTP 410 rather than resurrecting data. Receipts are not currently pruned automatically.
+Optional Idempotency-Key header (8–128 characters; ASCII letters, digits, dot, underscore, tilde, hyphen) is supported on POST /projects, POST /tasks, PATCH /tasks/{id}, and POST /tasks/{id}/complete. With the same route and JSON content, a repeated key returns the stored response without duplicate creation or recurrence. A different route or payload with the same key returns HTTP 409. Erasure scrubs affected receipt responses; repeating a deleted task's original create/complete operation with its key returns HTTP 410 rather than resurrecting data. Receipts are not currently pruned automatically.
 
-PATCH, DELETE and reopen still require expected_version. Mutations acquire SQLite BEGIN IMMEDIATE before loading the expected revision. Concurrent writers sharing a revision cannot both overwrite a task: one succeeds, one receives HTTP 409.
+PATCH, DELETE and reopen still require expected_version. PATCH also supports an opt-in stable idempotency key to replay an acknowledged update when an HTTP response is lost; a different payload/task using the same key returns 409, and a deleted task's old receipt becomes 410. Mutations acquire SQLite BEGIN IMMEDIATE before loading the expected revision. Concurrent writers sharing a revision cannot both overwrite a task: one succeeds, one receives HTTP 409.
 
 ## Offline roadmap — not implemented
 
