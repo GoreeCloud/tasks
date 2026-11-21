@@ -13,14 +13,18 @@ from contextlib import contextmanager
 from .changefeed import record_change, replay_receipt, save_receipt, scrub_task_history
 from .ical import build_calendar
 from .habits import install_habit_routes
+from .csv_import import CsvSource, CsvImport, preview_csv
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import uuid4
 
 from dateutil.relativedelta import relativedelta
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Response
-from pydantic import BaseModel, Field, field_validator, model_validator
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 
 def utc_now() -> str:
@@ -216,6 +220,19 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
     db = Store(db_path or os.environ.get("GOREECLOUD_TASKS_DATABASE", "./data/tasks.sqlite3"))
     app = FastAPI(title="GoreeCloud Tasks", version="0.1.0",
                   description="Single-user development API; require TLS before network exposure.")
+
+    @app.exception_handler(RequestValidationError)
+    async def redact_csv_validation_errors(request: Request, exc: RequestValidationError):
+        # The default FastAPI 422 error embeds invalid input, which may contain
+        # the entire private CSV when it exceeds a Pydantic size constraint.
+        if request.url.path.startswith("/api/v1/import/csv"):
+            return JSONResponse(
+                status_code=422,
+                content={"detail": "Invalid CSV request. Review its size, format and fields."},
+                headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+            )
+        return await request_validation_exception_handler(request, exc)
+
     router = APIRouter(prefix="/api/v1")
 
     def require_token(authorization: Annotated[str | None, Header()] = None):
@@ -498,6 +515,75 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                          "created_at": row["created_at"]}
                         for row in page
                     ]}
+
+    @router.post("/import/csv/preview")
+    def csv_preview(data: CsvSource, response: Response):
+        """Validate a local CSV without writing tasks or persisting the file."""
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        preview = preview_csv(data)
+        for row_number, task in enumerate(preview["tasks"], start=1):
+            # Pydantic errors must be translated into a bounded 422 response,
+            # never a 500 or a trace containing private task descriptions.
+            try:
+                TaskCreate.model_validate({
+                    **{key: value for key, value in task.items() if key != "parent_index"},
+                    "parent_id": None, "project_id": data.project_id
+                })
+            except ValidationError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"CSV task {row_number}: a task field is invalid"
+                ) from exc
+        # A synthetic parent reference refers exclusively to an earlier row.
+        return preview
+
+    @router.post("/import/csv", status_code=201)
+    def csv_commit(
+        data: CsvImport,
+        response: Response,
+        idempotency_key: str = Header(min_length=8, max_length=128,
+                                      pattern=r"^[A-Za-z0-9._~-]+$")
+    ):
+        source = CsvSource.model_validate(data.model_dump(exclude={"checksum"}))
+        preview = csv_preview(source, response)
+        if preview["checksum"] != data.checksum:
+            raise HTTPException(status_code=409, detail="CSV file or options changed since preview")
+        payload = data.model_dump(mode="json")
+        scope = "POST /import/csv"
+        with db.transaction() as conn:
+            old = replay_receipt(conn, idempotency_key, scope, payload)
+            if old is not None:
+                return old
+            ensure_project(conn, data.project_id)
+            created: list[str] = []
+            timestamp = utc_now()
+            for entry in preview["tasks"]:
+                parent_index = entry["parent_index"]
+                parent_id = created[parent_index] if parent_index is not None else None
+                candidate = TaskCreate.model_validate({
+                    **{key: value for key, value in entry.items() if key != "parent_index"},
+                    "parent_id": parent_id, "project_id": data.project_id
+                })
+                record = {
+                    "id": new_id(), **candidate.model_dump(mode="json"),
+                    "series_id": None, "completed_at": None,
+                    "created_at": timestamp, "updated_at": timestamp, "version": 1
+                }
+                conn.execute("""
+                    INSERT INTO tasks(id,title,description,project_id,parent_id,due_date,
+                                      priority,tags,recurrence,series_id,completed_at,
+                                      created_at,updated_at,version)
+                    VALUES(:id,:title,:description,:project_id,:parent_id,:due_date,
+                           :priority,:tags,:recurrence,:series_id,:completed_at,
+                           :created_at,:updated_at,:version)
+                """, {**record, "tags": json.dumps(record["tags"])})
+                created.append(record["id"])
+                record_change(conn, "task", record["id"], "upsert", record, timestamp)
+            response = {"count": len(created), "ids": created,
+                        "warnings": preview["warnings"], "checksum": data.checksum}
+            save_receipt(conn, idempotency_key, scope, payload, response, timestamp)
+            return response
 
     @router.get("/export.ics")
     def export_ical():

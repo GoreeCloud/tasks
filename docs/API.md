@@ -21,6 +21,8 @@ Send JSON for write operations. API is intended for one trusted operator. Do not
 | POST | /api/v1/tasks/{id}/complete | Complete; generate next recurring instance when applicable |
 | POST | /api/v1/tasks/{id}/reopen | Reopen a completed instance |
 | DELETE | /api/v1/tasks/{id}?expected_version=N | Permanently delete |
+| POST | /api/v1/import/csv/preview | Authenticated, non-writing generic/Todoist-subset CSV validation and checksum |
+| POST | /api/v1/import/csv | Atomic, explicitly confirmed import: checksum and required Idempotency-Key, max 200 tasks |
 | GET | /api/v1/export | Complete portable JSON snapshot |
 | GET | /api/v1/export.ics | Authenticated VTODO iCalendar download (max 5000 tasks) |
 | GET | /api/v1/habits?as_of=YYYY-MM-DD&limit=100&offset=0 | List daily habits, check-in status, total count and bounded streak as of local date |

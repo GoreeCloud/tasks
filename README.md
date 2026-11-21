@@ -9,12 +9,12 @@ GoreeCloud Tasks is an original, privacy-focused alternative to parts of Todoist
 ## Implemented foundation
 
 - Token-protected API, SQLite schema v4, projects, CRUD, due dates, task version checks, cursor-based change feed, redacted deletion tombstones, retry idempotency and additive migration from v1/v2.
-- Tags, daily/weekly/monthly recurrence, server-side search and pagination, serialized HTTP 409 revision conflicts, JSON export and a verified local SQLite online-backup CLI.
-- React projects, Today/Upcoming/Completed lists, month calendar, **accessible P1–P4 priority board**, **subtasks/parent selection with a child-task panel**, **daily habit check-ins with streaks** (web, Android, Linux),  task editor, search, tags/projects at creation, foreground focus timer and private VTODO calendar export.
+- Tags, daily/weekly/monthly recurrence, server-side search and pagination, serialized HTTP 409 revision conflicts, JSON export, explicit checksum-protected generic/Todoist-subset CSV task import and a verified local SQLite online-backup CLI.
+- React projects, Today/Upcoming/Completed lists, month calendar, **accessible P1–P4 priority board**, **subtasks/parent selection with a child-task panel**, **daily habit check-ins with streaks** (web, Android, Linux), task editor, search, tags/projects at creation, foreground focus timer and private VTODO calendar export.
 - Native Qt Quick Linux projects/search/filter, parent selection and task editing/deletion/completion; native Kotlin/Compose Android projects, filters, parent selection, task editing/deletion, priority, recurrence and tags.
 - In-repository GoreeCloud UI Material 3 Expressive plus Compose Multiplatform source adapters; design token CSS.
 
-See [features and backlog](docs/FEATURE_AUDIT.md), [API](docs/API.md), [sync protocol](docs/SYNC_PROTOCOL.md), [daily habits](docs/HABITS.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [calendar export](docs/ICAL_EXPORT.md), [source CLI reference](docs/CLI_REFERENCE.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md) and [dependency review](docs/DEPENDENCIES.md).
+See [features and backlog](docs/FEATURE_AUDIT.md), [API](docs/API.md), [sync protocol](docs/SYNC_PROTOCOL.md), [daily habits](docs/HABITS.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [calendar export](docs/ICAL_EXPORT.md), [CSV import](docs/CSV_IMPORT.md), [source CLI reference](docs/CLI_REFERENCE.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md) and [dependency review](docs/DEPENDENCIES.md).
 
 ## Start the local server
 

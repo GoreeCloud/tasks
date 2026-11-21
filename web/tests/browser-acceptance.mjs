@@ -44,6 +44,24 @@ for(const [name,engine,binary]of engines){
        if(method==="GET"&&endpoint==="/tasks")return response(tasks);
        if(method==="GET"&&endpoint==="/projects")return response(projects);
        if(method==="GET"&&endpoint==="/habits")return response(habits);
+       if(method==="POST"&&endpoint==="/import/csv/preview"){
+         const input=request.postDataJSON();
+         assert.equal(input.format,"generic");
+         assert.match(input.csv_text,/Imported from CSV/);
+         return response({format:"generic",count:1,checksum:"a".repeat(64),warnings:[],
+           tasks:[{title:"Imported from CSV",description:"",due_date:null,
+             priority:2,tags:[],recurrence:"none",parent_index:null}]});
+       }
+       if(method==="POST"&&endpoint==="/import/csv"){
+         const input=request.postDataJSON();
+         assert.ok(request.headers()["idempotency-key"]);
+         assert.equal(input.checksum,"a".repeat(64));
+         const entry={id:"synthetic-task-"+(++serial),title:"Imported from CSV",description:"",
+           priority:2,project_id:null,parent_id:null,due_date:null,tags:[],
+           recurrence:"none",completed_at:null,version:1,created_at:"2026-11-20T14:00:00Z"};
+         tasks.push(entry);
+         return response({count:1,ids:[entry.id],warnings:[],checksum:input.checksum},201);
+       }
        if(method==="POST"&&endpoint==="/habits"){
          const input=request.postDataJSON();
          const habit={id:"synthetic-habit-"+(++serial),name:input.name,description:input.description??"",
@@ -157,7 +175,24 @@ for(const [name,engine,binary]of engines){
     assert.equal(habits[0].current_streak,1);
     const habitGeometry=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));
     assert.ok(habitGeometry.scroll<=habitGeometry.client+1,"habits should not overflow viewport");
+    await page.getByRole("button",{name:"Import",exact:true}).click();
+    await page.getByRole("region",{name:"CSV task migration"}).waitFor({timeout:9000});
+    await page.getByLabel("Choose CSV file").setInputFiles({
+      name:"synthetic-tasks.csv",mimeType:"text/csv",
+      buffer:Buffer.from("title,priority\nImported from CSV,2\n")
+    });
+    await page.getByRole("button",{name:"Preview import"}).click();
+    await page.getByRole("heading",{name:"Ready to import 1 tasks"}).waitFor({timeout:9000});
+    assert.equal(tasks.length,2,"Preview must not commit any task data");
+    const importGeometry=await page.evaluate(()=>({
+      scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth
+    }));
+    assert.ok(importGeometry.scroll<=importGeometry.client+1,"import should fit viewport");
+    await page.getByRole("button",{name:"Confirm import 1 tasks"}).click();
+    await page.getByRole("status").filter({hasText:"1 tasks imported"}).waitFor({timeout:9000});
+    assert.equal(tasks.length,3);
     await page.getByRole("button",{name:"My tasks",exact:true}).click();
+    await page.getByRole("button",{name:"Complete Imported from CSV"}).click();
     const promisedExport=page.waitForEvent("download");
     await page.getByRole("button",{name:"Export calendar",exact:true}).click();
     const downloaded=await promisedExport;
@@ -183,7 +218,7 @@ for(const [name,engine,binary]of engines){
       header:getComputedStyle(document.documentElement).colorScheme
     }));
     assert.ok(final.scroll<=final.client+1,"focus screen overflows viewport");
-    assert.equal(tasks.length,2);
+    assert.equal(tasks.length,3);
     assert.equal(tasks[0].title,"Synthetic revised task");
     assert.ok(tasks.every(task=>task.completed_at));
     assert.equal(violations.length,0,JSON.stringify(violations));
