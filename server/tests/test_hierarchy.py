@@ -126,4 +126,4 @@ def test_v2_schema_upgrade_preserves_childless_tasks(tmp_path):
     result = upgraded.get("/api/v1/tasks/" + task["id"], headers=HEADERS).json()
     assert result["parent_id"] is None
     with sqlite3.connect(dbfile) as con:
-        assert con.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert con.execute("PRAGMA user_version").fetchone()[0] == 4

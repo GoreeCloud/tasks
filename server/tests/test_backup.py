@@ -25,7 +25,7 @@ def test_online_backup_is_consistent_and_non_overwriting(tmp_path):
     snapshot = sqlite3.connect(target)
     try:
         assert snapshot.execute("SELECT title FROM tasks").fetchall() == [("Before snapshot",)]
-        assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 4
         assert snapshot.execute("SELECT COUNT(*) FROM change_events").fetchone()[0] == 1
     finally:
         snapshot.close()

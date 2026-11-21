@@ -27,7 +27,7 @@ for(const [name,engine,binary]of engines){
  try{
   for(const [caseName,width,height,dark]of frames){
    const context=await browser.newContext({viewport:{width,height},colorScheme:dark?"dark":"light",reducedMotion:"reduce",serviceWorkers:"block"});
-   const tasks=[],projects=[],violations=[],errors=[];
+   const tasks=[],projects=[],habits=[],violations=[],errors=[];
    let serial=0;
    try{
     const page=await context.newPage();
@@ -43,6 +43,21 @@ for(const [name,engine,binary]of engines){
        const response=(body,status=200)=>route.fulfill({status,contentType:"application/json",body:JSON.stringify(body)});
        if(method==="GET"&&endpoint==="/tasks")return response(tasks);
        if(method==="GET"&&endpoint==="/projects")return response(projects);
+       if(method==="GET"&&endpoint==="/habits")return response(habits);
+       if(method==="POST"&&endpoint==="/habits"){
+         const input=request.postDataJSON();
+         const habit={id:"synthetic-habit-"+(++serial),name:input.name,description:input.description??"",
+           version:1,current_streak:0,total_checkins:0,checked_in_today:false,as_of:"2026-11-21"};
+         habits.push(habit);return response(habit,201);
+       }
+       if(method==="POST"&&/^\/habits\/synthetic-habit-\d+\/checkins$/.test(endpoint)){
+         const habit=habits.find(h=>endpoint.includes(h.id));
+         if(!habit)return response({detail:"Missing habit"},404);
+         const input=request.postDataJSON();
+         if(input.expected_version!==habit.version)return response({detail:"Conflict"},409);
+         habit.checked_in_today=true;habit.current_streak=1;habit.total_checkins++;
+         habit.version++;return response(habit,201);
+       }
        if(method==="POST"&&endpoint==="/tasks"){
         const input=request.postDataJSON();
         const entry={id:"synthetic-task-"+(++serial),title:input.title,description:input.description??"",
@@ -131,6 +146,17 @@ for(const [name,engine,binary]of engines){
     await page.getByRole("button",{name:"Move Synthetic revised task to P3"}).click();
     await page.getByRole("button",{name:"Move Synthetic revised task to P4"}).waitFor({timeout:9000});
     assert.equal(tasks[0].priority,3);
+    await page.getByRole("button",{name:"Habits",exact:true}).click();
+    await page.getByRole("region",{name:"Daily habit tracker"}).waitFor({timeout:9000});
+    await page.getByLabel("Habit name").fill("Synthetic daily habit");
+    await page.getByRole("button",{name:/Create habit/}).click();
+    await page.getByRole("button",{name:"Check in today for Synthetic daily habit"}).waitFor({timeout:9000});
+    await page.getByRole("button",{name:"Check in today for Synthetic daily habit"}).click();
+    await page.getByRole("button",{name:"Undo today's check-in for Synthetic daily habit"}).waitFor({timeout:9000});
+    assert.equal(habits.length,1);
+    assert.equal(habits[0].current_streak,1);
+    const habitGeometry=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));
+    assert.ok(habitGeometry.scroll<=habitGeometry.client+1,"habits should not overflow viewport");
     await page.getByRole("button",{name:"My tasks",exact:true}).click();
     const promisedExport=page.waitForEvent("download");
     await page.getByRole("button",{name:"Export calendar",exact:true}).click();

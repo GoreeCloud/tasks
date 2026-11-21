@@ -12,6 +12,7 @@ import sqlite3
 from contextlib import contextmanager
 from .changefeed import record_change, replay_receipt, save_receipt, scrub_task_history
 from .ical import build_calendar
+from .habits import install_habit_routes
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
@@ -116,7 +117,7 @@ class Store:
         with self.open() as db:
             db.execute("PRAGMA journal_mode=WAL")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3):
+            if version not in (0, 1, 2, 3, 4):
                 raise RuntimeError("Unsupported database version; do not downgrade the server")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS projects (
@@ -159,7 +160,24 @@ class Store:
                     "ALTER TABLE tasks ADD COLUMN parent_id TEXT REFERENCES tasks(id) ON DELETE SET NULL"
                 )
             db.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id)")
-            db.execute("PRAGMA user_version=3")
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS habits (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    version INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS habit_checkins (
+                    habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+                    day TEXT NOT NULL CHECK(length(day)=10),
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(habit_id,day)
+                );
+                CREATE INDEX IF NOT EXISTS idx_habit_checkins_day ON habit_checkins(day);
+                PRAGMA user_version=4;
+            """)
 
     @contextmanager
     def open(self):
@@ -500,7 +518,10 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
         with db.open() as conn:
             return {"format": "goreecloud-tasks-1",
                     "projects": [dict(row) for row in conn.execute("SELECT * FROM projects")],
-                    "tasks": [task_dict(row) for row in conn.execute("SELECT * FROM tasks")]}
+                    "tasks": [task_dict(row) for row in conn.execute("SELECT * FROM tasks")],
+                    "habits": [dict(row) for row in conn.execute("SELECT * FROM habits")],
+                    "habit_checkins": [dict(row) for row in conn.execute("SELECT * FROM habit_checkins")]}
+    install_habit_routes(router, db)
     app.include_router(router, dependencies=[Depends(require_token)])
     return app
 

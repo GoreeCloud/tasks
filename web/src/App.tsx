@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarView } from "./CalendarView";
 import { PriorityBoard } from "./PriorityBoard";
+import { HabitsView } from "./HabitsView";
 
 type Task = {
   id: string; title: string; description: string; project_id: string | null; parent_id: string | null;
@@ -8,7 +9,7 @@ type Task = {
   completed_at: string | null; version: number; created_at: string;
 };
 type Project = { id: string; name: string };
-type Screen = "inbox"|"today"|"upcoming"|"calendar"|"board"|"completed"|"all"|"focus";
+type Screen = "inbox"|"today"|"upcoming"|"calendar"|"board"|"habits"|"completed"|"all"|"focus";
 type TaskForm = { title: string; description: string; due_date: string; priority: number; recurrence: Task["recurrence"]; project_id: string; parent_id: string; tags: string };
 const emptyForm: TaskForm = { title: "", description: "", due_date: "", priority: 2, recurrence: "none", project_id: "", parent_id: "", tags: "" };
 const today = () => {
@@ -114,7 +115,7 @@ export function App() {
   const count = tasks.filter(x=>!x.completed_at).length;
   const navigate = (page: Screen, project: string|null = null) => {setView(page);setProjectFilter(project);setEditor(null);};
   const updateForm = (part: Partial<TaskForm>) => setForm(prev => ({...prev,...part}));
-  const labels = { inbox:"My tasks", today:"Today", upcoming:"Upcoming", completed:"Completed", all:"All tasks", calendar:"Calendar", board:"Board", focus:"Focus" };
+  const labels = { inbox:"My tasks", today:"Today", upcoming:"Upcoming", completed:"Completed", all:"All tasks", calendar:"Calendar", board:"Board", habits:"Habits", focus:"Focus" };
   const counts = {today:tasks.filter(t=>!t.completed_at&&!!t.due_date&&t.due_date<=today()).length,upcoming:tasks.filter(t=>!t.completed_at&&!!t.due_date&&t.due_date>today()).length};
 
   if (!token) return <main className="gc-app sign-in">
@@ -135,9 +136,9 @@ export function App() {
       <div className="logo"><span className="brand-mark" aria-hidden="true">◈</span><div><strong>GoreeCloud</strong><small>TASKS</small></div></div>
       <div className="sidebar-label">WORKSPACE</div>
       <nav aria-label="Views">
-        {(["inbox","today","upcoming","calendar","board","completed","all","focus"] as Screen[]).map((screen,i)=>
+        {(["inbox","today","upcoming","calendar","board","habits","completed","all","focus"] as Screen[]).map((screen,i)=>
           <button key={screen} className={"nav-item "+(view===screen&&projectFilter===null?"active":"")} onClick={()=>navigate(screen)} aria-current={view===screen&&projectFilter===null?"page":undefined}>
-            <span aria-hidden="true">{["☷","◷","▦","▣","▤","✓","≡","◎"][i]}</span>{labels[screen]}
+            <span aria-hidden="true">{["☷","◷","▦","▣","▤","◉","✓","≡","◎"][i]}</span>{labels[screen]}
             {screen==="today"&&counts.today>0&&<b>{counts.today}</b>}
           </button>)}
       </nav>
@@ -170,9 +171,9 @@ export function App() {
       </div></header>
       <div className="content-grid">
         <section className="primary-column">
-          <div className="page-heading"><p className="eyebrow">YOUR DAY, YOUR PACE</p><h1>{projectFilter?projects.find(p=>p.id===projectFilter)?.name||"Project":labels[view]}</h1><p className="muted">{count} active tasks across your workspace. A little progress counts.</p></div>
+          <div className="page-heading"><p className="eyebrow">YOUR DAY, YOUR PACE</p><h1>{projectFilter?projects.find(p=>p.id===projectFilter)?.name||"Project":labels[view]}</h1><p className="muted">{view==="habits"?"Build consistency with simple daily check-ins.":count+" active tasks across your workspace. A little progress counts."}</p></div>
           {error && <div className="alert" role="alert">{error}<button onClick={()=>setError("")} aria-label="Dismiss error">×</button></div>}
-          {view === "focus" ? <FocusTimer/> : <>
+          {view === "habits" ? <HabitsView request={request}/> : view === "focus" ? <FocusTimer/> : <>
             <form className="task-composer gc-card" onSubmit={e=>{e.preventDefault();if(!form.title.trim())return;void execute(async()=>{
               await request("/tasks",{method:"POST",body:JSON.stringify({title:form.title,description:form.description,priority:form.priority,due_date:form.due_date||null,recurrence:form.recurrence,project_id:form.project_id||projectFilter||null,parent_id:form.parent_id||null,tags:form.tags.split(",").map(x=>x.trim()).filter(Boolean)})});setForm(emptyForm);
             });}}>

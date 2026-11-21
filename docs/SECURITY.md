@@ -2,7 +2,7 @@
 
 ## Development threat model
 
-- Task descriptions may contain private family notes and URLs; do not expose them in public logs, analytics or crash reports.
+- Task descriptions and daily habit check-ins may contain private family information; do not expose them in public logs, analytics or crash reports. Habits have date-only history and privacy-preserving hard delete; there is no cross-device habit synchronization yet.
 - The database is plaintext SQLite on the host. File/disk encryption, least privilege, backup encryption, multi-user access controls and verified restores are operator responsibilities until implemented and tested.
 - A single shared token secures all tasks. It offers no per-user accountability, revocation of individual devices, roles, MFA, passkeys, OIDC or independent Identity integration.
 - Web token remains in JS memory, not localStorage/cookies. Cross-site scripts, injected code and browser extensions in the trusted origin can still obtain secrets; enforce a strict content-security policy at deployment and restrict dependencies.
