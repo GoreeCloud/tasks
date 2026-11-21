@@ -54,7 +54,7 @@ for(const [name,engine,binary]of engines){
          const task=tasks.find(t=>endpoint.endsWith(t.id)),data=request.postDataJSON();
          if(!task||task.version!==data.expected_version)return response({detail:"Conflict"},409);
          Object.assign(task,{title:data.title??task.title,description:data.description??task.description,
-            tags:data.tags??task.tags,version:task.version+1});return response(task);
+            tags:data.tags??task.tags,priority:data.priority??task.priority,version:task.version+1});return response(task);
        }
        if(method==="POST"&&/^\/tasks\/synthetic-task-\d+\/(complete|reopen)$/.test(endpoint)){
          const task=tasks.find(t=>endpoint.includes("/"+t.id+"/"));
@@ -124,6 +124,13 @@ for(const [name,engine,binary]of engines){
     }));
     assert.ok(calendarWidth.scroll<=calendarWidth.client+1,
       "calendar should fit the viewport: "+JSON.stringify(calendarWidth));
+    await page.getByRole("button",{name:"Board",exact:true}).click();
+    await page.getByRole("region",{name:"Priority task board"}).waitFor({timeout:9000});
+    const boardGeometry=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));
+    assert.ok(boardGeometry.scroll<=boardGeometry.client+1,"board should not overflow viewport");
+    await page.getByRole("button",{name:"Move Synthetic revised task to P3"}).click();
+    await page.getByRole("button",{name:"Move Synthetic revised task to P4"}).waitFor({timeout:9000});
+    assert.equal(tasks[0].priority,3);
     await page.getByRole("button",{name:"My tasks",exact:true}).click();
     const promisedExport=page.waitForEvent("download");
     await page.getByRole("button",{name:"Export calendar",exact:true}).click();

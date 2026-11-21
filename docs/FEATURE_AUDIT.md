@@ -8,7 +8,7 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 | Due dates, priority, notes/labels | Both | API/web and native task editors with priority/tags/notes | P1 UX and device acceptance |
 | Recurring tasks | Both | Simple daily/weekly/monthly | P1 RRULE/timezones |
 | Today, Upcoming, search | Both | Web, Android and Linux view filters; API bounded search | P1 saved filters |
-| Visual calendar, boards | Both | Basic React month calendar implemented; boards/drag-drop pending | P1 |
+| Visual calendar, boards | Both | React month calendar and keyboard-accessible P1–P4 priority board with version-safe move buttons; drag-drop remains optional backlog | P1 |
 | Native Linux and Android | Platform-specific | Expanded Qt Quick/Compose CRUD and filters; device/runtime acceptance pending | P1 |
 | Offline editing and cloud sync | Both | Server cursor feed, redacted tombstones, retry receipts; device offline editing/sync remains unimplemented | P1 |
 | Notifications/reminders | Both | Not implemented | P1 |
