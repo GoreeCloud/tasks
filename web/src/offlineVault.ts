@@ -1,0 +1,160 @@
+/** GoreeCloud Tasks browser offline vault v1.
+ *
+ * Opt-in, passphrase-unlocked AES-256-GCM for task snapshots and queued writes.
+ * No authentication token, password, derived key or plaintext task is persisted.
+ * This is not multiuser authorization or a native encrypted sync engine.
+ */
+export type CachedTask = {
+  id: string; title: string; description: string; project_id: string|null;
+  parent_id: string|null; due_date: string|null; priority: number; tags: string[];
+  recurrence: "none"|"daily"|"weekly"|"monthly"; completed_at: string|null;
+  version: number; created_at: string;
+};
+export type CachedProject = {id:string;name:string};
+export type QueueItem = {
+  id: string; kind: "create"|"edit"; task_id: string|null;
+  expected_version: number|null; payload: Record<string,unknown>;
+  created_at: string; status: "pending"|"conflict";
+};
+export type VaultPayload = {
+  format:"goreecloud-tasks-offline-data-1"; saved_at:string;
+  cursor:number; tasks:CachedTask[]; projects:CachedProject[]; queue:QueueItem[];
+};
+type VaultEnvelope = {format:"goreecloud-tasks-offline-aesgcm-1"; salt:string; nonce:string; data:string};
+const DB_NAME="goreecloud-tasks-offline-v1";
+const STORE="secrets";
+const ITEM="vault";
+const MAX_BYTES=5_000_000;
+const enc=new TextEncoder();
+const dec=new TextDecoder("utf-8",{fatal:true});
+const aad=()=>enc.encode("goreecloud-tasks-offline-v1|"+location.origin);
+
+function base64(bytes:Uint8Array):string {
+  let text="";
+  for(let n=0;n<bytes.length;n+=8192)
+    text+=String.fromCharCode(...bytes.subarray(n,n+8192));
+  return btoa(text);
+}
+function unbase64(encoded:string):Uint8Array<ArrayBuffer> {
+  const chars=atob(encoded),bytes=new Uint8Array(chars.length);
+  for(let i=0;i<chars.length;i++)bytes[i]=chars.charCodeAt(i);
+  return bytes;
+}
+function randomBytes(count:number) {
+  const bytes=new Uint8Array(count);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
+function checkBrowser() {
+  if(!globalThis.isSecureContext || !crypto?.subtle || !indexedDB)
+    throw new Error("Encrypted offline storage requires HTTPS or localhost and IndexedDB");
+}
+async function db():Promise<IDBDatabase> {
+  checkBrowser();
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open(DB_NAME,1);
+    request.onupgradeneeded=()=>{
+      if(!request.result.objectStoreNames.contains(STORE))
+        request.result.createObjectStore(STORE);
+    };
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(new Error("Unable to open secure offline storage"));
+    request.onblocked=()=>reject(new Error("Close other Tasks tabs and retry"));
+  });
+}
+async function readRaw():Promise<VaultEnvelope|null> {
+  const database=await db();
+  try {
+    return await new Promise((resolve,reject)=>{
+      const tx=database.transaction(STORE,"readonly");
+      const req=tx.objectStore(STORE).get(ITEM);
+      req.onsuccess=()=>resolve(req.result??null);
+      req.onerror=()=>reject(new Error("Unable to read offline storage"));
+    });
+  }finally{database.close();}
+}
+async function putRaw(value:VaultEnvelope|null):Promise<void> {
+  const database=await db();
+  try{
+    await new Promise<void>((resolve,reject)=>{
+      const tx=database.transaction(STORE,"readwrite");
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(new Error("Unable to save offline storage"));
+      tx.onabort=()=>reject(new Error("Offline storage write aborted"));
+      if(value)tx.objectStore(STORE).put(value,ITEM);
+      else tx.objectStore(STORE).delete(ITEM);
+    });
+  }finally{database.close();}
+}
+async function derive(passphrase:string,salt:Uint8Array):Promise<CryptoKey> {
+  const root=await crypto.subtle.importKey("raw",enc.encode(passphrase),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {name:"PBKDF2",salt:new Uint8Array(salt),iterations:310000,hash:"SHA-256"},
+    root,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]
+  );
+}
+function validate(data:unknown):asserts data is VaultPayload {
+  const p=data as VaultPayload;
+  if(!p||p.format!=="goreecloud-tasks-offline-data-1"||
+     !Array.isArray(p.tasks)||p.tasks.length>5000||
+     !Array.isArray(p.projects)||p.projects.length>5000||
+     !Array.isArray(p.queue)||p.queue.length>200||
+     !Number.isSafeInteger(p.cursor)||p.cursor<0)
+    throw new Error("The encrypted vault contains an unsupported data format");
+  if(p.queue.some(q=>!q||!["create","edit"].includes(q.kind)||
+    !["pending","conflict"].includes(q.status)||typeof q.id!=="string"))
+    throw new Error("The offline queue contains unsupported operations");
+}
+async function persist(key:CryptoKey,salt:Uint8Array,payload:VaultPayload) {
+  validate(payload);
+  const clear=enc.encode(JSON.stringify(payload));
+  if(clear.byteLength>MAX_BYTES)
+    throw new Error("Offline vault is full; reconcile or export data before adding more");
+  const nonce=randomBytes(12);
+  const cipher=await crypto.subtle.encrypt(
+    {name:"AES-GCM",iv:nonce,additionalData:aad()},key,clear
+  );
+  await putRaw({format:"goreecloud-tasks-offline-aesgcm-1",
+    salt:base64(salt),nonce:base64(nonce),data:base64(new Uint8Array(cipher))});
+}
+export type VaultSession = {
+  key:CryptoKey;salt:Uint8Array;payload:VaultPayload;
+};
+export function emptyPayload(tasks:CachedTask[],projects:CachedProject[],cursor:number):VaultPayload {
+  return {format:"goreecloud-tasks-offline-data-1",saved_at:new Date().toISOString(),
+    tasks,projects,cursor,queue:[]};
+}
+export async function hasVault(){return !!(await readRaw());}
+export async function createVault(passphrase:string,payload:VaultPayload):Promise<VaultSession> {
+  if(passphrase.length<12||passphrase.length>512)
+    throw new Error("Choose a passphrase of at least 12 characters");
+  if(await readRaw())throw new Error("An offline vault already exists; unlock or erase it first");
+  const salt=randomBytes(16);
+  const key=await derive(passphrase,salt);
+  await persist(key,salt,payload);
+  return {key,salt,payload};
+}
+export async function unlockVault(passphrase:string):Promise<VaultSession> {
+  const raw=await readRaw();
+  if(!raw||raw.format!=="goreecloud-tasks-offline-aesgcm-1")
+    throw new Error("No compatible offline vault exists in this browser");
+  try {
+    const salt=unbase64(raw.salt),nonce=unbase64(raw.nonce);
+    if(salt.length!==16||nonce.length!==12)throw new Error("Invalid vault");
+    const key=await derive(passphrase,salt);
+    const clear=await crypto.subtle.decrypt(
+      {name:"AES-GCM",iv:nonce,additionalData:aad()},key,unbase64(raw.data)
+    );
+    const payload:unknown=JSON.parse(dec.decode(clear));
+    validate(payload);
+    return {key,salt,payload};
+  }catch{
+    throw new Error("Incorrect passphrase or damaged encrypted offline vault");
+  }
+}
+export async function saveVault(session:VaultSession,payload:VaultPayload):Promise<VaultSession> {
+  // Do not edit session until the authenticated encrypted write completes.
+  await persist(session.key,session.salt,payload);
+  return {...session,payload};
+}
+export async function eraseVault(){await putRaw(null);}
