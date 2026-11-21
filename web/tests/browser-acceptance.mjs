@@ -178,6 +178,11 @@ for(const [name,engine,binary]of engines){
     await page.getByRole("button",{name:"Import",exact:true}).click();
     await page.getByRole("region",{name:"CSV task migration"}).waitFor({timeout:9000});
     await page.getByLabel("Choose CSV file").setInputFiles({
+      name:"invalid-encoding.csv",mimeType:"text/csv",buffer:Buffer.from([0xff,0xfe,0xfa])
+    });
+    await page.getByRole("alert").filter({hasText:"UTF-8"}).waitFor({timeout:9000});
+    assert.equal(tasks.length,2,"Invalid UTF-8 must not import tasks");
+    await page.getByLabel("Choose CSV file").setInputFiles({
       name:"synthetic-tasks.csv",mimeType:"text/csv",
       buffer:Buffer.from("title,priority\nImported from CSV,2\n")
     });

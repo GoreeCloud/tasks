@@ -30,13 +30,14 @@ export function CsvImportView({request,projects,onImported}:{
     if(!file)return;
     if(file.size>500000){setError("CSV files must not exceed 500,000 bytes");return;}
     try {
-      const text=await file.text();
+      const bytes=await file.arrayBuffer();
       if(selection!==fileSelection.current)return;
+      const text=new TextDecoder("utf-8",{fatal:true}).decode(bytes);
       if(new TextEncoder().encode(text).length>500000){
         setError("CSV exceeds the 500,000-byte limit");return;
       }
       setCsvText(text);setFileName(file.name);
-    } catch {if(selection===fileSelection.current)setError("Unable to read this local CSV file");}
+    } catch {if(selection===fileSelection.current)setError("Unable to read this CSV as UTF-8. Re-export it with UTF-8 encoding.");}
   };
   const makePreview=async()=>{
     setBusy(true);setError("");setSuccess("");
