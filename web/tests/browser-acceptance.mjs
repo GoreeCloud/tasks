@@ -27,8 +27,8 @@ for(const [name,engine,binary]of engines){
  try{
   for(const [caseName,width,height,dark]of frames){
    const context=await browser.newContext({viewport:{width,height},colorScheme:dark?"dark":"light",reducedMotion:"reduce",serviceWorkers:"block"});
-   const tasks=[],projects=[],habits=[],violations=[],errors=[];
-   let serial=0;
+   const tasks=[],projects=[],habits=[],changes=[],violations=[],errors=[];
+   let serial=0, malformedNextFeed=false;
    try{
     const page=await context.newPage();
     page.on("pageerror",e=>errors.push(e.message));
@@ -45,6 +45,20 @@ for(const [name,engine,binary]of engines){
        if(method==="GET"&&endpoint==="/sync/bootstrap")
          return response({format:"goreecloud-tasks-sync-1",cursor:tasks.length,
            tasks,projects});
+       if(method==="GET"&&endpoint==="/sync/changes"){
+         const after=Number(url.searchParams.get("after")??"0");
+         if(malformedNextFeed) {
+           malformedNextFeed=false;
+           return response({format:"goreecloud-tasks-sync-1",after,
+             next_cursor:after+1,has_more:false,changes:[]});
+         }
+         const limit=Number(url.searchParams.get("limit")??"200");
+         const newer=changes.filter(e=>e.cursor>after);
+         const events=newer.slice(0,limit);
+         return response({format:"goreecloud-tasks-sync-1",after,
+           next_cursor:events.length?events.at(-1).cursor:after,
+           has_more:newer.length>events.length,changes:events});
+       }
        if(method==="GET"&&endpoint==="/projects")return response(projects);
        if(method==="GET"&&endpoint==="/habits")return response(habits);
        if(method==="POST"&&endpoint==="/import/csv/preview"){
@@ -261,6 +275,26 @@ for(const [name,engine,binary]of engines){
     await page.getByRole("button",{name:"Sync now"}).click();
     await page.getByRole("status").filter({hasText:"Server sync completed"}).waitFor({timeout:12000});
     assert.equal(tasks.length,4,"Explicit sync must commit one draft exactly once");
+    const newTask={id:"synthetic-task-"+(++serial),title:"From incremental sync",description:"",
+      priority:2,project_id:null,parent_id:null,due_date:null,tags:[],recurrence:"none",
+      completed_at:null,version:1,created_at:"2026-11-20T14:00:00Z"};
+    tasks.push(newTask);
+    changes.push({cursor:5,entity:"task",entity_id:newTask.id,operation:"upsert",
+      payload:{...newTask},created_at:"2026-11-20T14:02:00Z"});
+    malformedNextFeed=true;
+    await page.getByRole("button",{name:"Pull server changes"}).click();
+    await page.getByRole("alert").filter({hasText:"cursor discontinuity"}).waitFor({timeout:9000});
+    assert.equal(await page.getByRole("region",{name:"Cached task titles"}).getByText("From incremental sync").count(),0,
+      "Invalid changefeed page must not mutate the encrypted cache");
+    await page.getByRole("button",{name:"Pull server changes"}).click();
+    await page.getByRole("region",{name:"Cached task titles"}).getByText("From incremental sync").waitFor({timeout:9000});
+    changes.push({cursor:6,entity:"task",entity_id:newTask.id,operation:"delete",
+      payload:null,created_at:"2026-11-20T14:03:00Z"});
+    tasks.splice(tasks.indexOf(newTask),1);
+    await page.getByRole("button",{name:"Pull server changes"}).click();
+    await page.getByRole("status").filter({hasText:"snapshot updated from the server change feed"}).waitFor({timeout:9000});
+    assert.equal(await page.getByRole("region",{name:"Cached task titles"}).getByText("From incremental sync").count(),0,
+      "A server deletion tombstone must purge the encrypted cached task");
     page.once("dialog",dialog=>dialog.accept());
     await page.getByRole("button",{name:/Erase offline vault and unsynced drafts/}).click();
     await page.getByRole("heading",{name:"Enable encrypted offline vault"}).waitFor({timeout:9000});

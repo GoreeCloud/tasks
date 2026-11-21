@@ -158,3 +158,52 @@ export async function saveVault(session:VaultSession,payload:VaultPayload):Promi
   return {...session,payload};
 }
 export async function eraseVault(){await putRaw(null);}
+
+
+/** Monotonic, bounded change-feed application. No writes until caller persists
+ * an authenticated encrypted snapshot. Reject malformed/out-of-order pages.
+ */
+export type ChangeEvent = {
+  cursor:number;entity:"task"|"project";entity_id:string;
+  operation:"upsert"|"delete";payload:CachedTask|CachedProject|null;
+  created_at:string;
+};
+export type ChangePage = {
+  format:"goreecloud-tasks-sync-1";after:number;next_cursor:number;
+  has_more:boolean;changes:ChangeEvent[];
+};
+export function applyChangePage(snapshot:VaultPayload,page:ChangePage):VaultPayload {
+  if(page?.format!=="goreecloud-tasks-sync-1"||page.after!==snapshot.cursor||
+     !Number.isSafeInteger(page.next_cursor)||page.next_cursor<page.after||
+     typeof page.has_more!=="boolean"||!Array.isArray(page.changes)||page.changes.length>200)
+    throw new Error("Invalid server change-feed format; use a full bootstrap");
+  const tasks=new Map(snapshot.tasks.map(item=>[item.id,item]));
+  const projects=new Map(snapshot.projects.map(item=>[item.id,item]));
+  let last=page.after;
+  for(const event of page.changes) {
+    if(!Number.isSafeInteger(event.cursor)||event.cursor<=last||
+       !["task","project"].includes(event.entity)||
+       !["upsert","delete"].includes(event.operation)||
+       typeof event.entity_id!=="string"||!event.entity_id)
+      throw new Error("Out-of-order or invalid sync event; refresh full snapshot");
+    last=event.cursor;
+    const entityMap=event.entity==="task"?tasks:projects;
+    if(event.operation==="delete") {
+      entityMap.delete(event.entity_id);
+    } else {
+      const payload=event.payload;
+      if(!payload||payload.id!==event.entity_id||
+         (event.entity==="task"&&typeof (payload as CachedTask).version!=="number")||
+         (event.entity==="project"&&typeof (payload as CachedProject).name!=="string"))
+        throw new Error("Invalid sync event payload; refresh full snapshot");
+      if(event.entity==="task")tasks.set(event.entity_id,payload as CachedTask);
+      else projects.set(event.entity_id,payload as CachedProject);
+    }
+  }
+  if(last!==page.next_cursor||page.has_more&&page.changes.length===0)
+    throw new Error("Change-feed cursor discontinuity; refresh full snapshot");
+  if(tasks.size>5000||projects.size>5000)
+    throw new Error("Encrypted cache record limit exceeded; use full bootstrap");
+  return {...snapshot,saved_at:new Date().toISOString(),
+    tasks:[...tasks.values()],projects:[...projects.values()],cursor:page.next_cursor};
+}
