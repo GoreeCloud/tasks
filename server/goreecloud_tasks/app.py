@@ -12,6 +12,7 @@ import sqlite3
 from contextlib import contextmanager
 from .changefeed import record_change, replay_receipt, save_receipt, scrub_task_history
 from .ical import build_calendar
+from .csv_export import build_task_csv
 from .habits import install_habit_routes
 from .csv_import import CsvSource, CsvImport, preview_csv
 from datetime import date, datetime, timezone
@@ -683,6 +684,27 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                         "warnings": preview["warnings"], "checksum": data.checksum}
             save_receipt(conn, idempotency_key, scope, payload, response, timestamp)
             return response
+
+    @router.get("/export.csv")
+    def export_task_csv():
+        """Explicit private flat CSV export, not a lossless JSON backup."""
+        with db.open() as conn:
+            rows = conn.execute(
+                """SELECT tasks.*, projects.name AS project_name
+                   FROM tasks LEFT JOIN projects ON projects.id=tasks.project_id
+                   ORDER BY tasks.id LIMIT 5001"""
+            ).fetchall()
+            if len(rows) > 5000:
+                raise HTTPException(status_code=413,
+                                    detail="Task CSV export exceeds 5000 tasks")
+            payload = build_task_csv([task_dict(row) for row in rows])
+        return Response(
+            content=payload, media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition":
+                        'attachment; filename="goreecloud-tasks.csv"',
+                     "Cache-Control": "no-store",
+                     "X-Content-Type-Options": "nosniff"}
+        )
 
     @router.get("/export.ics")
     def export_ical():

@@ -15,6 +15,6 @@ Review date: November 20, 2026. Do not represent this document as a substitute f
 | Kotlin / Compose | Native Android UI | Apache-2.0 and upstream-specific | https://github.com/JetBrains/kotlin |
 | GoreeCloud UI source | Shared design tokens, Kotlin Compose and Android Expressive adapter | MIT, upstream LICENSE preserved | https://github.com/GoreeCloud/gc-ui |
 
-No external competitor project source is imported. All dependencies are installed by the specified build system; distribution/license compliance remains a separate gate for packaging and downloads. **Pin/review transitive dependencies, generate SBOM, check advisories, verify licenses and scan builds before releases.**
+CSV task export uses Python standard-library csv/io modules and introduces **no new package dependency**. No external competitor project source is imported. All dependencies are installed by the specified build system; distribution/license compliance remains a separate gate for packaging and downloads. **Pin/review transitive dependencies, generate SBOM, check advisories, verify licenses and scan builds before releases.**
 
 Imported upstream GC UI revision: 42965f8682c22973b4247d58238e68aa63d86523. See vendor/gc-ui/PROVENANCE.md. Product code in this repo does not represent upstream dependencies as original code. Any GPL/LGPL obligations must be fulfilled before distributing Linux installers and associated Qt binaries.

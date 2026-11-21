@@ -25,6 +25,7 @@ Send JSON for write operations. All private POST/PUT/PATCH request bodies are li
 | POST | /api/v1/import/csv/preview | Authenticated, non-writing generic/Todoist-subset CSV validation and checksum |
 | POST | /api/v1/import/csv | Atomic, explicitly confirmed import: checksum and required Idempotency-Key, max 200 tasks |
 | GET | /api/v1/export | Complete portable JSON snapshot |
+| GET | /api/v1/export.csv | Explicit private flat CSV download for up to 5,000 tasks / 10 MB; spreadsheet-formula guarded, not a lossless backup or direct importer round trip |
 | GET | /api/v1/export.ics | Authenticated VTODO iCalendar download (max 5000 tasks) |
 | GET | /api/v1/habits?as_of=YYYY-MM-DD&limit=100&offset=0 | List daily habits, check-in status, total count and bounded streak as of local date |
 | POST | /api/v1/habits | Create a daily habit with name and optional description |
