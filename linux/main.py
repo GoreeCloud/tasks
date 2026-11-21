@@ -271,6 +271,20 @@ class TasksBackend(QObject):
                       {"name": name, "description": description},
                       lambda _: self.refreshHabits())
 
+    @Slot(str, int, str, str)
+    def editHabit(self, habit_id: str, version: int, name: str, description: str):
+        name = name.strip()
+        if not 1 <= len(name) <= 120 or len(description) > 16000:
+            self._set_error("Habit name must be 1–120 characters; notes max 16000")
+            return
+        if version < 1 or not habit_id:
+            self._set_error("Habit revision is invalid; refresh before editing")
+            return
+        self._request("PATCH", "/habits/" + quote(habit_id, safe=""),
+                      {"expected_version": version, "name": name,
+                       "description": description},
+                      lambda _: self.refreshHabits())
+
     @Slot(str, int, bool)
     def toggleHabit(self, habit_id: str, version: int, checked: bool):
         today = date.today().isoformat()

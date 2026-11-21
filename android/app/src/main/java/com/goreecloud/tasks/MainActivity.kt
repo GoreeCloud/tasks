@@ -199,6 +199,7 @@ private fun HabitsDialog(
     busy: Boolean,
     onDismiss: () -> Unit,
     onCreate: (String, String) -> Unit,
+    onUpdate: (HabitItem, String, String) -> Unit,
     onCheckin: (HabitItem) -> Unit,
     onDelete: (HabitItem) -> Unit
 ) {
@@ -240,6 +241,41 @@ private fun HabitsDialog(
                                         habit.totalCheckins + " check-ins",
                                         style = MaterialTheme.typography.labelMedium)
                                 }
+                            }
+                            var editing by remember(habit.id) { mutableStateOf(false) }
+                            var editedName by remember(habit.id) { mutableStateOf(habit.name) }
+                            var editedNotes by remember(habit.id) { mutableStateOf(habit.description) }
+                            if (editing) {
+                                OutlinedTextField(
+                                    value = editedName, onValueChange = { editedName = it },
+                                    label = { Text("Edit habit name") },
+                                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                    enabled = !busy
+                                )
+                                OutlinedTextField(
+                                    value = editedNotes, onValueChange = { editedNotes = it },
+                                    label = { Text("Edit habit notes") },
+                                    modifier = Modifier.fillMaxWidth(), enabled = !busy
+                                )
+                                Row {
+                                    TextButton(onClick = { editing = false }, enabled = !busy) {
+                                        Text("Cancel editing")
+                                    }
+                                    TextButton(
+                                        enabled = !busy && editedName.trim().length in 1..120 &&
+                                            editedNotes.length <= 16000,
+                                        onClick = {
+                                            onUpdate(habit, editedName.trim(), editedNotes)
+                                            editing = false
+                                        }
+                                    ) { Text("Save habit") }
+                                }
+                            } else {
+                                TextButton(enabled = !busy, onClick = {
+                                    editedName = habit.name
+                                    editedNotes = habit.description
+                                    editing = true
+                                }) { Text("Edit habit") }
                             }
                             var showDelete by remember(habit.id) { mutableStateOf(false) }
                             if (showDelete) {
@@ -498,6 +534,13 @@ private fun TasksScreen() {
                 execute {
                     val client = requireNotNull(api)
                     client.createHabit(name, notes)
+                    reloadHabits(client)
+                }
+            },
+            onUpdate = { habit, name, notes ->
+                execute {
+                    val client = requireNotNull(api)
+                    client.editHabit(habit, name, notes)
                     reloadHabits(client)
                 }
             },
