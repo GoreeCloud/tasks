@@ -7,7 +7,7 @@ All examples use explicit placeholders, not real tokens, hostnames, personal dat
 
 | Command | Purpose | Risk | Verified boundary |
 | --- | --- | --- | --- |
-| python -m pytest server/tests -q | Run deterministic API/security tests | Read-only test database | 60 API tests passed locally, including streamed-body cap, privacy and date-only recurrence |
+| python -m pytest server/tests -q | Run deterministic API/security tests | Read-only test database | 61 API tests passed locally, including streamed-body cap, privacy and date-only recurrence |
 | npm ci && npm run build | Install pinned web dependencies and build | Changes developer workspace | Local web production build passed |
 | npm test | Check source/browser contract tests | Read-only | 5 local tests passed, including fail-closed offline shell cache generation |
 | npm run preview -- --port 18758 --strictPort | Serve built public web assets and offline-sw.js on localhost for isolated test only | Local network listener | Passed on 127.0.0.1 in synthetic Chromium acceptance; never expose test server publicly |

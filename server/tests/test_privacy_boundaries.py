@@ -129,3 +129,18 @@ def test_invalid_advertised_body_length_fails_private(tmp_path):
                     content=b'{"title":"Do not create"}')
     assert res.status_code==413 and res.headers["cache-control"]=="no-store"
     assert client.get("/api/v1/tasks",headers=AUTH).json()==[]
+
+
+def test_interrupted_stream_does_not_partially_mutate_or_echo(tmp_path):
+    client=TestClient(create_app(str(tmp_path/"interrupted.sqlite3"),TOKEN))
+    def broken_chunks():
+        yield b'{"title":"Private interrupted'
+        raise RuntimeError("SYNTHETIC_PRIVATE_STREAM_FAILURE_MARKER")
+    response=client.post("/api/v1/tasks",headers={**AUTH,
+        "Content-Type":"application/json", "Transfer-Encoding":"chunked"},
+        content=iter(broken_chunks()))
+    assert response.status_code==400
+    assert "SYNTHETIC_PRIVATE_STREAM_FAILURE_MARKER" not in response.text
+    assert "Private interrupted" not in response.text
+    assert response.headers["cache-control"]=="no-store"
+    assert client.get("/api/v1/tasks",headers=AUTH).json()==[]
