@@ -11,6 +11,7 @@ type Task = {
   completed_at: string | null; version: number; created_at: string;
 };
 type Project = { id: string; name: string };
+type TaskSnapshot = { format: string; cursor: number; tasks: Task[]; projects: Project[] };
 type Screen = "inbox"|"today"|"upcoming"|"calendar"|"board"|"habits"|"import"|"offline"|"completed"|"all"|"focus";
 type TaskForm = { title: string; description: string; due_date: string; priority: number; recurrence: Task["recurrence"]; project_id: string; parent_id: string; tags: string };
 const emptyForm: TaskForm = { title: "", description: "", due_date: "", priority: 2, recurrence: "none", project_id: "", parent_id: "", tags: "" };
@@ -76,11 +77,18 @@ export function App() {
   }, [token]);
 
   const refresh = useCallback(async () => {
-    const [allTasks, allProjects] = await Promise.all([
-      request<Task[]>("/tasks?status=all"), request<Project[]>("/projects")
-    ]);
-    setTasks(allTasks);
-    setProjects(allProjects);
+    // A single read transaction keeps project IDs and tasks consistent.
+    // /tasks is page-limited to 1,000 records; silently using its first
+    // page can hide private tasks from the UI even though they still exist.
+    const snapshot = await request<TaskSnapshot>("/sync/bootstrap");
+    if (snapshot?.format !== "goreecloud-tasks-sync-1" ||
+        !Number.isSafeInteger(snapshot.cursor) || snapshot.cursor < 0 ||
+        !Array.isArray(snapshot.tasks) || snapshot.tasks.length > 5000 ||
+        !Array.isArray(snapshot.projects) || snapshot.projects.length > 5000) {
+      throw new Error("Unsupported or oversized task snapshot; existing view was preserved");
+    }
+    setTasks(snapshot.tasks);
+    setProjects(snapshot.projects);
   }, [request]);
 
   useEffect(() => {
