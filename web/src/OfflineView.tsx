@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type CachedProject,type CachedTask,type QueueItem,type VaultSession,
-  applyChangePage,type ChangePage,createVault,emptyPayload,eraseVault,hasVault,saveVault,unlockVault
+  applyChangePage,type ChangePage,createVault,emptyPayload,encryptedVaultBackup,eraseVault,hasVault,restoreEncryptedVault,saveVault,unlockVault
 } from "./offlineVault";
 
 type Request = <T,>(path:string,init?:RequestInit)=>Promise<T>;
@@ -15,6 +15,7 @@ export function OfflineView({request,onSynced}:{
   const [locked,setLocked]=useState(true);
   const [passphrase,setPassphrase]=useState("");
   const [verify,setVerify]=useState("");
+  const [restoreFile,setRestoreFile]=useState<File|null>(null);
   const [tasks,setTasks]=useState<CachedTask[]>([]);
   const [projects,setProjects]=useState<CachedProject[]>([]);
   const [pending,setPending]=useState<QueueItem[]>([]);
@@ -43,7 +44,7 @@ export function OfflineView({request,onSynced}:{
   },[]);
   const lock=()=>{
     session.current=null;setTasks([]);setProjects([]);setPending([]);setLocked(true);
-    setDraft("");setDueDate("");setEditing(null);setPassphrase("");setVerify("");
+    setDraft("");setDueDate("");setEditing(null);setPassphrase("");setVerify("");setRestoreFile(null);
     setMessage("");setError("");setConflictPreview(null);
   };
   async function mutate(work:()=>Promise<void>) {
@@ -207,6 +208,26 @@ export function OfflineView({request,onSynced}:{
     await store([],snapshot.tasks,snapshot.projects,snapshot.cursor);
     setMessage("Encrypted snapshot updated from the server.");
   }
+  async function downloadEncryptedBackup() {
+    const current=session.current;
+    if(!current)throw new Error("Unlock the encrypted vault before exporting");
+    const file=await encryptedVaultBackup(current);
+    const url=URL.createObjectURL(file);
+    try {
+      const anchor=document.createElement("a");
+      anchor.href=url;anchor.download="goreecloud-tasks-offline-encrypted-backup.json";
+      anchor.click();
+    }finally{window.setTimeout(()=>URL.revokeObjectURL(url),1000);}
+    setMessage("Encrypted backup downloaded. Keep the backup and its passphrase secure; it is not a plaintext task export.");
+  }
+  async function restoreFromEncryptedFile() {
+    if(!restoreFile)throw new Error("Select an encrypted vault backup file");
+    if(passphrase!==verify)
+      throw new Error("Passphrase confirmation does not match");
+    const restored=await restoreEncryptedVault(restoreFile,passphrase);
+    load(restored);setExists(true);setPassphrase("");setVerify("");setRestoreFile(null);
+    setMessage("Verified encrypted backup restored to a new local vault. Nothing was sent to the server.");
+  }
   async function forget() {
     if(!window.confirm("Permanently erase this browser's encrypted Tasks offline vault and ALL unsynced drafts?"))
       return;
@@ -235,13 +256,24 @@ export function OfflineView({request,onSynced}:{
       <button type="submit" className="primary-btn" disabled={busy||passphrase.length<12}>
         {exists?"Unlock vault":"Enable vault from server"}
       </button>
-      {!exists&&<p className="muted">Initial setup requires a successful server connection. A lost passphrase cannot be recovered. No background sync is enabled.</p>}
+      {!exists&&<>
+        <p className="muted">Initial setup requires a successful server connection. A lost passphrase cannot be recovered. No background sync is enabled.</p>
+        <label>Encrypted backup file
+          <input type="file" accept=".json,application/json"
+            aria-label="Encrypted vault backup file"
+            onChange={e=>setRestoreFile(e.target.files?.[0]??null)}/>
+        </label>
+        <button type="button" className="secondary-btn" disabled={busy||!restoreFile||passphrase.length<12}
+          onClick={()=>void mutate(restoreFromEncryptedFile)}>Restore encrypted backup</button>
+        <p className="muted">Restore requires the original passphrase and exactly the same site origin. Existing local vaults are never overwritten. Imported data remains offline until you choose Sync now.</p>
+      </>}
       {exists&&<button type="button" className="danger-btn" disabled={busy}
         onClick={()=>void mutate(forget)}>Erase local vault...</button>}
     </form>:<>
       <div className="offline-status">
         <span>Encrypted vault unlocked · {tasks.length} cached tasks · {pending.length} queued drafts</span>
         <div className="offline-actions">
+          <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(downloadEncryptedBackup)}>Download encrypted backup</button>
           <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(pullChanges)}>Pull server changes</button>
           <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(refreshSnapshot)}>Full snapshot refresh</button>
           <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(syncNow)}>Sync now</button>
