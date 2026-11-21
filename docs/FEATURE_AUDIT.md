@@ -6,7 +6,7 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 | --- | --- | --- | --- |
 | Task/project CRUD | Both products | API, React and native Qt Quick/Compose CRUD source with project selection | Present development source |
 | Due dates, priority, notes/labels | Both | API/web and native task editors with priority/tags/notes | P1 UX and device acceptance |
-| Recurring tasks | Both | Simple daily/weekly/monthly | P1 RRULE/timezones |
+| Recurring tasks | Both | Date-only daily, weekdays, weekly, biweekly (14 days), monthly, yearly in API/React/Qt/Compose; simple previous-due-date step, no holidays, anchored RRULE, time zones or reminder engine | P1 richer scheduling/notifications |
 | Today, Upcoming, search | Both | Web, Android and Linux view filters; API bounded search | P1 saved filters |
 | Visual calendar, boards | Both | React month calendar and keyboard-accessible P1–P4 priority board with version-safe move buttons; drag-drop remains optional backlog | P1 |
 | Native Linux and Android | Platform-specific | Expanded Qt Quick/Compose CRUD and filters; device/runtime acceptance pending | P1 |

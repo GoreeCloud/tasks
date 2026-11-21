@@ -138,7 +138,7 @@ class TaskApi(private val base: String, private val token: String) {
                        projectId: String?, parentId: String?, recurrence: String, tags: List<String>): JSONObject {
         require(title.trim().length in 1..240) { "Task title must contain 1–240 characters" }
         require(priority in 1..4) { "Priority must be P1 to P4" }
-        require(recurrence in listOf("none", "daily", "weekly", "monthly")) { "Unknown recurrence" }
+        require(recurrence in listOf("none", "daily", "weekdays", "weekly", "biweekly", "monthly", "yearly")) { "Unknown recurrence" }
         require(recurrence == "none" || !dueDate.isNullOrBlank()) {
             "Recurring tasks need a due date"
         }
