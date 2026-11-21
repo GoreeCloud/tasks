@@ -23,6 +23,7 @@ class TasksBackend(QObject):
     tasksChanged = Signal()
     projectsChanged = Signal()
     habitsChanged = Signal()
+    habitHistoryChanged = Signal()
     statusChanged = Signal()
     errorChanged = Signal()
 
@@ -32,6 +33,10 @@ class TasksBackend(QObject):
         self._tasks: list[dict] = []
         self._projects: list[dict] = []
         self._habits: list[dict] = []
+        self._habit_history: list[str] = []
+        self._habit_history_offset = 0
+        self._habit_history_has_more = False
+        self._habit_history_generation = 0
         self._status = "Ready"
         self._error = ""
         self._token = token
@@ -56,6 +61,58 @@ class TasksBackend(QObject):
     @Property("QVariantList", notify=habitsChanged)
     def habits(self):
         return self._habits
+
+    @Property("QVariantList", notify=habitHistoryChanged)
+    def habitHistory(self):
+        return self._habit_history
+
+    @Property(int, notify=habitHistoryChanged)
+    def habitHistoryOffset(self):
+        return self._habit_history_offset
+
+    @Property(bool, notify=habitHistoryChanged)
+    def habitHistoryHasMore(self):
+        return self._habit_history_has_more
+
+    @Slot()
+    def clearHabitHistory(self):
+        self._habit_history_generation += 1
+        self._habit_history = []
+        self._habit_history_offset = 0
+        self._habit_history_has_more = False
+        self.habitHistoryChanged.emit()
+
+    @Slot(str, int)
+    def loadHabitHistory(self, habit_id: str, offset: int):
+        if not habit_id or not 0 <= offset <= 1_000_000:
+            self._set_error("Invalid habit history page")
+            return
+        self.clearHabitHistory()
+        generation = self._habit_history_generation
+
+        def on_history(data):
+            if generation != self._habit_history_generation:
+                return  # A closed dialog/newer request must not display stale history.
+            if not isinstance(data, list) or len(data) > 30:
+                self._set_error("Invalid habit history response")
+                return
+            try:
+                parsed = [date.fromisoformat(day).isoformat() for day in data
+                          if isinstance(day, str)]
+            except (ValueError, TypeError):
+                self._set_error("Invalid habit history dates")
+                return
+            if len(parsed) != len(data) or parsed != sorted(set(parsed), reverse=True):
+                self._set_error("Invalid habit history date order")
+                return
+            self._habit_history = parsed
+            self._habit_history_offset = offset
+            self._habit_history_has_more = len(parsed) == 30
+            self.habitHistoryChanged.emit()
+
+        self._request("GET", "/habits/" + quote(habit_id, safe="") +
+                      "/checkins?limit=30&offset=" + str(offset),
+                      callback=on_history)
 
     @Property(str, notify=statusChanged)
     def status(self):

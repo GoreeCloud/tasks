@@ -213,6 +213,20 @@ class TaskApi(private val base: String, private val token: String) {
         return parseHabit(JSONObject(request("/habits/"+encoded(previous.id),"PATCH",body)))
     }
 
+    /** Server-filtered, bounded, newest-first check-in dates. No local history cache. */
+    suspend fun habitHistory(habitId:String, offset:Int, limit:Int=30):List<String> {
+        require(habitId.isNotBlank()) { "Select a valid habit" }
+        require(offset in 0..1_000_000 && limit in 1..1000) { "Invalid history page" }
+        val page = JSONArray(request("/habits/" + encoded(habitId) +
+            "/checkins?limit=" + limit + "&offset=" + offset))
+        require(page.length() <= limit) { "Invalid history response size" }
+        val days = (0 until page.length()).map { LocalDate.parse(page.getString(it)).toString() }
+        require(days.distinct().size == days.size && days == days.sortedDescending()) {
+            "Invalid history date order"
+        }
+        return days
+    }
+
     suspend fun checkIn(habit:HabitItem, localDay:String) {
         request("/habits/"+encoded(habit.id)+"/checkins","POST",
             JSONObject().put("day",localDay).put("expected_version",habit.version))

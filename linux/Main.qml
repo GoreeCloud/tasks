@@ -422,6 +422,14 @@ ApplicationWindow {
                             }
                         }
                         Button {
+                            text: "History..."
+                            Accessible.name: "View check-in history for " + modelData.name
+                            onClicked: {
+                                habitHistoryDialog.habit = modelData
+                                habitHistoryDialog.open()
+                            }
+                        }
+                        Button {
                             text: "Delete..."
                             onClicked: {
                                 deleteHabitConfirm.habit = modelData
@@ -478,6 +486,81 @@ ApplicationWindow {
                 text: "A stale habit revision will be rejected; existing check-ins are preserved."
                 wrapMode: Text.WordWrap
                 color: window.gcSoft
+            }
+        }
+    }
+
+    Dialog {
+        id: habitHistoryDialog
+        title: "Habit check-in history"
+        modal: true
+        x: Math.max(10, (window.width - width) / 2)
+        y: Math.max(10, (window.height - height) / 2)
+        width: Math.min(window.width - 30, 460)
+        height: Math.min(window.height - 30, 460)
+        standardButtons: Dialog.Close
+        property var habit: ({})
+        onOpened: tasksBackend.loadHabitHistory(habit.id, 0)
+        onClosed: tasksBackend.clearHabitHistory()
+        contentItem: ColumnLayout {
+            spacing: 10
+            Label {
+                text: habitHistoryDialog.habit.name || "Habit"
+                textFormat: Text.PlainText
+                font.bold: true
+                color: window.gcText
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                text: "Recorded check-in dates, newest first. 30 dates per page."
+                color: window.gcSoft
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            ListView {
+                id: habitHistoryList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 6
+                model: tasksBackend ? tasksBackend.habitHistory : []
+                ScrollBar.vertical: ScrollBar {}
+                delegate: Label {
+                    required property var modelData
+                    text: modelData
+                    textFormat: Text.PlainText
+                    color: window.gcText
+                    font.pixelSize: 14
+                }
+            }
+            Label {
+                text: "No recorded check-ins on this page."
+                visible: habitHistoryList.count === 0
+                color: window.gcSoft
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Button {
+                    text: "Newer dates"
+                    enabled: tasksBackend ? tasksBackend.habitHistoryOffset > 0 : false
+                    onClicked: tasksBackend.loadHabitHistory(
+                        habitHistoryDialog.habit.id,
+                        Math.max(0, tasksBackend.habitHistoryOffset - 30)
+                    )
+                }
+                Item { Layout.fillWidth: true }
+                Label {
+                    text: "Page " + (tasksBackend ? Math.floor(tasksBackend.habitHistoryOffset / 30) + 1 : 1)
+                    color: window.gcSoft
+                }
+                Button {
+                    text: "Older dates"
+                    enabled: tasksBackend ? tasksBackend.habitHistoryHasMore : false
+                    onClicked: tasksBackend.loadHabitHistory(
+                        habitHistoryDialog.habit.id, tasksBackend.habitHistoryOffset + 30
+                    )
+                }
             }
         }
     }
