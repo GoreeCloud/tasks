@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type CachedProject,type CachedTask,type QueueItem,type VaultSession,
-  createVault,emptyPayload,eraseVault,hasVault,saveVault,unlockVault
+  applyChangePage,type ChangePage,createVault,emptyPayload,eraseVault,hasVault,saveVault,unlockVault
 } from "./offlineVault";
 
 type Request = <T,>(path:string,init?:RequestInit)=>Promise<T>;
@@ -118,7 +118,8 @@ export function OfflineView({request,onSynced}:{
           });
         } else if(op.kind==="edit"&&op.task_id&&op.expected_version){
           await request("/tasks/"+encodeURIComponent(op.task_id),{
-            method:"PATCH",body:JSON.stringify({...op.payload,expected_version:op.expected_version})
+            method:"PATCH",headers:{"Idempotency-Key":op.id},
+            body:JSON.stringify({...op.payload,expected_version:op.expected_version})
           });
         } else throw new Error("Unsupported offline operation");
       }catch(err) {
@@ -141,6 +142,26 @@ export function OfflineView({request,onSynced}:{
     await store([],snapshot.tasks,snapshot.projects,snapshot.cursor);
     await onSynced();
     setMessage("Server sync completed. Your encrypted local snapshot is current.");
+  }
+  async function pullChanges() {
+    const current=session.current;
+    if(!current)throw new Error("Unlock your encrypted vault first");
+    if(pending.length)throw new Error("Sync or discard pending drafts before pulling changes");
+    // Apply a bounded sequence in RAM and save one encrypted result only when
+    // the entire page chain has been validated. This avoids partial cache writes.
+    let candidate=current.payload;
+    for(let pageIndex=0;pageIndex<10;pageIndex++) {
+      const page=await request<ChangePage>(
+        "/sync/changes?after="+encodeURIComponent(String(candidate.cursor))+"&limit=200"
+      );
+      candidate=applyChangePage(candidate,page);
+      if(!page.has_more) {
+        await store([],candidate.tasks,candidate.projects,candidate.cursor);
+        setMessage("Encrypted offline snapshot updated from the server change feed.");
+        return;
+      }
+    }
+    throw new Error("Too many change pages. Use full snapshot refresh instead.");
   }
   async function refreshSnapshot() {
     if(pending.length)throw new Error("Sync or discard pending drafts before refreshing");
@@ -183,7 +204,8 @@ export function OfflineView({request,onSynced}:{
       <div className="offline-status">
         <span>Encrypted vault unlocked · {tasks.length} cached tasks · {pending.length} queued drafts</span>
         <div className="offline-actions">
-          <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(refreshSnapshot)}>Refresh snapshot</button>
+          <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(pullChanges)}>Pull server changes</button>
+          <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(refreshSnapshot)}>Full snapshot refresh</button>
           <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(syncNow)}>Sync now</button>
           <button type="button" className="secondary-btn" disabled={busy} onClick={lock}>Lock</button>
         </div>
