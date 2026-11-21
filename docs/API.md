@@ -17,7 +17,7 @@ Send JSON for write operations. API is intended for one trusted operator. Do not
 | GET | /api/v1/tasks?project_id=...&search=...&due_before=YYYY-MM-DD&limit=100&offset=0 | Filtered, deterministic page |
 | POST | /api/v1/tasks | Create a task |
 | GET | /api/v1/tasks/{id} | Retrieve one |
-| PATCH | /api/v1/tasks/{id} | Update with required expected_version |
+| PATCH | /api/v1/tasks/{id} | Update with required expected_version; optional Idempotency-Key supports safe retry after a lost response |
 | POST | /api/v1/tasks/{id}/complete | Complete; generate next recurring instance when applicable |
 | POST | /api/v1/tasks/{id}/reopen | Reopen a completed instance |
 | DELETE | /api/v1/tasks/{id}?expected_version=N | Permanently delete |
