@@ -41,7 +41,7 @@ for(const [name,engine,binary]of engines){
        }
        const method=request.method(), endpoint=path.replace(/^\/api\/v1/,"");
        const response=(body,status=200)=>route.fulfill({status,contentType:"application/json",body:JSON.stringify(body)});
-       if(method==="GET"&&endpoint==="/tasks")return response(tasks);
+       if(method==="GET"&&endpoint==="/tasks")return response(tasks.slice(0,1000));
        if(method==="GET"&&endpoint==="/sync/bootstrap")
          return response({format:"goreecloud-tasks-sync-1",cursor:tasks.length,
            tasks,projects});
@@ -287,7 +287,23 @@ for(const [name,engine,binary]of engines){
       await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:file,fullPage:true});
     }
-    console.log("PASSED",name,browser.version(),caseName,"synthetic create/edit/filter/complete/focus, no external requests");
+    if(name==="chromium"&&caseName==="desktop-light"){
+      // The ordinary /tasks endpoint intentionally exposes only the first
+      // 1,000 rows. The React workspace MUST use the consistent full bootstrap.
+      const template=tasks[0];
+      for(let i=0;i<1002;i++)tasks.push({
+        ...template,id:"synthetic-bulk-"+i,title:"Bulk task "+i,
+        completed_at:null,version:1,parent_id:null,project_id:null
+      });
+      await page.getByRole("button",{name:"My tasks",exact:true}).click();
+      await page.getByLabel("Task title").fill("Trigger full workspace refresh");
+      await page.getByRole("button",{name:"+ Add task"}).click();
+      await page.getByText("1003 active tasks across your workspace").waitFor({timeout:12000});
+      assert.equal(tasks.length,1007,"Large fixture should contain all records");
+      assert.equal(violations.length,0,JSON.stringify(violations));
+      assert.equal(errors.length,0,JSON.stringify(errors));
+    }
+    console.log("PASSED",name,browser.version(),caseName,"synthetic create/edit/filter/complete/focus plus full 1000+ snapshot, no external requests");
     total++;
    }finally{await context.close()}
   }

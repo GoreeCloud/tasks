@@ -161,3 +161,46 @@ def test_erased_task_scrubs_event_payloads_and_retry_receipts(client):
     assert all(row["entity_id"] == task["id"] for row in changes)
     assert client.post("/api/v1/tasks", headers=headers, json=body).status_code == 410
     assert client.get("/api/v1/tasks?status=all", headers=AUTH).json() == []
+
+
+def test_bootstrap_retains_all_tasks_beyond_list_page_and_fails_closed_on_capacity(tmp_path):
+    """Web workspace must not silently show only first 1,000 private tasks."""
+    path = tmp_path / "large-but-synthetic.sqlite3"
+    client = TestClient(create_app(str(path), TOKEN))
+    project_response = client.post("/api/v1/projects", headers=AUTH, json={"name": "Large"})
+    assert project_response.status_code == 201
+    project_id = project_response.json()["id"]
+
+    def rows(start, end):
+        stamp = "2026-11-21T12:00:00+00:00"
+        return [(f"synthetic-{index}", f"Task {index}", "", project_id, 2,
+                 "[]", "none", stamp, stamp, 1) for index in range(start, end)]
+
+    with sqlite3.connect(path) as conn:
+        conn.executemany(
+            """INSERT INTO tasks
+               (id,title,description,project_id,priority,tags,recurrence,created_at,updated_at,version)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""", rows(0, 1005)
+        )
+    first_page = client.get("/api/v1/tasks?status=all", headers=AUTH)
+    assert first_page.status_code == 200
+    assert len(first_page.json()) == 1000
+    complete = client.get("/api/v1/sync/bootstrap", headers=AUTH)
+    assert complete.status_code == 200
+    body = complete.json()
+    assert body["format"] == "goreecloud-tasks-sync-1"
+    assert body["cursor"] == 1
+    assert len(body["tasks"]) == 1005
+    assert body["projects"][0]["id"] == project_id
+    assert len({item["id"] for item in body["tasks"]}) == 1005
+
+    with sqlite3.connect(path) as conn:
+        conn.executemany(
+            """INSERT INTO tasks
+               (id,title,description,project_id,priority,tags,recurrence,created_at,updated_at,version)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""", rows(1005, 5001)
+        )
+    exceeded = client.get("/api/v1/sync/bootstrap", headers=AUTH)
+    assert exceeded.status_code == 413
+    assert exceeded.headers["cache-control"] == "no-store"
+    assert "tasks" not in exceeded.json(), "Never leak a partial snapshot after capacity error"
