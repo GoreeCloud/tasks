@@ -34,6 +34,14 @@ Todoist's official CSV format reference: https://www.todoist.com/help/account-an
 
 TickTick bulk backup CSV follows a separate provider layout and is **not** supported by this importer. Do not label TickTick migration complete.
 
+## Separate explicit CSV task export
+
+GET /api/v1/export.csv requires the same Authorization bearer token as all private Tasks routes. The web UI offers **Export CSV** as a user-invoked download. The file uses UTF-8 RFC 4180-style CRLF records, quoted text/embedded newlines, task metadata, and the columns: id, title, description, due_date, priority, tags, recurrence, parent_id, project_id, project_name, completed_at, series_id, version, created_at, updated_at. It contains private task titles and descriptions **in plaintext on the user's local device**; it is not retained by the server. The private response has no-store/nosniff and an attachment filename. Results are capped at **5,000 tasks** and **10,000,000 UTF-8 bytes**, with HTTP 413 rather than a partial file beyond either bound.
+
+Cells with leading spreadsheet formula triggers (=, +, -, @, including leading whitespace/control prefixes) are prefixed with a literal apostrophe to reduce CSV formula injection in common spreadsheet applications. This deliberately transforms the display text, and spreadsheet software differs; verify external consumers rather than assuming universal safety. TSV/CSV syntax and encoded cell values are not identity, permission or execution boundaries.
+
+**This CSV is not a lossless backup or automatic round-trip into the generic CSV importer.** It includes original UUIDs, project display names and completion timestamps, while the importer only understands a bounded subset, supports 200 tasks per atomic commit, does not import completed status or per-row projects, and has an optional 1-based parent_row field instead of IDs. A user must explicitly map/clean the chosen columns and review a preview before importing. Use the authenticated JSON export and tested SQLite backup path for higher-fidelity recovery; neither is a production backup guarantee. No Todoist/TickTick/Vikunja service is contacted.
+
 ## Two-step API
 
 Both endpoints use the existing single-user Authorization: Bearer token; they are not public.

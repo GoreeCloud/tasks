@@ -20,6 +20,25 @@ const today = () => {
   return [x.getFullYear(), String(x.getMonth()+1).padStart(2,"0"), String(x.getDate()).padStart(2,"0")].join("-");
 };
 
+async function downloadPrivateExport(path: string, filename: string, token: string) {
+  // Export is an explicit user action; never persist the server token or follow
+  // redirects to unexpected origins with Authorization attached.
+  const res = await fetch("/api/v1/" + path, {
+    headers: {"Authorization": "Bearer " + token},
+    cache: "no-store", redirect: "error"
+  });
+  if (!res.ok) throw new Error("Private export unavailable (" + res.status + ")");
+  const url = URL.createObjectURL(await res.blob());
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
 function FocusTimer() {
   const [duration, setDuration] = useState(25);
   const [remaining, setRemaining] = useState(25 * 60);
@@ -185,15 +204,14 @@ export function App() {
       <header className="topbar"><span>{today()}</span><div className="topbar-end">
         <span className="subtle">Self-hosted workspace</span>
         <button className="secondary-btn" disabled={busy} onClick={()=>void execute(async()=>{const data=await request<unknown>("/export");const file=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(file);const a=document.createElement("a");a.href=url;a.download="goreecloud-tasks-export.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);})}>Export JSON</button>
-        <button className="secondary-btn" disabled={busy} onClick={()=>void execute(async()=>{
-          const result=await fetch("/api/v1/export.ics",{headers:{"Authorization":"Bearer "+token}});
-          if(!result.ok)throw new Error("Calendar export unavailable ("+result.status+")");
-          const file=await result.blob();
-          const url=URL.createObjectURL(file);
-          const anchor=document.createElement("a");
-          anchor.href=url;anchor.download="goreecloud-tasks.ics";anchor.click();
-          setTimeout(()=>URL.revokeObjectURL(url),1000);
-        })}>Export calendar</button>
+        <button className="secondary-btn" disabled={busy}
+          title="Downloads plaintext private task data and notes. Store the file securely."
+          onClick={()=>void execute(
+            () => downloadPrivateExport("export.csv", "goreecloud-tasks.csv", token)
+          )}>Export CSV</button>
+        <button className="secondary-btn" disabled={busy} onClick={()=>void execute(
+          () => downloadPrivateExport("export.ics", "goreecloud-tasks.ics", token)
+        )}>Export calendar</button>
       </div></header>
       <div className="content-grid">
         <section className="primary-column">
