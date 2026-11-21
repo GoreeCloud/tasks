@@ -200,6 +200,12 @@ private fun HabitsDialog(
     onDismiss: () -> Unit,
     onCreate: (String, String) -> Unit,
     onUpdate: (HabitItem, String, String) -> Unit,
+    historyHabitId: String?,
+    historyDates: List<String>,
+    historyOffset: Int,
+    historyHasMore: Boolean,
+    historyError: String,
+    onHistoryPage: (HabitItem, Int) -> Unit,
     onCheckin: (HabitItem) -> Unit,
     onDelete: (HabitItem) -> Unit
 ) {
@@ -215,6 +221,10 @@ private fun HabitsDialog(
             ) {
                 Text("Check in once per local calendar day. Data stays on your self-hosted server.",
                     style = MaterialTheme.typography.bodySmall)
+                if (historyError.isNotBlank()) Text(
+                    historyError, color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 OutlinedTextField(value = name, onValueChange = { name = it },
                     label = { Text("New habit") }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true)
@@ -277,6 +287,36 @@ private fun HabitsDialog(
                                     editing = true
                                 }) { Text("Edit habit") }
                             }
+                            TextButton(enabled = !busy, onClick = {
+                                onHistoryPage(habit, if (historyHabitId == habit.id) -1 else 0)
+                            }) {
+                                Text(if (historyHabitId == habit.id) "Hide check-in history"
+                                     else "View check-in history")
+                            }
+                            if (historyHabitId == habit.id) {
+                                Text("Recorded dates, newest first · 30 per page",
+                                    style = MaterialTheme.typography.labelMedium)
+                                if (historyDates.isEmpty()) Text("No check-ins on this page.",
+                                    style = MaterialTheme.typography.bodySmall)
+                                historyDates.forEach { day ->
+                                    Text(day, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    TextButton(
+                                        enabled = !busy && historyOffset > 0,
+                                        onClick = { onHistoryPage(habit, (historyOffset - 30).coerceAtLeast(0)) }
+                                    ) { Text("Newer dates") }
+                                    Text("Page " + (historyOffset / 30 + 1),
+                                        style = MaterialTheme.typography.labelSmall)
+                                    TextButton(
+                                        enabled = !busy && historyHasMore,
+                                        onClick = { onHistoryPage(habit, historyOffset + 30) }
+                                    ) { Text("Older dates") }
+                                }
+                            }
                             var showDelete by remember(habit.id) { mutableStateOf(false) }
                             if (showDelete) {
                                 Text("Erase this habit and all check-ins?",
@@ -314,6 +354,10 @@ private fun TasksScreen() {
     var projects by remember { mutableStateOf<List<ProjectItem>>(emptyList()) }
     var habits by remember { mutableStateOf<List<HabitItem>>(emptyList()) }
     var showHabits by remember { mutableStateOf(false) }
+    var historyHabitId by remember { mutableStateOf<String?>(null) }
+    var historyDates by remember { mutableStateOf<List<String>>(emptyList()) }
+    var historyOffset by remember { mutableIntStateOf(0) }
+    var historyHasMore by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(TaskDraft()) }
     var projectName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
@@ -523,13 +567,32 @@ private fun TasksScreen() {
                         api = null; tasks = emptyList(); projects = emptyList()
                         selectedTask = null; query = ""; projectFilter = null
                         showHabits = false; habits = emptyList()
+                        historyHabitId = null; historyDates = emptyList(); historyOffset = 0
                     }, enabled = !loading) { Text("Disconnect") }
                 }
             }
         }
     }
     if (showHabits && api != null) {
-        HabitsDialog(habits = habits, busy = loading, onDismiss = { showHabits = false },
+        HabitsDialog(habits = habits, busy = loading, onDismiss = {
+                showHabits = false; historyHabitId = null; historyDates = emptyList()
+            }, historyHabitId = historyHabitId, historyDates = historyDates,
+            historyOffset = historyOffset, historyHasMore = historyHasMore,
+            historyError = error,
+            onHistoryPage = { habit, offset ->
+                if (offset < 0) {
+                    historyHabitId = null; historyDates = emptyList()
+                    historyOffset = 0; historyHasMore = false
+                } else {
+                    execute {
+                        val dates = requireNotNull(api).habitHistory(habit.id, offset)
+                        historyHabitId = habit.id
+                        historyDates = dates
+                        historyOffset = offset
+                        historyHasMore = dates.size == 30
+                    }
+                }
+            },
             onCreate = { name, notes ->
                 execute {
                     val client = requireNotNull(api)
@@ -551,6 +614,9 @@ private fun TasksScreen() {
                     if (habit.checkedInToday) client.undoCheckIn(habit, day)
                     else client.checkIn(habit, day)
                     reloadHabits(client)
+                    if (historyHabitId == habit.id) {
+                        historyHabitId = null; historyDates = emptyList()
+                    }
                 }
             },
             onDelete = { habit ->
@@ -558,6 +624,9 @@ private fun TasksScreen() {
                     val client = requireNotNull(api)
                     client.deleteHabit(habit)
                     reloadHabits(client)
+                    if (historyHabitId == habit.id) {
+                        historyHabitId = null; historyDates = emptyList()
+                    }
                 }
             })
     }

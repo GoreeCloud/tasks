@@ -150,6 +150,49 @@ class TasksBackendTest(unittest.TestCase):
                 self.backend.editHabit(*bad)
                 self.assertEqual(len(calls), 1, "Invalid input must not issue an API call")
 
+    def test_habit_history_bounds_paging_and_stale_callback(self):
+        calls = []
+        self.backend._request = lambda method, path, callback=None: calls.append(
+            (method, path, callback)
+        )
+        self.backend.loadHabitHistory("habit with spaces", -1)
+        self.backend.loadHabitHistory("", 0)
+        self.assertEqual(calls, [])
+        self.backend.loadHabitHistory("habit with spaces", 0)
+        self.assertEqual(calls[0][:2], (
+            "GET", "/habits/habit%20with%20spaces/checkins?limit=30&offset=0"
+        ))
+        expected = [(date(2026, 11, 20) - timedelta(days=i)).isoformat()
+                    for i in range(30)]
+        calls[0][2](expected)
+        self.assertEqual(self.backend.habitHistory, expected)
+        self.assertTrue(self.backend.habitHistoryHasMore)
+        self.assertEqual(self.backend.habitHistoryOffset, 0)
+        self.backend.loadHabitHistory("habit with spaces", 30)
+        self.assertEqual(calls[1][1],
+                         "/habits/habit%20with%20spaces/checkins?limit=30&offset=30")
+        self.assertEqual(self.backend.habitHistory, [])
+        calls[0][2](expected)
+        self.assertEqual(self.backend.habitHistory, [],
+                         "Stale network callbacks must not restore previous dates")
+        calls[1][2](["2026-10-21", "2026-10-20"])
+        self.assertEqual(self.backend.habitHistory, ["2026-10-21", "2026-10-20"])
+        self.assertFalse(self.backend.habitHistoryHasMore)
+        self.assertEqual(self.backend.habitHistoryOffset, 30)
+        for bad in [None, {"bad": "shape"}, ["2026-10-22", "2026-10-22"],
+                    ["not-a-date"], ["2026-10-20", "2026-10-21"],
+                    ["2026-10-20"] * 31]:
+            self.backend.loadHabitHistory("habit with spaces", 0)
+            calls[-1][2](bad)
+            self.assertEqual(self.backend.habitHistory, [],
+                             "Malformed history must never update the visible list")
+        self.backend.loadHabitHistory("habit with spaces", 0)
+        old = calls[-1][2]
+        self.backend.clearHabitHistory()
+        old(expected)
+        self.assertEqual(self.backend.habitHistory, [])
+
+
 
 if __name__ == "__main__":
     unittest.main()
