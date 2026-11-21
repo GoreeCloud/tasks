@@ -7,7 +7,7 @@ import { OfflineView } from "./OfflineView";
 
 type Task = {
   id: string; title: string; description: string; project_id: string | null; parent_id: string | null;
-  due_date: string | null; priority: number; tags: string[]; recurrence: "none"|"daily"|"weekly"|"monthly";
+  due_date: string | null; priority: number; tags: string[]; recurrence: "none"|"daily"|"weekdays"|"weekly"|"biweekly"|"monthly"|"yearly";
   completed_at: string | null; version: number; created_at: string;
 };
 type Project = { id: string; name: string };
@@ -192,7 +192,7 @@ export function App() {
               <div className="composer-details">
                 <label>Due <input aria-label="Due date" type="date" value={form.due_date} onChange={e=>updateForm({due_date:e.target.value})}/></label>
                 <label>Priority <select aria-label="Priority" value={form.priority} onChange={e=>updateForm({priority:Number(e.target.value)})}><option value={1}>P1</option><option value={2}>P2</option><option value={3}>P3</option><option value={4}>P4</option></select></label>
-                <label>Repeat <select aria-label="Repeat" value={form.recurrence} onChange={e=>updateForm({recurrence:e.target.value as Task["recurrence"]})}><option value="none">Never</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+                <label>Repeat <select aria-label="Repeat" value={form.recurrence} onChange={e=>updateForm({recurrence:e.target.value as Task["recurrence"]})}><option value="none">Never</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>
                 <label>Project <select aria-label="Task project" value={form.project_id || projectFilter || ""} onChange={e=>updateForm({project_id:e.target.value})}><option value="">Inbox</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
                 <label>Subtask of <select aria-label="Subtask parent" value={form.parent_id} onChange={e=>updateForm({parent_id:e.target.value})}>
                   <option value="">No parent</option>{tasks.filter(x=>!x.completed_at).map(x=><option key={x.id} value={x.id}>{x.title}</option>)}
@@ -256,7 +256,7 @@ function TaskDetails({task,projects,tasks,allowedParents,disabled,onCreateSubtas
       <label>Project<select value={data.project_id} onChange={e=>setData({...data,project_id:e.target.value})}><option value="">Inbox</option>{projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
       <label>Due<input type="date" value={data.due_date} onChange={e=>setData({...data,due_date:e.target.value})}/></label>
       <label>Priority<select value={data.priority} onChange={e=>setData({...data,priority:Number(e.target.value)})}>{[1,2,3,4].map(n=><option value={n} key={n}>P{n}</option>)}</select></label>
-      <label>Repeat<select value={data.recurrence} onChange={e=>setData({...data,recurrence:e.target.value as Task["recurrence"]})}>{["none","daily","weekly","monthly"].map(r=><option key={r} value={r}>{r}</option>)}</select></label>
+      <label>Repeat<select value={data.recurrence} onChange={e=>setData({...data,recurrence:e.target.value as Task["recurrence"]})}>{["none","daily","weekdays","weekly","biweekly","monthly","yearly"].map(r=><option key={r} value={r}>{r==="biweekly"?"Every 2 weeks":r}</option>)}</select></label>
       <label>Parent task<select aria-label="Parent task" value={data.parent_id} onChange={e=>setData({...data,parent_id:e.target.value})}>
         <option value="">Standalone task</option>{allowedParents.map(x=><option key={x.id} value={x.id}>{x.title}</option>)}
       </select></label>

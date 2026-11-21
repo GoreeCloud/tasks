@@ -15,7 +15,7 @@ UTF-8 CSV with a header. Required column: title. Optional fields:
 | due_date | ISO YYYY-MM-DD or blank; no due time or timezone conversion |
 | priority | 1–4, 1 being highest; default 2 |
 | tags | Separate tags with the pipe character; at most 12, max 36 characters each |
-| recurrence | none (default), daily, weekly, monthly; a recurring task needs a due date |
+| recurrence | none (default), daily, weekdays, weekly, biweekly (14 days), monthly, yearly; a recurring task needs a due date |
 | parent_row | Optional 1-based index of a previously imported task in this file; no cycles |
 
 Example (synthetic data, not a real account export):

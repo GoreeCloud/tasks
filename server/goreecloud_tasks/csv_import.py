@@ -155,7 +155,7 @@ def preview_csv(source: CsvSource) -> dict:
                 priority = _parse_priority(data.get("priority", ""), number)
                 tags = [v.strip() for v in data.get("tags", "").split("|") if v.strip()]
                 recurrence = data.get("recurrence", "none").strip().lower() or "none"
-                if recurrence not in {"none","daily","weekly","monthly"}:
+                if recurrence not in {"none","daily","weekdays","weekly","biweekly","monthly","yearly"}:
                     raise HTTPException(status_code=422, detail=f"CSV row {number}: recurrence unsupported")
                 ref = data.get("parent_row", "").strip()
                 parent_row = None

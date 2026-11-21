@@ -136,6 +136,11 @@ for(const [name,engine,binary]of engines){
     await input.fill("fake-synthetic-token-0000000000000000");
     await page.getByRole("button",{name:"Open workspace"}).click();
     await page.getByRole("heading",{name:"My tasks"}).waitFor({timeout:10000});
+    for(const cadence of ["weekdays","biweekly","yearly"]) {
+      assert.equal(await page.getByLabel("Repeat",{exact:true})
+        .locator("option[value='"+cadence+"']").count(),1,
+        "The web task composer must expose "+cadence+" recurrence");
+    }
     const audit=await page.evaluate(()=>{
        const el=document.documentElement;
        return {scroll:el.scrollWidth,client:el.clientWidth,scheme:getComputedStyle(el).colorScheme,
