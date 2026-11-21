@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {enableOfflineShell,hasOfflineShell,removeOfflineShell} from "./offlineShell";
 import {
   type CachedProject,type CachedTask,type QueueItem,type VaultSession,
   applyChangePage,type ChangePage,createVault,emptyPayload,encryptedVaultBackup,eraseVault,hasVault,restoreEncryptedVault,saveVault,unlockVault
@@ -7,8 +8,8 @@ import {
 type Request = <T,>(path:string,init?:RequestInit)=>Promise<T>;
 type Bootstrap = {format:string;cursor:number;tasks:CachedTask[];projects:CachedProject[]};
 
-export function OfflineView({request,onSynced}:{
-  request:Request;onSynced:()=>Promise<void>
+export function OfflineView({request,onSynced,allowServerActions=true}:{
+  request:Request;onSynced:()=>Promise<void>;allowServerActions?:boolean
 }) {
   const session=useRef<VaultSession|null>(null);
   const [exists,setExists]=useState(false);
@@ -26,6 +27,7 @@ export function OfflineView({request,onSynced}:{
   const [editing,setEditing]=useState<string|null>(null);
   const [editedTitle,setEditedTitle]=useState("");
   const [busy,setBusy]=useState(false);
+  const [shellEnabled,setShellEnabled]=useState(false);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
   const [conflictPreview,setConflictPreview]=useState<{id:string;localTitle:string;server:CachedTask|null}|null>(null);
@@ -40,6 +42,8 @@ export function OfflineView({request,onSynced}:{
     let current=true;
     void hasVault().then(value=>{if(current)setExists(value);})
       .catch(()=>{if(current)setError("Encrypted browser storage is unavailable");});
+    void hasOfflineShell().then(value=>{if(current)setShellEnabled(value);})
+      .catch(()=>{if(current)setShellEnabled(false);});
     return ()=>{current=false;session.current=null;};
   },[]);
   const lock=()=>{
@@ -65,6 +69,7 @@ export function OfflineView({request,onSynced}:{
     setConflictPreview(null);
   }
   async function setup() {
+    if(!allowServerActions)throw new Error("Connect to the server to initialize a new offline vault");
     if(passphrase!==verify)throw new Error("Passphrase confirmation does not match");
     const snapshot=await request<Bootstrap>("/sync/bootstrap");
     if(snapshot.format!=="goreecloud-tasks-sync-1"||
@@ -107,6 +112,7 @@ export function OfflineView({request,onSynced}:{
     setMessage("Discarded the selected offline draft; no server data was changed.");
   }
   async function reviewConflict(op:QueueItem) {
+    if(!allowServerActions)throw new Error("Connect to the server to compare title revisions");
     if(op.kind!=="edit"||!op.task_id||op.status!=="conflict")
       throw new Error("Only conflicting existing-task title edits can be reviewed");
     try {
@@ -142,6 +148,7 @@ export function OfflineView({request,onSynced}:{
     setMessage("The edit is queued against the observed revision. Review it, then select Sync now. A newer server change will still be rejected.");
   }
   async function syncNow() {
+    if(!allowServerActions)throw new Error("Connect to the server to sync queued drafts");
     const current=session.current;
     if(!current)throw new Error("Unlock first");
     if(pending.some(item=>item.status==="conflict"))
@@ -182,6 +189,7 @@ export function OfflineView({request,onSynced}:{
     setMessage("Server sync completed. Your encrypted local snapshot is current.");
   }
   async function pullChanges() {
+    if(!allowServerActions)throw new Error("Connect to the server to pull changes");
     const current=session.current;
     if(!current)throw new Error("Unlock your encrypted vault first");
     if(pending.length)throw new Error("Sync or discard pending drafts before pulling changes");
@@ -202,11 +210,22 @@ export function OfflineView({request,onSynced}:{
     throw new Error("Too many change pages. Use full snapshot refresh instead.");
   }
   async function refreshSnapshot() {
+    if(!allowServerActions)throw new Error("Connect to the server to refresh the snapshot");
     if(pending.length)throw new Error("Sync or discard pending drafts before refreshing");
     const snapshot=await request<Bootstrap>("/sync/bootstrap");
     if(snapshot.format!=="goreecloud-tasks-sync-1")throw new Error("Unsupported server version");
     await store([],snapshot.tasks,snapshot.projects,snapshot.cursor);
     setMessage("Encrypted snapshot updated from the server.");
+  }
+  async function enableShell() {
+    await enableOfflineShell();
+    setShellEnabled(true);
+    setMessage("Static app shell cached for offline reopening. Task data remains only in your encrypted vault.");
+  }
+  async function removeShell() {
+    await removeOfflineShell();
+    setShellEnabled(false);
+    setMessage("Public offline app shell cache removed. Encrypted task drafts were not deleted.");
   }
   async function downloadEncryptedBackup() {
     const current=session.current;
@@ -253,7 +272,7 @@ export function OfflineView({request,onSynced}:{
           autoComplete="off" type="password" value={verify}
           onChange={e=>setVerify(e.target.value)}/>
       </label>}
-      <button type="submit" className="primary-btn" disabled={busy||passphrase.length<12}>
+      <button type="submit" className="primary-btn" disabled={busy||passphrase.length<12||(!exists&&!allowServerActions)}>
         {exists?"Unlock vault":"Enable vault from server"}
       </button>
       {!exists&&<>
@@ -274,12 +293,20 @@ export function OfflineView({request,onSynced}:{
         <span>Encrypted vault unlocked · {tasks.length} cached tasks · {pending.length} queued drafts</span>
         <div className="offline-actions">
           <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(downloadEncryptedBackup)}>Download encrypted backup</button>
-          <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(pullChanges)}>Pull server changes</button>
-          <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(refreshSnapshot)}>Full snapshot refresh</button>
-          <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(syncNow)}>Sync now</button>
+          {allowServerActions&&<>
+            <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(pullChanges)}>Pull server changes</button>
+            <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(refreshSnapshot)}>Full snapshot refresh</button>
+            <button type="button" className="secondary-btn" disabled={busy} onClick={()=>void mutate(syncNow)}>Sync now</button>
+          </>}
           <button type="button" className="secondary-btn" disabled={busy} onClick={lock}>Lock</button>
         </div>
       </div>
+      <p className="muted">Offline app shell stores only public static HTML, JavaScript, CSS and approved assets. It never caches private API responses, task data, or credentials. You must opt in, and your browser may evict the cache.</p>
+      <button type="button" className="secondary-btn" disabled={busy}
+        onClick={()=>void mutate(shellEnabled?removeShell:enableShell)}>
+        {shellEnabled?"Remove offline app shell":"Enable offline app shell"}
+      </button>
+      {!allowServerActions&&<p className="muted" role="status">Local-only mode: API access is disabled until you reconnect with a server token.</p>}
       <form className="offline-composer" onSubmit={e=>{e.preventDefault();void mutate(queueCreate);}}>
         <h3>Draft a standalone task</h3>
         <label>Title<input aria-label="Offline task title" required maxLength={240} value={draft}
@@ -302,7 +329,7 @@ export function OfflineView({request,onSynced}:{
         <ul>{pending.map(item=><li key={item.id}>
           <span><strong>{item.kind==="create"?"Create task":"Edit title"}</strong> · {String(item.payload.title||"Task")}
             {item.status==="conflict"?" · CONFLICT":""}</span>
-          {item.kind==="edit"&&item.status==="conflict"&&
+          {allowServerActions&&item.kind==="edit"&&item.status==="conflict"&&
             <button type="button" className="secondary-btn" disabled={busy}
               onClick={()=>void mutate(()=>reviewConflict(item))}>Compare with server</button>}
           <button type="button" className="secondary-btn" disabled={busy}
