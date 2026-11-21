@@ -1,6 +1,10 @@
 """Native Linux backend logic tests; no filesystem changes or real API traffic."""
+import json
 import sys
+import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Event, Thread
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -192,6 +196,148 @@ class TasksBackendTest(unittest.TestCase):
         old(expected)
         self.assertEqual(self.backend.habitHistory, [])
 
+
+
+    def test_private_ui_session_connect_and_disconnect_without_network(self):
+        self.backend.disconnect()
+        self.assertFalse(self.backend.connected)
+        self.assertEqual(self.backend.status, "Disconnected")
+        secret = "synthetic-dev-only-token-not-real-123456789"
+        attempts = [
+            ("http://public.example.com", secret),
+            ("https://user:password@example.com", secret),
+            ("file:///tmp/not-server", secret),
+            ("http://127.0.0.1:8000\nX-Header:unsafe", secret),
+            ("https://example.com/?key=in-url", secret),
+            ("https://example.com", "too-short"),
+            ("https://example.com", "x" * 600),
+            ("https://example.com", "x" * 32 + "\n"),
+            ("https://[unclosed", secret),
+        ]
+        for url, value in attempts:
+            with self.subTest(url=url[:34], size=len(value)):
+                self.backend.connectToServer(url, value)
+                self.assertFalse(self.backend.connected)
+                self.assertEqual(self.backend._all_tasks, [])
+        refresh_calls = []
+        self.backend.refresh = lambda: refresh_calls.append(True)
+        self.backend.connectToServer("http://127.0.0.1:8000", secret)
+        self.assertTrue(self.backend.connected)
+        self.assertEqual(len(refresh_calls), 1)
+        self.backend._all_tasks = [{"id": "private", "title": "synthetic task"}]
+        self.backend._tasks = list(self.backend._all_tasks)
+        self.backend._projects = [{"id": "project", "name": "Private"}]
+        self.backend._habits = [{"id": "habit", "name": "Private routine"}]
+        self.backend._habit_history = ["2026-11-20"]
+        self.backend._project_filter = "project"
+        self.backend._query = "private query"
+        class FakeReply:
+            aborted = False
+            def abort(self): self.aborted = True
+        network_reply = FakeReply()
+        self.backend._outstanding_replies.add(network_reply)
+        generation = self.backend._session_generation
+        self.backend.disconnect()
+        self.assertGreater(self.backend._session_generation, generation)
+        self.assertTrue(network_reply.aborted)
+        self.assertFalse(self.backend.connected)
+        self.assertEqual(self.backend._token, "")
+        self.assertEqual(self.backend._all_tasks, [])
+        self.assertEqual(self.backend.tasks, [])
+        self.assertEqual(self.backend.projects, [])
+        self.assertEqual(self.backend.habits, [])
+        self.assertEqual(self.backend.habitHistory, [])
+        self.assertEqual(self.backend._project_filter, None)
+        self.assertEqual(self.backend._query, "")
+        self.assertEqual(self.backend.status, "Disconnected")
+
+    def test_login_requires_secure_urls_and_printable_token(self):
+        valid = "a" * 40
+        for url in ["https://example.com", "http://127.0.0.1:8000",
+                    "http://localhost:8000", "https://[::1]:443"]:
+            self.assertTrue(TasksBackend._valid_url(url), url)
+        for url in ["http://example.com", "https://user:pass@example.com",
+                    "https://host.test?token=yes", "https://host.test/",
+                    "http://127.0.0.1:99999", "https://host.test\tbad",
+                    "https://[broken", ""]:
+            self.assertFalse(TasksBackend._valid_url(url), url)
+        self.assertTrue(TasksBackend._valid_token(valid))
+        self.assertFalse(TasksBackend._valid_token("a" * 31))
+        self.assertFalse(TasksBackend._valid_token("a" * 513))
+        self.assertFalse(TasksBackend._valid_token("a" * 40 + " "))
+        self.assertFalse(TasksBackend._valid_token("a" * 40 + "\n"))
+
+
+    def test_authenticated_loopback_refresh_and_disconnect_blocks_late_reply(self):
+        token = "synthetic-only-loopback-qt-token-123456789"
+        delayed = Event()
+        entered = Event()
+        release = Event()
+        evidence = []
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                evidence.append((self.path, self.headers.get("Authorization")))
+                if delayed.is_set():
+                    entered.set()
+                    release.wait(timeout=3)
+                body = json.dumps({
+                    "format": "goreecloud-tasks-sync-1", "cursor": 1,
+                    "projects": [{"id": "project", "name": "Synthetic private"}],
+                    "tasks": [{
+                        "id": "task-1", "title": "Synthetic private",
+                        "description": "", "tags": [], "project_id": "project",
+                        "completed_at": None, "due_date": None
+                    }]
+                }).encode("utf-8")
+                try:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # A clean disconnect aborts the in-flight HTTP reply.
+            def log_message(self, *_args):
+                return  # Never log the bearer token or private task text.
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            client = TasksBackend(f"http://127.0.0.1:{server.server_port}", token)
+            client.refresh()
+            limit = time.monotonic() + 3
+            while time.monotonic() < limit and not client.allTasks:
+                self.qt.processEvents()
+                time.sleep(0.01)
+            self.assertEqual(len(client.allTasks), 1, client.error)
+            self.assertEqual(client.projects[0]["name"], "Synthetic private")
+            delayed.set()
+            client.refresh()
+            until_response = time.monotonic() + 3
+            while time.monotonic() < until_response and not entered.is_set():
+                self.qt.processEvents()
+                time.sleep(0.01)
+            self.assertTrue(entered.is_set(), "Loopback fixture received no second request")
+            before = client._session_generation
+            client.disconnect()
+            release.set()
+            until = time.monotonic() + 0.1
+            while time.monotonic() < until:
+                self.qt.processEvents()
+            self.assertGreater(client._session_generation, before)
+            self.assertFalse(client.connected)
+            self.assertEqual(client.allTasks, [])
+            self.assertEqual(client.projects, [])
+            self.assertEqual(client.habits, [])
+            self.assertEqual(client.status, "Disconnected")
+            self.assertTrue(evidence)
+            self.assertTrue(all(path == "/api/v1/sync/bootstrap" and header == "Bearer " + token
+                                for path, header in evidence))
+        finally:
+            release.set()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
 
 
 if __name__ == "__main__":
