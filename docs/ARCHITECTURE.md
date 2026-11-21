@@ -1,15 +1,15 @@
 # Architecture — GoreeCloud Tasks 0.1 development preview
 
-GoreeCloud Tasks is an original single-user, self-hosted API with three clients. The service uses Python/FastAPI, SQLite with WAL and foreign keys, UUID task IDs, a schema version and transaction-scoped writes. All authenticated routes live under `/api/v1`; no client needs an external SaaS account.
+GoreeCloud Tasks is an original single-user, self-hosted API with three clients. The service uses Python/FastAPI, SQLite with WAL and foreign keys, UUID task IDs, schema v2, serialized BEGIN IMMEDIATE write transactions and transactional event emission. All authenticated routes live under `/api/v1`; no client needs an external SaaS account.
 
 - **Web:** React/TypeScript/Vite; same-origin `/api` through the Vite loopback proxy in development, HTTPS reverse proxy required in production. Token held in tab memory, not persistent storage.
 - **Linux:** genuine Qt Quick 6.12.0 (PySide6), QNetworkAccessManager, native window and controls; token from process environment; no Electron/Tauri wrapper.
 - **Android:** Kotlin + Jetpack Compose host, actual Compose Multiplatform shared controls and GoreeCloud Material 3 Expressive theme from vendored, MIT-licensed `gc-ui` source. In-memory token. HTTPS normally; only Android debug emulator 10.0.2.2 permits local HTTP.
 - **Database:** `projects(id,name,created_at,updated_at)`, `tasks(id,title,description,project_id,due_date,priority,tags,recurrence,series_id,completed_at,created_at,updated_at,version)`. Optimistic `expected_version` checks return HTTP 409 on conflict.
 - **Recurrence:** completing a repeating task atomically saves completion and creates the next instance. Dates only; daily, weekly and monthly supported, no RRULE/due time or timezone.
-- **Recovery:** JSON snapshot export is provided. For consistent SQLite+WAL backups, use SQLite's online backup API or pause writers; a raw copy of the active db file alone is insufficient.
+- **Recovery:** JSON export and an owner-controlled, online SQLite backup/verify CLI are provided. Live-file copies without WAL and production restore without validation are unsafe. See BACKUP_RECOVERY.md.
 
-**Current maturity:** clients require connectivity to the authoritative operator-controlled server and explicit refresh. Offline mutations/caching, sync cursor and tombstone log, local notifications, subtask hierarchy, identity/user ACLs, installation lifecycle and production deployments are NOT implemented. SQLite task list is capped at 1000 records; pagination remains backlog.
+**Current maturity:** clients still require connectivity and explicit refresh. The API now provides snapshot+cursor changes, deletion tombstones, idempotent retries, version-safe writes and paginated task lists (up to 1000 per page). Device offline queues, reminders, subtasks, multiuser ACLs, installation lifecycle and production deployments remain unimplemented. See SYNC_PROTOCOL.md.
 
 ## Mandatory ecosystem boundaries
 

@@ -4,13 +4,13 @@ Research snapshot: 2026-11-20. Todoist and TickTick are proprietary, and no prop
 
 | Capability | Benchmark | Current verified source status | Priority |
 | --- | --- | --- | --- |
-| Task/project CRUD | Both products | API + React; native read/create/complete | Present |
-| Due dates, priority, notes/labels | Both | API/web; native subset | P1 parity |
+| Task/project CRUD | Both products | API, React and native Qt Quick/Compose CRUD source with project selection | Present development source |
+| Due dates, priority, notes/labels | Both | API/web and native task editors with priority/tags/notes | P1 UX and device acceptance |
 | Recurring tasks | Both | Simple daily/weekly/monthly | P1 RRULE/timezones |
-| Today, Upcoming, search | Both | Web lists/search; API filters | P1 richer filters |
-| Visual calendar, boards | Both | Not implemented | P1 |
-| Native Linux and Android | Platform-specific | Qt Quick/Compose source | P1 runtime acceptance |
-| Offline editing and cloud sync | Both | Not implemented; only conflict-safe server writes | P1 |
+| Today, Upcoming, search | Both | Web, Android and Linux view filters; API bounded search | P1 saved filters |
+| Visual calendar, boards | Both | Basic React month calendar implemented; boards/drag-drop pending | P1 |
+| Native Linux and Android | Platform-specific | Expanded Qt Quick/Compose CRUD and filters; device/runtime acceptance pending | P1 |
+| Offline editing and cloud sync | Both | Server cursor feed, redacted tombstones, retry receipts; device offline editing/sync remains unimplemented | P1 |
 | Notifications/reminders | Both | Not implemented | P1 |
 | Subtasks/sections/checklists | Both | Not implemented | P2 |
 | Habits | TickTick | Not implemented | P2 |

@@ -10,6 +10,7 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
+from .changefeed import record_change, replay_receipt, save_receipt, scrub_task_history
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
@@ -104,7 +105,7 @@ class VersionCheck(BaseModel):
 
 
 class Store:
-    """A version-1 schema, transactional mutations and explicit revisions."""
+    """Versioned SQLite storage with serialized mutations and auditable change feed."""
 
     def __init__(self, path: str):
         self.path = str(Path(path).expanduser())
@@ -112,7 +113,7 @@ class Store:
         with self.open() as db:
             db.execute("PRAGMA journal_mode=WAL")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1, 2):
                 raise RuntimeError("Unsupported database version; do not downgrade the server")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS projects (
@@ -129,7 +130,25 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date, completed_at);
                 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
-                PRAGMA user_version=1;
+            """)
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS change_events (
+                  cursor INTEGER PRIMARY KEY AUTOINCREMENT,
+                  entity TEXT NOT NULL CHECK(entity IN ('task','project')),
+                  entity_id TEXT NOT NULL,
+                  operation TEXT NOT NULL CHECK(operation IN ('upsert','delete')),
+                  payload TEXT,
+                  created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_change_events_cursor ON change_events(cursor);
+                CREATE TABLE IF NOT EXISTS request_receipts (
+                  idempotency_key TEXT PRIMARY KEY,
+                  scope TEXT NOT NULL,
+                  fingerprint TEXT NOT NULL,
+                  response_json TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                );
+                PRAGMA user_version=2;
             """)
 
     @contextmanager
@@ -146,6 +165,14 @@ class Store:
             raise
         finally:
             db.close()
+
+    @contextmanager
+    def transaction(self):
+        # Obtain the writer reservation before reading the expected revision.
+        # Otherwise two clients can both pass the stale-version check.
+        with self.open() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            yield connection
 
 
 def task_dict(row: sqlite3.Row) -> dict:
@@ -179,12 +206,22 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
             return [dict(row) for row in conn.execute("SELECT * FROM projects ORDER BY name COLLATE NOCASE")]
 
     @router.post("/projects", status_code=201)
-    def add_project(data: ProjectCreate):
-        now = utc_now()
-        result = {"id": new_id(), "name": data.name, "created_at": now, "updated_at": now}
-        with db.open() as conn:
+    def add_project(
+        data: ProjectCreate,
+        idempotency_key: str | None = Header(default=None, min_length=8, max_length=128,
+                                             pattern=r"^[A-Za-z0-9._~-]+$")
+    ):
+        scope, payload = "POST /projects", data.model_dump(mode="json")
+        with db.transaction() as conn:
+            previous = replay_receipt(conn, idempotency_key, scope, payload)
+            if previous is not None:
+                return previous
+            now = utc_now()
+            result = {"id": new_id(), "name": data.name, "created_at": now, "updated_at": now}
             conn.execute("INSERT INTO projects VALUES (:id,:name,:created_at,:updated_at)", result)
-        return result
+            record_change(conn, "project", result["id"], "upsert", result, now)
+            save_receipt(conn, idempotency_key, scope, payload, result, now)
+            return result
 
     def ensure_project(conn, project_id):
         if project_id and not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
@@ -196,6 +233,8 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
         project_id: str | None = None,
         due_before: date | None = None,
         search: str = Query(default="", max_length=120),
+        limit: int = Query(default=1000, ge=1, le=1000),
+        offset: int = Query(default=0, ge=0, le=1_000_000),
     ):
         where, args = [], []
         if status == "active":
@@ -212,16 +251,24 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
             where.append("(instr(lower(title),lower(?))>0 OR instr(lower(description),lower(?))>0)")
             args.extend([search.strip(), search.strip()])
         sql = "SELECT * FROM tasks" + (" WHERE " + " AND ".join(where) if where else "")
-        sql += " ORDER BY (due_date IS NULL), due_date, priority, created_at DESC LIMIT 1000"
+        sql += " ORDER BY (due_date IS NULL), due_date, priority, created_at DESC, id LIMIT ? OFFSET ?"
         with db.open() as conn:
-            return [task_dict(r) for r in conn.execute(sql, args)]
+            return [task_dict(r) for r in conn.execute(sql, [*args, limit, offset])]
 
     @router.post("/tasks", status_code=201)
-    def add_task(data: TaskCreate):
-        now = utc_now()
-        result = dict(id=new_id(), **data.model_dump(mode="json"),
-                      series_id=None, completed_at=None, created_at=now, updated_at=now, version=1)
-        with db.open() as conn:
+    def add_task(
+        data: TaskCreate,
+        idempotency_key: str | None = Header(default=None, min_length=8, max_length=128,
+                                             pattern=r"^[A-Za-z0-9._~-]+$")
+    ):
+        scope, payload = "POST /tasks", data.model_dump(mode="json")
+        with db.transaction() as conn:
+            previous = replay_receipt(conn, idempotency_key, scope, payload)
+            if previous is not None:
+                return previous
+            now = utc_now()
+            result = dict(id=new_id(), **payload, series_id=None, completed_at=None,
+                          created_at=now, updated_at=now, version=1)
             ensure_project(conn, result["project_id"])
             conn.execute("""
                 INSERT INTO tasks
@@ -230,7 +277,9 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                 VALUES (:id,:title,:description,:project_id,:due_date,:priority,:tags,:recurrence,
                         :series_id,:completed_at,:created_at,:updated_at,:version)
             """, {**result, "tags": json.dumps(result["tags"])})
-        return result
+            record_change(conn, "task", result["id"], "upsert", result, now)
+            save_receipt(conn, idempotency_key, scope, payload, result, now)
+            return result
 
     def get_existing(conn, task_id: str):
         row = conn.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
@@ -249,7 +298,7 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
 
     @router.patch("/tasks/{task_id}")
     def edit_task(task_id: str, patch: TaskPatch):
-        with db.open() as conn:
+        with db.transaction() as conn:
             previous = get_existing(conn, task_id)
             check_revision(previous, patch.expected_version)
             if previous["completed_at"]:
@@ -265,11 +314,21 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                 updated_at=:now,version=:version WHERE id=:id
             """, {**data, "id": task_id, "tags": json.dumps(data["tags"]),
                   "now": now, "version": next_version})
-            return get_existing(conn, task_id)
+            changed = get_existing(conn, task_id)
+            record_change(conn, "task", task_id, "upsert", changed, now)
+            return changed
 
     @router.post("/tasks/{task_id}/complete")
-    def complete_task(task_id: str, check: VersionCheck):
-        with db.open() as conn:
+    def complete_task(
+        task_id: str, check: VersionCheck,
+        idempotency_key: str | None = Header(default=None, min_length=8, max_length=128,
+                                             pattern=r"^[A-Za-z0-9._~-]+$")
+    ):
+        scope, payload = "POST /tasks/" + task_id + "/complete", check.model_dump(mode="json")
+        with db.transaction() as conn:
+            replay = replay_receipt(conn, idempotency_key, scope, payload)
+            if replay is not None:
+                return replay
             previous = get_existing(conn, task_id)
             check_revision(previous, check.expected_version)
             if previous["completed_at"]:
@@ -295,25 +354,71 @@ def create_app(db_path: str | None = None, api_token: str | None = None) -> Fast
                     :updated_at,:version)
                 """, {**new_row, "tags": json.dumps(new_row["tags"])})
                 next_task = new_row
-            return {"completed": get_existing(conn, task_id), "next_task": next_task}
+                record_change(conn, "task", new_row["id"], "upsert", next_task, now)
+            completed = get_existing(conn, task_id)
+            record_change(conn, "task", task_id, "upsert", completed, now)
+            response = {"completed": completed, "next_task": next_task}
+            save_receipt(conn, idempotency_key, scope, payload, response, now)
+            return response
 
     @router.post("/tasks/{task_id}/reopen")
     def reopen_task(task_id: str, check: VersionCheck):
-        with db.open() as conn:
+        with db.transaction() as conn:
             previous = get_existing(conn, task_id)
             check_revision(previous, check.expected_version)
             if not previous["completed_at"]:
                 raise HTTPException(status_code=409, detail="Task is already active")
             conn.execute("UPDATE tasks SET completed_at=NULL,updated_at=?,version=version+1 WHERE id=?",
                          (utc_now(), task_id))
-            return get_existing(conn, task_id)
+            reopened = get_existing(conn, task_id)
+            record_change(conn, "task", task_id, "upsert", reopened, reopened["updated_at"])
+            return reopened
 
     @router.delete("/tasks/{task_id}", status_code=204)
     def delete_task(task_id: str, expected_version: int = Query(ge=1)):
-        with db.open() as conn:
+        with db.transaction() as conn:
             previous = get_existing(conn, task_id)
             check_revision(previous, expected_version)
             conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+            # Privacy removal must purge old sync payloads and cached retry responses,
+            # while leaving tombstone cursor continuity to erase client copies.
+            scrub_task_history(conn, task_id)
+            record_change(conn, "task", task_id, "delete", None, utc_now())
+
+    @router.get("/sync/bootstrap")
+    def sync_bootstrap():
+        """Consistent initial snapshot and cursor; clients must use changes after it."""
+        with db.open() as conn:
+            conn.execute("BEGIN")
+            cursor = conn.execute("SELECT COALESCE(MAX(cursor),0) FROM change_events").fetchone()[0]
+            tasks = conn.execute("SELECT * FROM tasks ORDER BY id LIMIT 5001").fetchall()
+            projects = conn.execute("SELECT * FROM projects ORDER BY id LIMIT 5001").fetchall()
+            if len(tasks) > 5000 or len(projects) > 5000:
+                raise HTTPException(status_code=413, detail="Snapshot exceeds 5000 records; export in smaller batches")
+            return {"format": "goreecloud-tasks-sync-1", "cursor": cursor,
+                    "tasks": [task_dict(row) for row in tasks],
+                    "projects": [dict(row) for row in projects]}
+
+    @router.get("/sync/changes")
+    def sync_changes(after: int = Query(default=0, ge=0),
+                     limit: int = Query(default=100, ge=1, le=200)):
+        """Monotonic append-only feed. Tombstones prevent deleted tasks reappearing."""
+        with db.open() as conn:
+            rows = conn.execute("""
+                SELECT * FROM change_events WHERE cursor>?
+                ORDER BY cursor LIMIT ?
+            """, (after, limit + 1)).fetchall()
+            page = rows[:limit]
+            next_cursor = page[-1]["cursor"] if page else after
+            return {"format": "goreecloud-tasks-sync-1", "after": after,
+                    "next_cursor": next_cursor, "has_more": len(rows) > limit,
+                    "changes": [
+                        {"cursor": row["cursor"], "entity": row["entity"],
+                         "entity_id": row["entity_id"], "operation": row["operation"],
+                         "payload": json.loads(row["payload"]) if row["payload"] else None,
+                         "created_at": row["created_at"]}
+                        for row in page
+                    ]}
 
     @router.get("/export")
     def export_data():
