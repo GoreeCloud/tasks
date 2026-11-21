@@ -193,6 +193,81 @@ private fun EditTaskDialog(
     }
 }
 
+@Composable
+private fun HabitsDialog(
+    habits: List<HabitItem>,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onCreate: (String, String) -> Unit,
+    onCheckin: (HabitItem) -> Unit,
+    onDelete: (HabitItem) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Daily habits") },
+        text = {
+            Column(
+                Modifier.heightIn(max = 470.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Check in once per local calendar day. Data stays on your self-hosted server.",
+                    style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = name, onValueChange = { name = it },
+                    label = { Text("New habit") }, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true)
+                OutlinedTextField(value = description, onValueChange = { description = it },
+                    label = { Text("Notes (optional)") }, modifier = Modifier.fillMaxWidth())
+                TextButton(
+                    enabled = !busy && name.isNotBlank(),
+                    onClick = {
+                        onCreate(name.trim(), description)
+                        name = ""; description = ""
+                    }
+                ) { Text("Create habit") }
+                habits.forEach { habit ->
+                    GoreeCloudPanel(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Checkbox(checked = habit.checkedInToday, enabled = !busy,
+                                    onCheckedChange = { onCheckin(habit) })
+                                Column(Modifier.weight(1f)) {
+                                    Text(habit.name, style = MaterialTheme.typography.titleMedium)
+                                    if (habit.description.isNotBlank())
+                                        Text(habit.description, style = MaterialTheme.typography.bodySmall)
+                                    Text(habit.currentStreak.toString() + " day streak · " +
+                                        habit.totalCheckins + " check-ins",
+                                        style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                            var showDelete by remember(habit.id) { mutableStateOf(false) }
+                            if (showDelete) {
+                                Text("Erase this habit and all check-ins?",
+                                    color = MaterialTheme.colorScheme.error)
+                                Row {
+                                    TextButton(onClick = { showDelete = false }) { Text("Cancel") }
+                                    TextButton(enabled = !busy, onClick = {
+                                        showDelete = false; onDelete(habit)
+                                    }) { Text("Delete permanently") }
+                                }
+                            } else {
+                                TextButton(enabled = !busy, onClick = { showDelete = true }) {
+                                    Text("Delete habit")
+                                }
+                            }
+                        }
+                    }
+                }
+                if (habits.isEmpty()) Text("No habits created yet.")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TasksScreen() {
@@ -201,6 +276,8 @@ private fun TasksScreen() {
     var api by remember { mutableStateOf<TaskApi?>(null) }
     var tasks by remember { mutableStateOf<List<TaskItem>>(emptyList()) }
     var projects by remember { mutableStateOf<List<ProjectItem>>(emptyList()) }
+    var habits by remember { mutableStateOf<List<HabitItem>>(emptyList()) }
+    var showHabits by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(TaskDraft()) }
     var projectName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
@@ -216,6 +293,9 @@ private fun TasksScreen() {
         val folders = client.listProjects()
         tasks = current
         projects = folders
+    }
+    suspend fun reloadHabits(client: TaskApi) {
+        habits = client.listHabits(LocalDate.now().toString())
     }
     fun execute(operation: suspend () -> Unit) {
         scope.launch {
@@ -285,6 +365,14 @@ private fun TasksScreen() {
                 }
                 if (error.isNotBlank()) item {
                     Text(error, color = MaterialTheme.colorScheme.error)
+                }
+                item {
+                    TextButton(enabled = !loading, onClick = {
+                        execute {
+                            reloadHabits(requireNotNull(api))
+                            showHabits = true
+                        }
+                    }) { Text("Open daily habits") }
                 }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -399,10 +487,37 @@ private fun TasksScreen() {
                     TextButton(onClick = {
                         api = null; tasks = emptyList(); projects = emptyList()
                         selectedTask = null; query = ""; projectFilter = null
+                        showHabits = false; habits = emptyList()
                     }, enabled = !loading) { Text("Disconnect") }
                 }
             }
         }
+    }
+    if (showHabits && api != null) {
+        HabitsDialog(habits = habits, busy = loading, onDismiss = { showHabits = false },
+            onCreate = { name, notes ->
+                execute {
+                    val client = requireNotNull(api)
+                    client.createHabit(name, notes)
+                    reloadHabits(client)
+                }
+            },
+            onCheckin = { habit ->
+                execute {
+                    val client = requireNotNull(api)
+                    val day = LocalDate.now().toString()
+                    if (habit.checkedInToday) client.undoCheckIn(habit, day)
+                    else client.checkIn(habit, day)
+                    reloadHabits(client)
+                }
+            },
+            onDelete = { habit ->
+                execute {
+                    val client = requireNotNull(api)
+                    client.deleteHabit(habit)
+                    reloadHabits(client)
+                }
+            })
     }
     val edit = selectedTask
     if (edit != null && api != null) {

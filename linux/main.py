@@ -22,6 +22,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 class TasksBackend(QObject):
     tasksChanged = Signal()
     projectsChanged = Signal()
+    habitsChanged = Signal()
     statusChanged = Signal()
     errorChanged = Signal()
 
@@ -30,6 +31,7 @@ class TasksBackend(QObject):
         self._all_tasks: list[dict] = []
         self._tasks: list[dict] = []
         self._projects: list[dict] = []
+        self._habits: list[dict] = []
         self._status = "Ready"
         self._error = ""
         self._token = token
@@ -50,6 +52,10 @@ class TasksBackend(QObject):
     @Property("QVariantList", notify=projectsChanged)
     def projects(self):
         return self._projects
+
+    @Property("QVariantList", notify=habitsChanged)
+    def habits(self):
+        return self._habits
 
     @Property(str, notify=statusChanged)
     def status(self):
@@ -227,6 +233,44 @@ class TasksBackend(QObject):
         data["expected_version"] = version
         self._request("PATCH", "/tasks/" + quote(task_id, safe=""),
                       data, lambda _: self.refresh())
+
+    def _update_habits(self, data):
+        if not isinstance(data, list):
+            self._set_error("Invalid habit list response")
+            return
+        self._habits = data
+        self.habitsChanged.emit()
+
+    @Slot()
+    def refreshHabits(self):
+        self._request("GET", "/habits?as_of=" + date.today().isoformat(),
+                      callback=self._update_habits)
+
+    @Slot(str, str)
+    def addHabit(self, name: str, description: str):
+        name = name.strip()
+        if not 1 <= len(name) <= 120 or len(description) > 16000:
+            self._set_error("Habit name must be 1–120 characters; notes max 16000")
+            return
+        self._request("POST", "/habits",
+                      {"name": name, "description": description},
+                      lambda _: self.refreshHabits())
+
+    @Slot(str, int, bool)
+    def toggleHabit(self, habit_id: str, version: int, checked: bool):
+        today = date.today().isoformat()
+        path = "/habits/" + quote(habit_id, safe="") + "/checkins"
+        if checked:
+            self._request("DELETE", path + "/" + today + "?expected_version=" + str(version),
+                          callback=lambda _: self.refreshHabits())
+        else:
+            self._request("POST", path, {"day": today, "expected_version": version},
+                          lambda _: self.refreshHabits())
+
+    @Slot(str, int)
+    def deleteHabit(self, habit_id: str, version: int):
+        self._request("DELETE", "/habits/" + quote(habit_id, safe="") +
+                      "?expected_version=" + str(version), callback=lambda _: self.refreshHabits())
 
     @Slot(str)
     def addProject(self, name: str):

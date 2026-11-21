@@ -12,6 +12,12 @@ import java.util.UUID
 
 data class ProjectItem(val id: String, val name: String)
 
+data class HabitItem(
+    val id:String, val name:String, val description:String,
+    val version:Int, val checkedInToday:Boolean, val currentStreak:Int,
+    val totalCheckins:Int
+)
+
 data class TaskItem(
     val id: String,
     val title: String,
@@ -161,6 +167,41 @@ class TaskApi(private val base: String, private val token: String) {
 
     suspend fun deleteTask(task: TaskItem) {
         request("/tasks/" + encoded(task.id) + "?expected_version=" + task.version, "DELETE")
+    }
+
+    private fun parseHabit(data: JSONObject): HabitItem = HabitItem(
+        id = data.getString("id"),
+        name = data.getString("name"),
+        description = data.optString("description", ""),
+        version = data.getInt("version"),
+        checkedInToday = data.getBoolean("checked_in_today"),
+        currentStreak = data.getInt("current_streak"),
+        totalCheckins = data.getInt("total_checkins")
+    )
+
+    suspend fun listHabits(localDay:String):List<HabitItem> {
+        val result = JSONArray(request("/habits?as_of="+encoded(localDay)))
+        return (0 until result.length()).map { parseHabit(result.getJSONObject(it)) }
+    }
+
+    suspend fun createHabit(name:String, description:String):HabitItem {
+        require(name.isNotBlank() && name.length <= 120) { "Habit name must be 1–120 characters" }
+        return parseHabit(JSONObject(request("/habits","POST",
+            JSONObject().put("name",name.trim()).put("description",description))))
+    }
+
+    suspend fun checkIn(habit:HabitItem, localDay:String) {
+        request("/habits/"+encoded(habit.id)+"/checkins","POST",
+            JSONObject().put("day",localDay).put("expected_version",habit.version))
+    }
+
+    suspend fun undoCheckIn(habit:HabitItem, localDay:String) {
+        request("/habits/"+encoded(habit.id)+"/checkins/"+encoded(localDay)+
+            "?expected_version="+habit.version,"DELETE")
+    }
+
+    suspend fun deleteHabit(habit:HabitItem) {
+        request("/habits/"+encoded(habit.id)+"?expected_version="+habit.version,"DELETE")
     }
 
     private fun encoded(id: String): String = URLEncoder.encode(id, "UTF-8")
